@@ -1,0 +1,76 @@
+:root {
+  --ink: #182334;
+  --ink-soft: #526174;
+  --muted: #8190a3;
+  --line: #dce6f0;
+  --line-strong: #c8d8e8;
+  --paper: #ffffff;
+  --paper-soft: #f6faff;
+  --mist: #edf6ff;
+  --primary: #3f8cff;
+  --primary-dark: #245fd4;
+  --primary-soft: #d9ebff;
+  --accent: #f3a95f;
+  --amber: #f5c86a;
+  --blue: #5bb6f1;
+  --canvas: #fbfdff;
+  --canvas-line: #dbe8f5;
+  --canvas-text: #20324a;
+  --shadow-sm: 0 1px 2px rgba(24, 35, 52, 0.07);
+  --shadow-md: 0 18px 42px rgba(62, 106, 160, 0.14);
+  --radius-xs: 5px;
+  --radius-sm: 7px;
+  --radius-md: 8px;
+  --font-body: "Aptos", "Microsoft YaHei UI", "Segoe UI Variable", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+
+  color: var(--ink);
+  background: #eef7ff;
+  font-family: var(--font-body);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 980px;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(62, 140, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(rgba(62, 140, 255, 0.055) 1px, transparent 1px),
+    linear-gradient(180deg, #f7fbff, #eef7ff),
+    #eef7ff;
+  background-size: 34px 34px, 34px 34px, auto, auto;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+input,
+textarea {
+  outline: none;
+}
+
+::selection {
+  color: #fff;
+  background: var(--primary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,4 +1,0 @@
-pyyaml>=6.0
-pyinstaller>=5.0
-pillow>=9.0
-tkcalendar>=1.6.1

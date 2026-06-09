@@ -1,0 +1,116 @@
+use crate::models::AiConfig;
+use reqwest::blocking::Client;
+use serde_json::{json, Value};
+use std::env;
+use std::time::Duration;
+
+pub fn enhance_monthly_report(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+    config: &AiConfig,
+) -> Result<String, String> {
+    if !config.enabled {
+        return Ok(base_report.to_string());
+    }
+
+    let api_key = read_api_key(&config.api_key_env)?;
+    let payload = build_payload(
+        base_report,
+        start_date,
+        end_date,
+        author,
+        refinement_instruction,
+        config,
+    );
+    let response = post_chat_completion(config, &api_key, payload)?;
+    parse_response_content(response)
+}
+
+fn read_api_key(api_key_env: &str) -> Result<String, String> {
+    env::var(api_key_env).map_err(|_| format!("环境变量 {} 未设置", api_key_env))
+}
+
+fn build_payload(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+    config: &AiConfig,
+) -> Value {
+    json!({
+        "model": config.model,
+        "temperature": config.temperature,
+        "messages": [
+            { "role": "system", "content": system_prompt() },
+            {
+                "role": "user",
+                "content": user_prompt(base_report, start_date, end_date, author, refinement_instruction)
+            }
+        ]
+    })
+}
+
+fn post_chat_completion(config: &AiConfig, api_key: &str, payload: Value) -> Result<Value, String> {
+    if config.model.trim().is_empty() {
+        return Err("未配置 AI 模型名".to_string());
+    }
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(config.timeout_seconds.max(1)))
+        .build()
+        .map_err(|err| err.to_string())?;
+    let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
+    let response = client
+        .post(url)
+        .bearer_auth(api_key)
+        .json(&payload)
+        .send()
+        .map_err(|err| err.to_string())?;
+
+    let status = response.status();
+    let value = response.json::<Value>().map_err(|err| err.to_string())?;
+    if status.is_success() {
+        Ok(value)
+    } else {
+        Err(format!("AI 服务返回错误 {}：{}", status, value))
+    }
+}
+
+fn parse_response_content(response: Value) -> Result<String, String> {
+    response["choices"][0]["message"]["content"]
+        .as_str()
+        .map(str::trim)
+        .filter(|content| !content.is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| "AI 服务返回空内容".to_string())
+}
+
+fn system_prompt() -> &'static str {
+    "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。"
+}
+
+fn user_prompt(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+) -> String {
+    let instruction = if refinement_instruction.trim().is_empty() {
+        "无"
+    } else {
+        refinement_instruction.trim()
+    };
+    format!(
+        "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的月报草稿润色为适合绩效考核提交的正式月报。要求语气客观、具体、不过度夸大；保留项目分组；实际完成情况必须贴合提交记录。\n\n{}",
+        start_date,
+        end_date,
+        if author.is_empty() { "未指定" } else { author },
+        instruction,
+        base_report
+    )
+}

@@ -1,0 +1,58 @@
+.report-switch {
+  display: inline-flex;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--canvas-line);
+  border-radius: var(--radius-md);
+  background: rgba(237, 246, 255, 0.9);
+}
+
+.report-switch button {
+  display: grid;
+  gap: 1px;
+  min-width: 82px;
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 16px;
+}
+
+.report-switch button span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.report-switch button.active {
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 6px 18px rgba(63, 140, 255, 0.16);
+}
+
+.report-switch button.active span {
+  color: var(--primary);
+}
+
+.preview {
+  min-height: 0;
+  margin: 12px 0 0;
+  padding: 16px;
+  border: 1px solid var(--canvas-line);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(90deg, rgba(63, 140, 255, 0.035) 1px, transparent 1px),
+    var(--canvas);
+  background-size: 22px 22px;
+  color: var(--canvas-text);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.62;
+}
