@@ -28,6 +28,7 @@ export type GitIdentity = {
 export type AppSettings = {
   rootDir: string;
   outputDir: string;
+  outputEnabled: boolean;
   author: string;
   startDate: string;
   endDate: string;
@@ -37,6 +38,7 @@ export type AppSettings = {
   showProjectAndBranch: boolean;
   projectNamesText: string;
   aiEnabled: boolean;
+  aiProvider: "openai-compatible" | "anthropic-native";
   aiBaseUrl: string;
   aiModel: string;
   aiKeyEnv: string;
@@ -48,6 +50,7 @@ export const STORAGE_KEY = "git-report-studio-settings";
 export const defaultSettings: AppSettings = {
   rootDir: "",
   outputDir: "",
+  outputEnabled: false,
   author: "",
   startDate: getToday(),
   endDate: getToday(),
@@ -57,6 +60,7 @@ export const defaultSettings: AppSettings = {
   showProjectAndBranch: true,
   projectNamesText: "",
   aiEnabled: false,
+  aiProvider: "openai-compatible",
   aiBaseUrl: "https://api.openai.com/v1",
   aiModel: "",
   aiKeyEnv: "OPENAI_API_KEY",
@@ -95,6 +99,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
   return {
     rootDir: settings.rootDir,
     outputDir: settings.outputDir,
+    outputEnabled: settings.outputEnabled,
     author: settings.author,
     pullLatestCode: settings.pullLatestCode,
     extractAllBranches: settings.extractAllBranches,
@@ -102,6 +107,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
     refinementInstruction: settings.refinementInstruction,
     ai: {
       enabled: settings.aiEnabled,
+      provider: settings.aiProvider,
       baseUrl: settings.aiBaseUrl,
       model: settings.aiModel,
       apiKeyEnv: settings.aiKeyEnv || "OPENAI_API_KEY",
@@ -113,7 +119,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
 
 export function validateRequiredSettings(settings: AppSettings) {
   validateExtractSettings(settings);
-  if (!settings.outputDir) throw new Error("请在设置中选择输出目录");
+  validateOutputSettings(settings);
 }
 
 export function validateExtractSettings(settings: AppSettings) {
@@ -123,6 +129,10 @@ export function validateExtractSettings(settings: AppSettings) {
 
 export function validateWorkspaceSettings(settings: AppSettings) {
   if (!settings.rootDir) throw new Error("请选择仓库根目录");
+}
+
+export function validateOutputSettings(settings: AppSettings) {
+  if (settings.outputEnabled && !settings.outputDir) throw new Error("请在设置中选择输出目录");
 }
 
 function getToday() {

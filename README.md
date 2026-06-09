@@ -9,8 +9,8 @@
 - 支持项目名映射，例如 `api-service(*) -> 后端服务-`
 - 一键生成上个月绩效月报
 - 月报按项目拆分，并包含“项目进度 / 实际完成情况 / 当月总结”
-- 可选 OpenAI-compatible AI 润色，API Key 只从环境变量读取
-- 生成结果支持预览、复制和保存到本地
+- 可选 OpenAI-compatible 或 Anthropic Native AI 润色，API Key 只从环境变量读取
+- 生成结果支持预览、复制和按需保存到本地
 
 ## 技术栈
 
@@ -65,13 +65,15 @@ src-tauri/target/release/bundle/
 
 ```powershell
 $env:OPENAI_API_KEY="sk-..."
+$env:ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 然后在界面中配置：
 
-- 接口：`https://api.openai.com/v1`
-- 模型：你的 OpenAI-compatible 模型名
-- Key 环境变量：`OPENAI_API_KEY`
+- 协议：`OpenAI Compatible` 或 `Anthropic Native`
+- Base URL：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
+- 模型：对应协议支持的模型名
+- Key 环境变量：例如 `OPENAI_API_KEY` 或 `ANTHROPIC_API_KEY`
 
 如果 AI 调用失败，应用会自动回退到本地月报模板。
 

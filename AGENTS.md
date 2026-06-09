@@ -34,11 +34,11 @@ cargo test
 
 - `src/`: React frontend
 - `src/App.tsx`: main workbench UI
-- `src/App.css`: application styling
+- `src/styles/`: application styling
 - `src-tauri/src/lib.rs`: Tauri command registration and orchestration
 - `src-tauri/src/git_ops.rs`: local Git scanning and commit extraction
 - `src-tauri/src/report.rs`: summary and monthly report generation
-- `src-tauri/src/ai.rs`: optional OpenAI-compatible report polishing
+- `src-tauri/src/ai.rs`: optional OpenAI-compatible and Anthropic Native report polishing
 - `src-tauri/src/models.rs`: shared Rust command models
 
 ## Notes

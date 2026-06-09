@@ -46,8 +46,7 @@ fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyRepor
     );
 
     report_text = apply_ai_if_enabled(report_text, &options, &dates, &mut warnings);
-    let file_name = format!("monthly_report_{}.md", dates.2);
-    let output_file = report::save_report_file(&options.output_dir, &file_name, &report_text)?;
+    let output_file = save_monthly_if_enabled(&options, &dates.2, &report_text)?;
     let project_count = count_projects(&commits, &options.project_names);
     Ok(report::build_monthly_result(
         report_text,
@@ -57,6 +56,18 @@ fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyRepor
         project_count,
         commits.len(),
     ))
+}
+
+fn save_monthly_if_enabled(
+    options: &MonthlyReportOptions,
+    month_label: &str,
+    report_text: &str,
+) -> Result<String, String> {
+    if !options.output_enabled {
+        return Ok(String::new());
+    }
+    let file_name = format!("monthly_report_{}.md", month_label);
+    report::save_report_file(&options.output_dir, &file_name, report_text)
 }
 
 #[tauri::command]

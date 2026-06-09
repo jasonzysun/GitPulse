@@ -27,6 +27,7 @@ type Props = {
   onGenerateMonthly: () => void;
   onCopy: () => void;
   onSaveSummary: () => void;
+  canSaveSummary: boolean;
   onPreviewChange: (preview: "monthly" | "summary") => void;
 };
 
@@ -57,7 +58,7 @@ export function Workbench(props: Props) {
         <CommandButton icon={<Search size={17} />} label="扫描仓库" onClick={props.onScan} disabled={props.isBusy} tone="quiet" />
         <CommandButton icon={<GitBranch size={17} />} label="提取日志" onClick={props.onExtract} disabled={props.isBusy} tone="quiet" />
         <CommandButton icon={<Clipboard size={17} />} label="复制结果" onClick={props.onCopy} disabled={!props.previewText} tone="plain" />
-        <CommandButton icon={<RefreshCw size={17} />} label="保存摘要" onClick={props.onSaveSummary} disabled={!props.summaryText || props.isBusy} tone="plain" />
+        <CommandButton icon={<RefreshCw size={17} />} label="保存摘要" onClick={props.onSaveSummary} disabled={!props.summaryText || !props.canSaveSummary || props.isBusy} tone="plain" />
       </div>
 
       <div className="studio-grid">
@@ -65,13 +66,13 @@ export function Workbench(props: Props) {
           <div className="canvas-topline">
             <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta="Markdown" />
             <div className="report-switch" aria-label="报告类型切换">
-              <button className={props.activePreview === "monthly" ? "active" : ""} onClick={() => props.onPreviewChange("monthly")}>
-                <span>Monthly</span>
-                月报
-              </button>
               <button className={props.activePreview === "summary" ? "active" : ""} onClick={() => props.onPreviewChange("summary")}>
                 <span>Daily</span>
                 日志
+              </button>
+              <button className={props.activePreview === "monthly" ? "active" : ""} onClick={() => props.onPreviewChange("monthly")}>
+                <span>Monthly</span>
+                月报
               </button>
             </div>
           </div>
@@ -88,7 +89,7 @@ export function Workbench(props: Props) {
                   <strong>{repo.name}</strong>
                   <p>{repo.path}</p>
                 </div>
-                <span>{repo.branch}</span>
+                <span title={repo.branch}>{repo.branch}</span>
               </article>
             ))}
           </div>

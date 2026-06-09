@@ -16,6 +16,7 @@ import {
   loadSettings,
   parseProjectNames,
   validateExtractSettings,
+  validateOutputSettings,
   validateRequiredSettings,
   validateWorkspaceSettings,
 } from "./model";
@@ -30,7 +31,7 @@ function App() {
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [summaryText, setSummaryText] = useState("");
   const [monthlyReport, setMonthlyReport] = useState("");
-  const [activePreview, setActivePreview] = useState<"monthly" | "summary">("monthly");
+  const [activePreview, setActivePreview] = useState<"monthly" | "summary">("summary");
   const [status, setStatus] = useState("就绪");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
@@ -99,7 +100,7 @@ function App() {
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
       setActivePreview("monthly");
-      setStatus(`${result.monthLabel} 月报已生成`);
+      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成` : `${result.monthLabel} 月报已生成，未写入文件`);
     });
   }
 
@@ -119,7 +120,7 @@ function App() {
       });
       setLastOutputFile(outputFile);
       setStatus("摘要已保存");
-    });
+    }, () => validateOutputSettings(settings));
   }
 
   async function runTask(label: string, task: () => Promise<void>, validate = () => validateRequiredSettings(settings)) {
@@ -164,6 +165,7 @@ function App() {
         onGenerateMonthly={generateMonthlyReport}
         onCopy={copyPreview}
         onSaveSummary={saveSummary}
+        canSaveSummary={settings.outputEnabled}
         onPreviewChange={setActivePreview}
       />
       <SettingsDialog

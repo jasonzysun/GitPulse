@@ -56,6 +56,7 @@ pub struct ExtractResult {
 #[serde(rename_all = "camelCase")]
 pub struct AiConfig {
     pub enabled: bool,
+    pub provider: String,
     pub base_url: String,
     pub model: String,
     pub api_key_env: String,
@@ -68,6 +69,7 @@ pub struct AiConfig {
 pub struct MonthlyReportOptions {
     pub root_dir: String,
     pub output_dir: String,
+    pub output_enabled: bool,
     pub author: String,
     pub pull_latest_code: bool,
     pub extract_all_branches: bool,

@@ -13,6 +13,7 @@
 }
 
 .field input,
+.field select,
 .mapping-input,
 .refinement-input {
   width: 100%;
@@ -28,7 +29,13 @@
   padding: 0 10px;
 }
 
+.field select {
+  height: 37px;
+  padding: 0 9px;
+}
+
 .field input:focus,
+.field select:focus,
 .mapping-input:focus,
 .refinement-input:focus {
   border-color: var(--primary);
@@ -264,7 +271,7 @@
 
 .repo-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) fit-content(116px);
   gap: 10px;
   padding: 10px 11px;
   border: 1px solid rgba(220, 230, 240, 0.9);
@@ -272,11 +279,17 @@
   background: rgba(251, 253, 255, 0.86);
 }
 
+.repo-row > div {
+  min-width: 0;
+}
+
 .repo-row strong {
   display: block;
   margin-bottom: 3px;
   color: var(--ink);
   font-size: 13px;
+  line-height: 17px;
+  overflow-wrap: anywhere;
 }
 
 .repo-row p {
@@ -284,11 +297,14 @@
   color: var(--muted);
   font-size: 11px;
   line-height: 16px;
-  word-break: break-all;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .repo-row span {
   align-self: start;
+  max-width: 116px;
   padding: 2px 7px;
   border-radius: 999px;
   color: #6c430c;
@@ -296,6 +312,9 @@
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-state {

@@ -25,7 +25,7 @@ cargo test
 - `src/`: React frontend
 - `src-tauri/src/git_ops.rs`: local Git repository discovery and commit extraction
 - `src-tauri/src/report.rs`: report rendering and file output
-- `src-tauri/src/ai.rs`: optional OpenAI-compatible polishing
+- `src-tauri/src/ai.rs`: optional OpenAI-compatible and Anthropic Native polishing
 - `src-tauri/src/lib.rs`: Tauri commands
 
 ## Important

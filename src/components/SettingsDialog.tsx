@@ -14,6 +14,17 @@ type Props = {
 export function SettingsDialog({ open, settings, updateSetting, chooseDirectory, onClose }: Props) {
   if (!open) return null;
 
+  function updateAiProvider(provider: AppSettings["aiProvider"]) {
+    updateSetting("aiProvider", provider);
+    if (provider === "anthropic-native") {
+      updateSetting("aiBaseUrl", "https://api.anthropic.com/v1");
+      updateSetting("aiKeyEnv", "ANTHROPIC_API_KEY");
+      return;
+    }
+    updateSetting("aiBaseUrl", "https://api.openai.com/v1");
+    updateSetting("aiKeyEnv", "OPENAI_API_KEY");
+  }
+
   return (
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="settings-dialog" role="dialog" aria-modal="true" aria-label="应用设置" onMouseDown={(event) => event.stopPropagation()}>
@@ -30,7 +41,8 @@ export function SettingsDialog({ open, settings, updateSetting, chooseDirectory,
         <div className="settings-sections">
           <section className="settings-section">
             <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
-            <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />
+            <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
+            {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />}
             <div className="settings-toggle-grid">
               <Toggle label="拉取最新代码" checked={settings.pullLatestCode} onChange={(value) => updateSetting("pullLatestCode", value)} />
               <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
@@ -42,7 +54,13 @@ export function SettingsDialog({ open, settings, updateSetting, chooseDirectory,
           <section className="settings-section">
             <SectionTitle icon={<Bot size={16} />} title="AI 润色" />
             <Toggle label="启用 AI 润色" checked={settings.aiEnabled} onChange={(value) => updateSetting("aiEnabled", value)} />
-            <Field label="接口">
+            <Field label="协议">
+              <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
+                <option value="openai-compatible">OpenAI Compatible</option>
+                <option value="anthropic-native">Anthropic Native</option>
+              </select>
+            </Field>
+            <Field label="Base URL">
               <input value={settings.aiBaseUrl} onChange={(event) => updateSetting("aiBaseUrl", event.target.value)} />
             </Field>
             <div className="date-pair">

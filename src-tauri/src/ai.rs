@@ -16,77 +16,118 @@ pub fn enhance_monthly_report(
         return Ok(base_report.to_string());
     }
 
+    validate_model(config)?;
     let api_key = read_api_key(&config.api_key_env)?;
-    let payload = build_payload(
+    let prompt = user_prompt(
         base_report,
         start_date,
         end_date,
         author,
         refinement_instruction,
-        config,
     );
-    let response = post_chat_completion(config, &api_key, payload)?;
-    parse_response_content(response)
+    match config.provider.as_str() {
+        "anthropic-native" => enhance_with_anthropic(config, &api_key, &prompt),
+        _ => enhance_with_openai_compatible(config, &api_key, &prompt),
+    }
+}
+
+fn validate_model(config: &AiConfig) -> Result<(), String> {
+    if config.model.trim().is_empty() {
+        return Err("未配置 AI 模型名".to_string());
+    }
+    Ok(())
 }
 
 fn read_api_key(api_key_env: &str) -> Result<String, String> {
     env::var(api_key_env).map_err(|_| format!("环境变量 {} 未设置", api_key_env))
 }
 
-fn build_payload(
-    base_report: &str,
-    start_date: &str,
-    end_date: &str,
-    author: &str,
-    refinement_instruction: &str,
+fn enhance_with_openai_compatible(
     config: &AiConfig,
-) -> Value {
-    json!({
+    api_key: &str,
+    prompt: &str,
+) -> Result<String, String> {
+    let payload = json!({
         "model": config.model,
         "temperature": config.temperature,
         "messages": [
             { "role": "system", "content": system_prompt() },
-            {
-                "role": "user",
-                "content": user_prompt(base_report, start_date, end_date, author, refinement_instruction)
-            }
+            { "role": "user", "content": prompt }
         ]
-    })
-}
-
-fn post_chat_completion(config: &AiConfig, api_key: &str, payload: Value) -> Result<Value, String> {
-    if config.model.trim().is_empty() {
-        return Err("未配置 AI 模型名".to_string());
-    }
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(config.timeout_seconds.max(1)))
-        .build()
-        .map_err(|err| err.to_string())?;
+    });
     let url = format!("{}/chat/completions", config.base_url.trim_end_matches('/'));
-    let response = client
+    let response = http_client(config)?
         .post(url)
         .bearer_auth(api_key)
         .json(&payload)
         .send()
         .map_err(|err| err.to_string())?;
+    parse_openai_response(parse_json_response(response)?)
+}
 
+fn enhance_with_anthropic(
+    config: &AiConfig,
+    api_key: &str,
+    prompt: &str,
+) -> Result<String, String> {
+    let payload = json!({
+        "model": config.model,
+        "max_tokens": 4096,
+        "temperature": config.temperature,
+        "system": system_prompt(),
+        "messages": [{ "role": "user", "content": prompt }]
+    });
+    let url = format!("{}/messages", config.base_url.trim_end_matches('/'));
+    let response = http_client(config)?
+        .post(url)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&payload)
+        .send()
+        .map_err(|err| err.to_string())?;
+    parse_anthropic_response(parse_json_response(response)?)
+}
+
+fn http_client(config: &AiConfig) -> Result<Client, String> {
+    Client::builder()
+        .timeout(Duration::from_secs(config.timeout_seconds.max(1)))
+        .build()
+        .map_err(|err| err.to_string())
+}
+
+fn parse_json_response(response: reqwest::blocking::Response) -> Result<Value, String> {
     let status = response.status();
     let value = response.json::<Value>().map_err(|err| err.to_string())?;
     if status.is_success() {
-        Ok(value)
-    } else {
-        Err(format!("AI 服务返回错误 {}：{}", status, value))
+        return Ok(value);
     }
+    Err(format!("AI 服务返回错误 {}：{}", status, value))
 }
 
-fn parse_response_content(response: Value) -> Result<String, String> {
+fn parse_openai_response(response: Value) -> Result<String, String> {
     response["choices"][0]["message"]["content"]
         .as_str()
         .map(str::trim)
         .filter(|content| !content.is_empty())
         .map(ToString::to_string)
         .ok_or_else(|| "AI 服务返回空内容".to_string())
+}
+
+fn parse_anthropic_response(response: Value) -> Result<String, String> {
+    let blocks = response["content"]
+        .as_array()
+        .ok_or_else(|| "AI 服务返回内容格式不正确".to_string())?;
+    let content = blocks
+        .iter()
+        .filter_map(|block| block["text"].as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string();
+    if content.is_empty() {
+        return Err("AI 服务返回空内容".to_string());
+    }
+    Ok(content)
 }
 
 fn system_prompt() -> &'static str {
@@ -113,4 +154,30 @@ fn user_prompt(
         instruction,
         base_report
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_openai_response_reads_message_content() {
+        let response = json!({
+            "choices": [{ "message": { "content": "  refined report  " } }]
+        });
+
+        assert_eq!(parse_openai_response(response).unwrap(), "refined report");
+    }
+
+    #[test]
+    fn parse_anthropic_response_joins_text_blocks() {
+        let response = json!({
+            "content": [
+                { "type": "text", "text": "first" },
+                { "type": "text", "text": "second" }
+            ]
+        });
+
+        assert_eq!(parse_anthropic_response(response).unwrap(), "first\nsecond");
+    }
 }

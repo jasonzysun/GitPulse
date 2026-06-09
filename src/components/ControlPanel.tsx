@@ -31,7 +31,7 @@ export function ControlPanel({ settings, updateSetting, chooseDirectory, onOpenS
 
       <section className="control-section">
         <SectionTitle icon={<CalendarDays size={16} />} title="日期范围" />
-        <div className="date-pair">
+        <div className="date-stack">
           <Field label="开始日期">
             <input type="date" value={settings.startDate} onChange={(event) => updateSetting("startDate", event.target.value)} />
           </Field>
@@ -44,7 +44,7 @@ export function ControlPanel({ settings, updateSetting, chooseDirectory, onOpenS
       <section className="settings-card">
         <div>
           <strong>高级配置</strong>
-          <p>{settings.outputDir ? "输出、AI、项目映射" : "输出目录未设置"}</p>
+          <p>{settings.outputEnabled ? "输出、AI、项目映射" : "预览模式，不写入文件"}</p>
         </div>
         <button type="button" onClick={onOpenSettings}>
           <Settings2 size={17} />
