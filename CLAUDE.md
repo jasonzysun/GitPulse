@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This repository contains Git Report Studio, a local-first Tauri desktop app built with React and Rust.
+This repository contains GitPulse, a local-first Tauri desktop app built with React and Rust.
 
 ## Commands
 

@@ -1,0 +1,129 @@
+:root[data-theme="dark"] .control-rail,
+:root[data-theme="dark"] .hero-band,
+:root[data-theme="dark"] .action-dock,
+:root[data-theme="dark"] .repo-drawer,
+:root[data-theme="dark"] .report-canvas,
+:root[data-theme="dark"] .event-log {
+  border-color: rgba(52, 74, 103, 0.92);
+  background: rgba(16, 24, 39, 0.9);
+}
+
+:root[data-theme="dark"] .control-section {
+  border-color: rgba(52, 74, 103, 0.82);
+  background: rgba(20, 31, 48, 0.72);
+}
+
+:root[data-theme="dark"] .brand-logo {
+  background-image: url("/brand-dark.png");
+}
+
+:root[data-theme="dark"] .command-button.primary {
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-theme="dark"] .run-status,
+:root[data-theme="dark"] .quick-stats span,
+:root[data-theme="dark"] .settings-trigger {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .dialog-backdrop {
+  background: rgba(3, 8, 15, 0.58);
+}
+
+:root[data-theme="dark"] .field input,
+:root[data-theme="dark"] .field select,
+:root[data-theme="dark"] .mapping-input,
+:root[data-theme="dark"] .refinement-input {
+  border-color: var(--line) !important;
+  color: var(--ink) !important;
+  background-color: rgba(10, 18, 31, 0.86) !important;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .field input:focus,
+:root[data-theme="dark"] .field select:focus,
+:root[data-theme="dark"] .mapping-input:focus,
+:root[data-theme="dark"] .refinement-input:focus {
+  background-color: rgba(12, 22, 36, 0.96);
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  color: var(--ink) !important;
+  background-color: rgba(10, 18, 31, 0.86) !important;
+}
+
+:root[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) opacity(0.72);
+}
+
+:root[data-theme="dark"] .path-input button,
+:root[data-theme="dark"] .command-button.quiet,
+:root[data-theme="dark"] .settings-card button {
+  border-color: rgba(109, 168, 255, 0.28);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .command-button.plain,
+:root[data-theme="dark"] .settings-card,
+:root[data-theme="dark"] .repo-row {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(16, 24, 39, 0.7);
+}
+
+:root[data-theme="dark"] .toggle span {
+  background: #25364d;
+}
+
+:root[data-theme="dark"] .repo-row span {
+  color: #f5c978;
+  background: rgba(244, 201, 120, 0.14);
+}
+
+:root[data-theme="dark"] .settings-dialog {
+  border-color: rgba(52, 74, 103, 0.96);
+  background: rgba(16, 24, 39, 0.98);
+}
+
+:root[data-theme="dark"] .dialog-header {
+  border-color: var(--line);
+  background: linear-gradient(180deg, #121d2e, #101827);
+}
+
+:root[data-theme="dark"] .icon-button,
+:root[data-theme="dark"] .settings-section,
+:root[data-theme="dark"] .mapping-row,
+:root[data-theme="dark"] .theme-mode-control button {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .theme-mode-control button.active,
+:root[data-theme="dark"] .mapping-add {
+  border-color: rgba(109, 168, 255, 0.3);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .settings-trigger {
+  color: var(--primary-dark) !important;
+  background: rgba(20, 31, 48, 0.88) !important;
+}
+
+:root[data-theme="dark"] .report-switch {
+  border-color: var(--canvas-line);
+  background: rgba(20, 31, 48, 0.9);
+}
+
+:root[data-theme="dark"] .report-switch button.active {
+  background: rgba(109, 168, 255, 0.14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+:root[data-theme="dark"] .preview {
+  background:
+    linear-gradient(90deg, rgba(109, 168, 255, 0.045) 1px, transparent 1px),
+    var(--canvas);
+}

@@ -77,6 +77,39 @@
   background: var(--paper-soft);
 }
 
+.theme-mode-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.theme-mode-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 820;
+  transition: transform 0.14s ease, color 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+}
+
+.theme-mode-control button:hover {
+  border-color: rgba(63, 140, 255, 0.28);
+  color: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.theme-mode-control button.active {
+  border-color: rgba(63, 140, 255, 0.38);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
+
 .settings-toggle-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -87,12 +120,57 @@
   grid-column: 1 / -1;
 }
 
-.mapping-input {
-  min-height: 132px;
+.mapping-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.mapping-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.78fr) 36px;
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid rgba(220, 230, 240, 0.9);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.mapping-row .field {
+  margin-bottom: 0;
+}
+
+.mapping-remove {
+  margin-bottom: 0;
+}
+
+.mapping-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: max-content;
+  min-height: 36px;
+  border: 1px solid rgba(63, 140, 255, 0.24);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  font-weight: 820;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.mapping-add:hover {
+  background: #cce4ff;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 980px) {
   .settings-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-row {
     grid-template-columns: 1fr;
   }
 }

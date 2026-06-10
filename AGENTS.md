@@ -4,7 +4,7 @@ This repository is now a Tauri desktop application built with React and Rust.
 
 ## Project Overview
 
-Git Report Studio is a local-first Git report generator. It scans local Git workspaces, extracts commits by author and date range, and generates Markdown work reports, including monthly performance reports grouped by project.
+GitPulse is a local-first Git report generator. It scans local Git workspaces, extracts commits by author and date range, and generates Markdown work reports, including monthly performance reports grouped by project.
 
 The legacy Python/Tkinter version is preserved on:
 

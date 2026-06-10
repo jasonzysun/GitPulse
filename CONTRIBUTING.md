@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving Git Report Studio.
+Thanks for improving GitPulse.
 
 ## Setup
 

@@ -1,4 +1,4 @@
-# Git Report Studio
+# GitPulse
 
 本地优先的 Git 工作报告生成器。应用使用 **Tauri + React + Rust** 构建，不依赖 Python 运行时，适合从本机多个 Git 仓库生成日报、提交摘要和绩效月报。
 

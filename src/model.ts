@@ -25,10 +25,13 @@ export type GitIdentity = {
   userEmail: string;
 };
 
+export type ThemeMode = "system" | "light" | "dark";
+
 export type AppSettings = {
   rootDir: string;
   outputDir: string;
   outputEnabled: boolean;
+  themeMode: ThemeMode;
   author: string;
   startDate: string;
   endDate: string;
@@ -45,12 +48,14 @@ export type AppSettings = {
   refinementInstruction: string;
 };
 
-export const STORAGE_KEY = "git-report-studio-settings";
+export const STORAGE_KEY = "gitpulse-settings";
+const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 
 export const defaultSettings: AppSettings = {
   rootDir: "",
   outputDir: "",
   outputEnabled: false,
+  themeMode: "system",
   author: "",
   startDate: getToday(),
   endDate: getToday(),
@@ -68,7 +73,7 @@ export const defaultSettings: AppSettings = {
 };
 
 export function loadSettings(): AppSettings {
-  const saved = localStorage.getItem(STORAGE_KEY);
+  const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
   if (!saved) return defaultSettings;
   return { ...defaultSettings, ...JSON.parse(saved) };
 }

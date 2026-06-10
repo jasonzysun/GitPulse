@@ -5,6 +5,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Settings2,
   Sparkles,
   TerminalSquare,
 } from "lucide-react";
@@ -29,6 +30,7 @@ type Props = {
   onSaveSummary: () => void;
   canSaveSummary: boolean;
   onPreviewChange: (preview: "monthly" | "summary") => void;
+  onOpenSettings: () => void;
 };
 
 export function Workbench(props: Props) {
@@ -41,9 +43,15 @@ export function Workbench(props: Props) {
           <p className="hero-subcopy">本地 Git 数据源 · 上月绩效口径</p>
         </div>
         <div className="hero-aside">
-          <div className="run-status">
-            {props.isBusy && <Loader2 className="spin" size={16} />}
-            <span>{props.status}</span>
+          <div className="hero-actions">
+            <div className="run-status">
+              {props.isBusy && <Loader2 className="spin" size={16} />}
+              <span>{props.status}</span>
+            </div>
+            <button className="settings-trigger" type="button" onClick={props.onOpenSettings} aria-label="打开设置">
+              <Settings2 size={16} />
+              设置
+            </button>
           </div>
           <div className="quick-stats" aria-label="当前结果概览">
             <span><strong>{props.repoCount}</strong> 仓库</span>

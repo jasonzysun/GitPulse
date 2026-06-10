@@ -1,4 +1,4 @@
-import { CalendarDays, GitBranch, Settings2 } from "lucide-react";
+import { CalendarDays, GitBranch } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AppSettings } from "../model";
 import { Field, PathInput } from "./Primitives";
@@ -7,18 +7,13 @@ type Props = {
   settings: AppSettings;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   chooseDirectory: (field: "rootDir" | "outputDir") => void;
-  onOpenSettings: () => void;
 };
 
-export function ControlPanel({ settings, updateSetting, chooseDirectory, onOpenSettings }: Props) {
+export function ControlPanel({ settings, updateSetting, chooseDirectory }: Props) {
   return (
     <aside className="control-rail">
       <section className="brand-block">
-        <div className="brand-sigil">GR</div>
-        <div>
-          <p className="kicker">Local Workbench</p>
-          <h1>Git Report Studio</h1>
-        </div>
+        <div className="brand-logo" role="img" aria-label="GitPulse" />
       </section>
 
       <section className="control-section primary-setup">
@@ -41,16 +36,6 @@ export function ControlPanel({ settings, updateSetting, chooseDirectory, onOpenS
         </div>
       </section>
 
-      <section className="settings-card">
-        <div>
-          <strong>高级配置</strong>
-          <p>{settings.outputEnabled ? "输出、AI、项目映射" : "预览模式，不写入文件"}</p>
-        </div>
-        <button type="button" onClick={onOpenSettings}>
-          <Settings2 size={17} />
-          打开设置
-        </button>
-      </section>
     </aside>
   );
 }

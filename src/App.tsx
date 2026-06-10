@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { getCurrentWindow, type Theme } from "@tauri-apps/api/window";
 import { ControlPanel } from "./components/ControlPanel";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
@@ -25,6 +26,7 @@ import "./styles/layout.css";
 import "./styles/components.css";
 import "./styles/preview.css";
 import "./styles/dialogs.css";
+import "./styles/theme.css";
 
 function App() {
   const [settings, setSettings] = useState<AppSettings>(loadSettings);
@@ -38,13 +40,47 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lastOutputFile, setLastOutputFile] = useState("");
   const [commitCount, setCommitCount] = useState(0);
+  const [systemTheme, setSystemTheme] = useState<Theme>(readSystemTheme);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
   const previewText = activePreview === "monthly" ? monthlyReport : summaryText;
+  const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onMediaChange = (event: MediaQueryListEvent) => setSystemTheme(event.matches ? "dark" : "light");
+    media.addEventListener("change", onMediaChange);
+
+    let unlistenTheme: (() => void) | undefined;
+    try {
+      const appWindow = getCurrentWindow();
+      appWindow.theme().then((theme) => theme && setSystemTheme(theme)).catch(() => undefined);
+      appWindow.onThemeChanged(({ payload }) => setSystemTheme(payload)).then((unlisten) => {
+        unlistenTheme = unlisten;
+      }).catch(() => undefined);
+    } catch {
+      // Running in a browser-only preview has no Tauri window API.
+    }
+
+    return () => {
+      media.removeEventListener("change", onMediaChange);
+      unlistenTheme?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+    try {
+      getCurrentWindow().setTheme(settings.themeMode === "system" ? null : settings.themeMode).catch(() => undefined);
+    } catch {
+      // Browser-only preview fallback.
+    }
+  }, [resolvedTheme, settings.themeMode]);
 
   useEffect(() => {
     if (settings.author) return;
@@ -147,7 +183,6 @@ function App() {
         settings={settings}
         updateSetting={updateSetting}
         chooseDirectory={chooseDirectory}
-        onOpenSettings={() => setSettingsOpen(true)}
       />
       <Workbench
         repos={repos}
@@ -167,16 +202,23 @@ function App() {
         onSaveSummary={saveSummary}
         canSaveSummary={settings.outputEnabled}
         onPreviewChange={setActivePreview}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <SettingsDialog
         open={settingsOpen}
         settings={settings}
+        repos={repos}
         updateSetting={updateSetting}
         chooseDirectory={chooseDirectory}
         onClose={() => setSettingsOpen(false)}
       />
     </main>
   );
+}
+
+function readSystemTheme(): Theme {
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export default App;

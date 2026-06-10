@@ -1,18 +1,33 @@
-import { Bot, Settings2, X } from "lucide-react";
+import { Bot, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AppSettings } from "../model";
+import type { AppSettings, RepoInfo } from "../model";
 import { Field, PathInput, Toggle } from "./Primitives";
 
 type Props = {
   open: boolean;
   settings: AppSettings;
+  repos: RepoInfo[];
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   chooseDirectory: (field: "rootDir" | "outputDir") => void;
   onClose: () => void;
 };
 
-export function SettingsDialog({ open, settings, updateSetting, chooseDirectory, onClose }: Props) {
+type MappingRow = {
+  key: string;
+  displayName: string;
+};
+
+type MappingOption = {
+  value: string;
+  label: string;
+};
+
+export function SettingsDialog({ open, settings, repos, updateSetting, chooseDirectory, onClose }: Props) {
   if (!open) return null;
+
+  const mappingRows = parseMappingRows(settings.projectNamesText);
+  const visibleMappingRows = mappingRows.length > 0 ? mappingRows : [{ key: "", displayName: "" }];
+  const mappingOptions = buildMappingOptions(repos, mappingRows);
 
   function updateAiProvider(provider: AppSettings["aiProvider"]) {
     updateSetting("aiProvider", provider);
@@ -23,6 +38,21 @@ export function SettingsDialog({ open, settings, updateSetting, chooseDirectory,
     }
     updateSetting("aiBaseUrl", "https://api.openai.com/v1");
     updateSetting("aiKeyEnv", "OPENAI_API_KEY");
+  }
+
+  function updateMappingRow(index: number, patch: Partial<MappingRow>) {
+    const rows = visibleMappingRows.map((row) => ({ ...row }));
+    rows[index] = { ...rows[index], ...patch };
+    updateSetting("projectNamesText", serializeMappingRows(rows));
+  }
+
+  function addMappingRow() {
+    updateSetting("projectNamesText", serializeMappingRows([...visibleMappingRows, { key: "", displayName: "" }]));
+  }
+
+  function removeMappingRow(index: number) {
+    const rows = visibleMappingRows.filter((_, rowIndex) => rowIndex !== index);
+    updateSetting("projectNamesText", serializeMappingRows(rows));
   }
 
   return (
@@ -39,6 +69,30 @@ export function SettingsDialog({ open, settings, updateSetting, chooseDirectory,
         </header>
 
         <div className="settings-sections">
+          <section className="settings-section">
+            <SectionTitle icon={<Monitor size={16} />} title="外观" />
+            <div className="theme-mode-control" aria-label="颜色模式">
+              <ThemeModeButton
+                active={settings.themeMode === "system"}
+                icon={<Monitor size={15} />}
+                label="跟随系统"
+                onClick={() => updateSetting("themeMode", "system")}
+              />
+              <ThemeModeButton
+                active={settings.themeMode === "light"}
+                icon={<Sun size={15} />}
+                label="亮色"
+                onClick={() => updateSetting("themeMode", "light")}
+              />
+              <ThemeModeButton
+                active={settings.themeMode === "dark"}
+                icon={<Moon size={15} />}
+                label="暗色"
+                onClick={() => updateSetting("themeMode", "dark")}
+              />
+            </div>
+          </section>
+
           <section className="settings-section">
             <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
             <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
@@ -81,18 +135,93 @@ export function SettingsDialog({ open, settings, updateSetting, chooseDirectory,
 
           <section className="settings-section mapping-section">
             <SectionTitle icon={<Settings2 size={16} />} title="项目映射" />
-            <textarea
-              className="mapping-input"
-              value={settings.projectNamesText}
-              onChange={(event) => updateSetting("projectNamesText", event.target.value)}
-              spellCheck={false}
-              placeholder="api-service(*) -> 后端服务-"
-            />
+            <div className="mapping-editor">
+              {visibleMappingRows.map((row, index) => (
+                <div className="mapping-row" key={`${index}-${row.key}`}>
+                  <Field label="项目与分支">
+                    <select value={row.key} onChange={(event) => updateMappingRow(index, { key: event.target.value })}>
+                      <option value="">{repos.length > 0 ? "选择项目与分支" : "请先扫描仓库"}</option>
+                      {mappingOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="映射名称">
+                    <input
+                      value={row.displayName}
+                      onChange={(event) => updateMappingRow(index, { displayName: event.target.value })}
+                      placeholder="例如：后端服务-"
+                    />
+                  </Field>
+                  <button type="button" className="icon-button mapping-remove" onClick={() => removeMappingRow(index)} aria-label="删除映射">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="mapping-add" onClick={addMappingRow}>
+                <Plus size={16} />
+                添加映射
+              </button>
+            </div>
           </section>
         </div>
       </section>
     </div>
   );
+}
+
+function ThemeModeButton({
+  active,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={active ? "active" : ""} onClick={onClick}>
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function parseMappingRows(text: string): MappingRow[] {
+  return text.split("\n").reduce<MappingRow[]>((rows, line) => {
+    if (!line.trim()) return rows;
+    const separatorIndex = line.indexOf("->");
+    if (separatorIndex < 0) return rows;
+    rows.push({
+      key: line.slice(0, separatorIndex).trim(),
+      displayName: line.slice(separatorIndex + 2).trim(),
+    });
+    return rows;
+  }, []);
+}
+
+function serializeMappingRows(rows: MappingRow[]) {
+  return rows.map((row) => `${row.key} -> ${row.displayName}`).join("\n");
+}
+
+function buildMappingOptions(repos: RepoInfo[], rows: MappingRow[]): MappingOption[] {
+  const options = new Map<string, string>();
+  for (const repo of repos) {
+    const wildcardKey = `${repo.name}(*)`;
+    options.set(wildcardKey, `${repo.name} · 全部分支 (*)`);
+    if (repo.branch) {
+      const branchKey = `${repo.name}(${repo.branch})`;
+      options.set(branchKey, `${repo.name} · ${repo.branch}`);
+    }
+  }
+  for (const row of rows) {
+    if (row.key && !options.has(row.key)) options.set(row.key, `${row.key} · 已保存`);
+  }
+  return [...options.entries()].map(([value, label]) => ({ value, label }));
 }
 
 function SectionTitle({ icon, title }: { icon: ReactNode; title: string }) {
