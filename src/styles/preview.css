@@ -38,6 +38,65 @@
   color: var(--primary);
 }
 
+.canvas-fullscreen-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  background: rgba(15, 23, 36, 0.36);
+  backdrop-filter: blur(10px);
+}
+
+.report-canvas {
+  position: relative;
+  transition: box-shadow 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
+}
+
+.report-canvas.preview-expanded {
+  position: fixed;
+  inset: 18px;
+  z-index: 13;
+  padding: 18px;
+  box-shadow: 0 30px 80px rgba(10, 18, 31, 0.28);
+}
+
+.preview-expand-button {
+  position: absolute;
+  right: 34px;
+  bottom: 18px;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(63, 140, 255, 0.24);
+  border-radius: 15px;
+  color: var(--primary-dark);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 16px 34px rgba(24, 35, 52, 0.18);
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.report-canvas:hover .preview-expand-button,
+.report-canvas:focus-within .preview-expand-button,
+.report-canvas.preview-expanded .preview-expand-button {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.preview-expand-button:hover {
+  border-color: rgba(63, 140, 255, 0.38);
+  background: rgba(217, 235, 255, 0.94);
+  box-shadow: 0 18px 38px rgba(24, 35, 52, 0.22);
+}
+
 .preview {
   min-height: 0;
   margin: 12px 0 0;
@@ -50,6 +109,10 @@
   background-size: 22px 22px;
   color: var(--canvas-text);
   overflow: auto;
+}
+
+.report-canvas.preview-expanded .preview {
+  margin-top: 14px;
 }
 
 .preview-plain {

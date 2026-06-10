@@ -3,12 +3,14 @@ import {
   FileDown,
   GitBranch,
   Loader2,
+  Maximize2,
+  Minimize2,
   RefreshCw,
   Settings2,
   Sparkles,
   TerminalSquare,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { MarkdownPreview } from "./MarkdownPreview";
 import type { RepoInfo } from "../model";
 
@@ -34,9 +36,30 @@ type Props = {
 
 export function Workbench(props: Props) {
   const previewMeta = props.activePreview === "monthly" ? "Markdown 渲染" : "纯文本";
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!isPreviewExpanded) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsPreviewExpanded(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isPreviewExpanded]);
 
   return (
     <section className="workbench">
+      {isPreviewExpanded && (
+        <div
+          className="canvas-fullscreen-backdrop"
+          aria-hidden="true"
+          onClick={() => setIsPreviewExpanded(false)}
+        />
+      )}
       <header className="hero-band">
         <div className="hero-copy">
           <p className="kicker">Performance Report Pipeline</p>
@@ -70,7 +93,7 @@ export function Workbench(props: Props) {
       </div>
 
       <div className="studio-grid">
-        <section className="report-canvas">
+        <section className={`report-canvas ${isPreviewExpanded ? "preview-expanded" : ""}`}>
           <div className="canvas-topline">
             <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta={previewMeta} />
             <div className="report-switch" aria-label="报告类型切换">
@@ -89,6 +112,15 @@ export function Workbench(props: Props) {
           ) : (
             <pre className="preview preview-plain">{props.previewText || "暂无报告内容。"}</pre>
           )}
+          <button
+            className="preview-expand-button"
+            type="button"
+            onClick={() => setIsPreviewExpanded((current) => !current)}
+            aria-label={isPreviewExpanded ? "退出预览全屏" : "全屏查看预览"}
+            title={isPreviewExpanded ? "退出全屏" : "全屏查看"}
+          >
+            {isPreviewExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
         </section>
 
         <section className="repo-drawer">

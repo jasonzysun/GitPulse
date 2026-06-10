@@ -7,11 +7,14 @@ use crate::models::{
     ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
     MonthlyReportResult, RepoInfo,
 };
+use tauri::async_runtime;
 use std::path::PathBuf;
 
 #[tauri::command]
-fn scan_repos(root_dir: String) -> Result<Vec<RepoInfo>, String> {
-    git_ops::find_git_repos(&root_dir)
+async fn scan_repos(root_dir: String) -> Result<Vec<RepoInfo>, String> {
+    async_runtime::spawn_blocking(move || git_ops::find_git_repos(&root_dir))
+        .await
+        .map_err(|err| format!("扫描仓库任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -20,20 +23,20 @@ fn get_git_identity() -> GitIdentity {
 }
 
 #[tauri::command]
-fn extract_commits(options: ExtractOptions) -> Result<ExtractResult, String> {
-    let (repos, commits, warnings) = collect_commits(&options)?;
-    Ok(report::build_extract_result(
-        repos,
-        commits,
-        warnings,
-        &options.project_names,
-        options.show_project_and_branch,
-        options.detailed_output,
-    ))
+async fn extract_commits(options: ExtractOptions) -> Result<ExtractResult, String> {
+    async_runtime::spawn_blocking(move || extract_commits_sync(options))
+        .await
+        .map_err(|err| format!("提取提交任务中断：{}", err))?
 }
 
 #[tauri::command]
-fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyReportResult, String> {
+async fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyReportResult, String> {
+    async_runtime::spawn_blocking(move || generate_monthly_report_sync(options))
+        .await
+        .map_err(|err| format!("生成月报任务中断：{}", err))?
+}
+
+fn generate_monthly_report_sync(options: MonthlyReportOptions) -> Result<MonthlyReportResult, String> {
     let dates = report::previous_month_range();
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
     let (_, commits, mut warnings) = collect_commits(&extract_options)?;
@@ -56,6 +59,18 @@ fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyRepor
         dates,
         project_count,
         commits.len(),
+    ))
+}
+
+fn extract_commits_sync(options: ExtractOptions) -> Result<ExtractResult, String> {
+    let (repos, commits, warnings) = collect_commits(&options)?;
+    Ok(report::build_extract_result(
+        repos,
+        commits,
+        warnings,
+        &options.project_names,
+        options.show_project_and_branch,
+        options.detailed_output,
     ))
 }
 

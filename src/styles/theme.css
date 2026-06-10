@@ -147,6 +147,18 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
 }
 
+:root[data-theme="dark"] .preview-expand-button {
+  border-color: rgba(109, 168, 255, 0.26);
+  color: #d9eaff;
+  background: rgba(16, 24, 39, 0.9);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .preview-expand-button:hover {
+  border-color: rgba(109, 168, 255, 0.4);
+  background: rgba(24, 37, 57, 0.96);
+}
+
 :root[data-theme="dark"] .preview {
   background:
     linear-gradient(90deg, rgba(109, 168, 255, 0.045) 1px, transparent 1px),
