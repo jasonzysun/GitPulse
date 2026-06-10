@@ -99,6 +99,11 @@ function App() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!settings.rootDir) return;
+    scanWorkspace();
+  }, [settings.rootDir]);
+
   async function chooseDirectory(field: "rootDir" | "outputDir") {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") updateSetting(field, selected);
@@ -195,7 +200,6 @@ function App() {
         summaryText={summaryText}
         repoCount={repos.length}
         commitCount={commitCount}
-        onScan={scanWorkspace}
         onExtract={extractCommits}
         onGenerateMonthly={generateMonthlyReport}
         onCopy={copyPreview}

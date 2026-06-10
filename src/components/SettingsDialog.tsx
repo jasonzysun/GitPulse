@@ -1,6 +1,15 @@
-import { Bot, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
-import type { ReactNode } from "react";
-import type { AppSettings, RepoInfo } from "../model";
+import { Bot, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  mergeMappingText,
+  parseMappingText,
+  serializeMappingText,
+  type AppSettings,
+  type MappingEntry,
+  type RepoInfo,
+} from "../model";
 import { Field, PathInput, Toggle } from "./Primitives";
 
 type Props = {
@@ -12,20 +21,19 @@ type Props = {
   onClose: () => void;
 };
 
-type MappingRow = {
-  key: string;
-  displayName: string;
-};
-
 type MappingOption = {
   value: string;
   label: string;
 };
 
 export function SettingsDialog({ open, settings, repos, updateSetting, chooseDirectory, onClose }: Props) {
+  const [importNote, setImportNote] = useState("");
+  useEffect(() => {
+    if (!open) setImportNote("");
+  }, [open]);
   if (!open) return null;
 
-  const mappingRows = parseMappingRows(settings.projectNamesText);
+  const mappingRows = parseMappingText(settings.projectNamesText);
   const visibleMappingRows = mappingRows.length > 0 ? mappingRows : [{ key: "", displayName: "" }];
   const mappingOptions = buildMappingOptions(repos, mappingRows);
 
@@ -40,19 +48,39 @@ export function SettingsDialog({ open, settings, repos, updateSetting, chooseDir
     updateSetting("aiKeyEnv", "OPENAI_API_KEY");
   }
 
-  function updateMappingRow(index: number, patch: Partial<MappingRow>) {
+  function updateMappingRow(index: number, patch: Partial<MappingEntry>) {
     const rows = visibleMappingRows.map((row) => ({ ...row }));
     rows[index] = { ...rows[index], ...patch };
-    updateSetting("projectNamesText", serializeMappingRows(rows));
+    updateSetting("projectNamesText", serializeMappingText(rows));
   }
 
   function addMappingRow() {
-    updateSetting("projectNamesText", serializeMappingRows([...visibleMappingRows, { key: "", displayName: "" }]));
+    updateSetting("projectNamesText", serializeMappingText([...visibleMappingRows, { key: "", displayName: "" }]));
   }
 
   function removeMappingRow(index: number) {
     const rows = visibleMappingRows.filter((_, rowIndex) => rowIndex !== index);
-    updateSetting("projectNamesText", serializeMappingRows(rows));
+    updateSetting("projectNamesText", serializeMappingText(rows));
+  }
+
+  async function importMappingFile() {
+    try {
+      const selected = await openDialog({
+        multiple: false,
+        filters: [{ name: "项目映射", extensions: ["txt", "csv"] }],
+      });
+      if (typeof selected !== "string") return;
+      const content = await invoke<string>("read_text_file", { path: selected });
+      const incoming = parseMappingText(content);
+      if (incoming.length === 0) {
+        setImportNote("未解析到映射，请确认每行格式为：项目(分支) -> 名称");
+        return;
+      }
+      updateSetting("projectNamesText", mergeMappingText(settings.projectNamesText, content));
+      setImportNote(`已导入 ${incoming.length} 条映射`);
+    } catch (error) {
+      setImportNote(error instanceof Error ? error.message : String(error));
+    }
   }
 
   return (
@@ -160,10 +188,17 @@ export function SettingsDialog({ open, settings, repos, updateSetting, chooseDir
                   </button>
                 </div>
               ))}
-              <button type="button" className="mapping-add" onClick={addMappingRow}>
-                <Plus size={16} />
-                添加映射
-              </button>
+              <div className="mapping-actions">
+                <button type="button" className="mapping-add" onClick={addMappingRow}>
+                  <Plus size={16} />
+                  添加映射
+                </button>
+                <button type="button" className="mapping-import" onClick={importMappingFile}>
+                  <FileUp size={16} />
+                  导入文件
+                </button>
+              </div>
+              {importNote && <p className="mapping-note">{importNote}</p>}
             </div>
           </section>
         </div>
@@ -191,24 +226,7 @@ function ThemeModeButton({
   );
 }
 
-function parseMappingRows(text: string): MappingRow[] {
-  return text.split("\n").reduce<MappingRow[]>((rows, line) => {
-    if (!line.trim()) return rows;
-    const separatorIndex = line.indexOf("->");
-    if (separatorIndex < 0) return rows;
-    rows.push({
-      key: line.slice(0, separatorIndex).trim(),
-      displayName: line.slice(separatorIndex + 2).trim(),
-    });
-    return rows;
-  }, []);
-}
-
-function serializeMappingRows(rows: MappingRow[]) {
-  return rows.map((row) => `${row.key} -> ${row.displayName}`).join("\n");
-}
-
-function buildMappingOptions(repos: RepoInfo[], rows: MappingRow[]): MappingOption[] {
+function buildMappingOptions(repos: RepoInfo[], rows: MappingEntry[]): MappingOption[] {
   const options = new Map<string, string>();
   for (const repo of repos) {
     const wildcardKey = `${repo.name}(*)`;

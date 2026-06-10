@@ -79,6 +79,11 @@ fn save_text_file(
     report::save_report_file(&output_dir, &file_name, &content)
 }
 
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|err| format!("读取文件失败：{}", err))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -89,7 +94,8 @@ pub fn run() {
             get_git_identity,
             extract_commits,
             generate_monthly_report,
-            save_text_file
+            save_text_file,
+            read_text_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

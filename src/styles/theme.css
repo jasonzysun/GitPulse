@@ -62,6 +62,7 @@
 
 :root[data-theme="dark"] .path-input button,
 :root[data-theme="dark"] .command-button.quiet,
+:root[data-theme="dark"] .mapping-import,
 :root[data-theme="dark"] .settings-card button {
   border-color: rgba(109, 168, 255, 0.28);
   background: rgba(63, 140, 255, 0.18);

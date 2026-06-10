@@ -78,10 +78,40 @@ export function loadSettings(): AppSettings {
   return { ...defaultSettings, ...JSON.parse(saved) };
 }
 
+export type MappingEntry = {
+  key: string;
+  displayName: string;
+};
+
+export function parseMappingText(text: string): MappingEntry[] {
+  return text.split(/\r?\n/).reduce<MappingEntry[]>((rows, line) => {
+    if (!line.trim()) return rows;
+    const separatorIndex = line.indexOf("->");
+    if (separatorIndex < 0) return rows;
+    rows.push({
+      key: line.slice(0, separatorIndex).trim(),
+      displayName: line.slice(separatorIndex + 2).trim(),
+    });
+    return rows;
+  }, []);
+}
+
+export function serializeMappingText(rows: MappingEntry[]): string {
+  return rows.map((row) => `${row.key} -> ${row.displayName}`).join("\n");
+}
+
+export function mergeMappingText(existing: string, imported: string): string {
+  const merged = new Map<string, string>();
+  for (const row of parseMappingText(existing)) merged.set(row.key, row.displayName);
+  for (const row of parseMappingText(imported)) {
+    if (row.key) merged.set(row.key, row.displayName);
+  }
+  return serializeMappingText([...merged].map(([key, displayName]) => ({ key, displayName })));
+}
+
 export function parseProjectNames(text: string): Record<string, string> {
-  return text.split("\n").reduce<Record<string, string>>((result, line) => {
-    const [key, value] = line.split("->").map((part) => part.trim());
-    if (key && value) result[key] = value;
+  return parseMappingText(text).reduce<Record<string, string>>((result, row) => {
+    if (row.key && row.displayName) result[row.key] = row.displayName;
     return result;
   }, {});
 }

@@ -4,7 +4,6 @@ import {
   GitBranch,
   Loader2,
   RefreshCw,
-  Search,
   Settings2,
   Sparkles,
   TerminalSquare,
@@ -23,7 +22,6 @@ type Props = {
   summaryText: string;
   repoCount: number;
   commitCount: number;
-  onScan: () => void;
   onExtract: () => void;
   onGenerateMonthly: () => void;
   onCopy: () => void;
@@ -39,8 +37,8 @@ export function Workbench(props: Props) {
       <header className="hero-band">
         <div className="hero-copy">
           <p className="kicker">Performance Report Pipeline</p>
-          <h2>月报生成工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 上月绩效口径</p>
+          <h2>工作报告工作台</h2>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报取选定日期 · 月报取上月</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">
@@ -62,9 +60,8 @@ export function Workbench(props: Props) {
       </header>
 
       <div className="action-dock">
+        <CommandButton icon={<GitBranch size={17} />} label="生成日报" onClick={props.onExtract} disabled={props.isBusy} tone="primary" />
         <CommandButton icon={<FileDown size={17} />} label="生成上月月报" onClick={props.onGenerateMonthly} disabled={props.isBusy} tone="primary" />
-        <CommandButton icon={<Search size={17} />} label="扫描仓库" onClick={props.onScan} disabled={props.isBusy} tone="quiet" />
-        <CommandButton icon={<GitBranch size={17} />} label="提取日志" onClick={props.onExtract} disabled={props.isBusy} tone="quiet" />
         <CommandButton icon={<Clipboard size={17} />} label="复制结果" onClick={props.onCopy} disabled={!props.previewText} tone="plain" />
         <CommandButton icon={<RefreshCw size={17} />} label="保存摘要" onClick={props.onSaveSummary} disabled={!props.summaryText || !props.canSaveSummary || props.isBusy} tone="plain" />
       </div>
