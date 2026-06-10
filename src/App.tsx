@@ -11,15 +11,17 @@ import {
   type AppSettings,
   type ExtractResult,
   type GitIdentity,
+  type LoadedSettingsState,
   type MonthlyReportResult,
   type RepoInfo,
   type UpdateSummary,
   STORAGE_KEY,
   buildExtractOptions,
   buildMonthlyOptions,
-  loadSettings,
+  loadSettingsState,
   parseProjectNames,
   validateExtractSettings,
+  validateMonthlySettings,
   validateOutputSettings,
   validateRequiredSettings,
   validateWorkspaceSettings,
@@ -32,12 +34,15 @@ import "./styles/dialogs.css";
 import "./styles/theme.css";
 
 function App() {
-  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [loadedSettings] = useState<LoadedSettingsState>(loadSettingsState);
+  const [settings, setSettings] = useState<AppSettings>(loadedSettings.settings);
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [summaryText, setSummaryText] = useState("");
   const [monthlyReport, setMonthlyReport] = useState("");
   const [activePreview, setActivePreview] = useState<"monthly" | "summary">("summary");
-  const [status, setStatus] = useState("就绪");
+  const [status, setStatus] = useState(
+    loadedSettings.recoveredLegacyApiKey ? "已迁移旧配置中的 API Key" : "就绪",
+  );
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -169,7 +174,7 @@ function App() {
       setCommitCount(result.commitCount);
       setActivePreview("monthly");
       setStatus(result.outputFile ? `${result.monthLabel} 月报已生成` : `${result.monthLabel} 月报已生成，未写入文件`);
-    });
+    }, () => validateMonthlySettings(settings));
   }
 
   async function copyPreview() {

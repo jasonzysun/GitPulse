@@ -1,4 +1,4 @@
-import { Bot, Download, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
+import { Bot, Download, Eye, EyeOff, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -52,8 +52,12 @@ export function SettingsDialog({
   onClose,
 }: Props) {
   const [importNote, setImportNote] = useState("");
+  const [showAiApiKey, setShowAiApiKey] = useState(false);
   useEffect(() => {
-    if (!open) setImportNote("");
+    if (!open) {
+      setImportNote("");
+      setShowAiApiKey(false);
+    }
   }, [open]);
   if (!open) return null;
 
@@ -65,11 +69,9 @@ export function SettingsDialog({
     updateSetting("aiProvider", provider);
     if (provider === "anthropic-native") {
       updateSetting("aiBaseUrl", "https://api.anthropic.com/v1");
-      updateSetting("aiKeyEnv", "ANTHROPIC_API_KEY");
       return;
     }
     updateSetting("aiBaseUrl", "https://api.openai.com/v1");
-    updateSetting("aiKeyEnv", "OPENAI_API_KEY");
   }
 
   function updateMappingRow(index: number, patch: Partial<MappingEntry>) {
@@ -192,14 +194,29 @@ export function SettingsDialog({
             <Field label="Base URL">
               <input value={settings.aiBaseUrl} onChange={(event) => updateSetting("aiBaseUrl", event.target.value)} />
             </Field>
-            <div className="date-pair">
-              <Field label="模型">
-                <input value={settings.aiModel} onChange={(event) => updateSetting("aiModel", event.target.value)} />
-              </Field>
-              <Field label="Key 环境变量">
-                <input value={settings.aiKeyEnv} onChange={(event) => updateSetting("aiKeyEnv", event.target.value)} />
-              </Field>
-            </div>
+            <Field label="API Key">
+              <div className="secret-input">
+                <input
+                  type={showAiApiKey ? "text" : "password"}
+                  value={settings.aiApiKey}
+                  onChange={(event) => updateSetting("aiApiKey", event.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className="secret-toggle"
+                  onClick={() => setShowAiApiKey((current) => !current)}
+                  aria-label={showAiApiKey ? "隐藏 API Key" : "显示 API Key"}
+                  aria-pressed={showAiApiKey}
+                >
+                  {showAiApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </Field>
+            <Field label="模型">
+              <input value={settings.aiModel} onChange={(event) => updateSetting("aiModel", event.target.value)} />
+            </Field>
             <textarea
               className="refinement-input"
               value={settings.refinementInstruction}

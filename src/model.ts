@@ -51,12 +51,18 @@ export type AppSettings = {
   aiProvider: "openai-compatible" | "anthropic-native";
   aiBaseUrl: string;
   aiModel: string;
-  aiKeyEnv: string;
+  aiApiKey: string;
   refinementInstruction: string;
+};
+
+export type LoadedSettingsState = {
+  settings: AppSettings;
+  recoveredLegacyApiKey: boolean;
 };
 
 export const STORAGE_KEY = "gitpulse-settings";
 const LEGACY_STORAGE_KEY = "git-report-studio-settings";
+const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const defaultSettings: AppSettings = {
   rootDir: "",
@@ -75,14 +81,38 @@ export const defaultSettings: AppSettings = {
   aiProvider: "openai-compatible",
   aiBaseUrl: "https://api.openai.com/v1",
   aiModel: "",
-  aiKeyEnv: "OPENAI_API_KEY",
+  aiApiKey: "",
   refinementInstruction: "",
 };
 
-export function loadSettings(): AppSettings {
+export function loadSettingsState(): LoadedSettingsState {
   const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
-  if (!saved) return defaultSettings;
-  return { ...defaultSettings, ...JSON.parse(saved) };
+  if (!saved) {
+    return {
+      settings: defaultSettings,
+      recoveredLegacyApiKey: false,
+    };
+  }
+
+  const rawSettings = JSON.parse(saved) as Partial<AppSettings> & { aiKeyEnv?: string };
+  const parsed = { ...defaultSettings, ...rawSettings } as AppSettings;
+  const legacyAiKeyEnv = rawSettings.aiKeyEnv?.trim() ?? "";
+  const aiApiKey = parsed.aiApiKey.trim();
+
+  if (!aiApiKey && legacyAiKeyEnv && !looksLikeEnvVarName(legacyAiKeyEnv)) {
+    return {
+      settings: {
+        ...parsed,
+        aiApiKey: legacyAiKeyEnv,
+      },
+      recoveredLegacyApiKey: true,
+    };
+  }
+
+  return {
+    settings: parsed,
+    recoveredLegacyApiKey: false,
+  };
 }
 
 export type MappingEntry = {
@@ -161,7 +191,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
       provider: settings.aiProvider,
       baseUrl: settings.aiBaseUrl,
       model: settings.aiModel,
-      apiKeyEnv: settings.aiKeyEnv || "OPENAI_API_KEY",
+      apiKey: settings.aiApiKey.trim(),
       temperature: 0.2,
       timeoutSeconds: 60,
     },
@@ -171,6 +201,15 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
 export function validateRequiredSettings(settings: AppSettings) {
   validateExtractSettings(settings);
   validateOutputSettings(settings);
+}
+
+export function validateMonthlySettings(settings: AppSettings) {
+  validateRequiredSettings(settings);
+
+  if (!settings.aiEnabled) return;
+  if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
+  if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
+  if (!settings.aiApiKey.trim()) throw new Error("启用 AI 润色时请输入 API Key");
 }
 
 export function validateExtractSettings(settings: AppSettings) {
@@ -188,4 +227,8 @@ export function validateOutputSettings(settings: AppSettings) {
 
 function getToday() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function looksLikeEnvVarName(value: string) {
+  return ENV_VAR_NAME_PATTERN.test(value);
 }

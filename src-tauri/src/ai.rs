@@ -1,7 +1,6 @@
 use crate::models::AiConfig;
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
-use std::env;
 use std::time::Duration;
 
 pub fn enhance_monthly_report(
@@ -16,8 +15,8 @@ pub fn enhance_monthly_report(
         return Ok(base_report.to_string());
     }
 
-    validate_model(config)?;
-    let api_key = read_api_key(&config.api_key_env)?;
+    validate_config(config)?;
+    let api_key = read_api_key(config)?;
     let prompt = user_prompt(
         base_report,
         start_date,
@@ -31,15 +30,22 @@ pub fn enhance_monthly_report(
     }
 }
 
-fn validate_model(config: &AiConfig) -> Result<(), String> {
+fn validate_config(config: &AiConfig) -> Result<(), String> {
     if config.model.trim().is_empty() {
         return Err("未配置 AI 模型名".to_string());
+    }
+    if config.base_url.trim().is_empty() {
+        return Err("未配置 AI Base URL".to_string());
     }
     Ok(())
 }
 
-fn read_api_key(api_key_env: &str) -> Result<String, String> {
-    env::var(api_key_env).map_err(|_| format!("环境变量 {} 未设置", api_key_env))
+fn read_api_key(config: &AiConfig) -> Result<String, String> {
+    let direct_api_key = config.api_key.trim();
+    if !direct_api_key.is_empty() {
+        return Ok(direct_api_key.to_string());
+    }
+    Err("未提供 API Key".to_string())
 }
 
 fn enhance_with_openai_compatible(
@@ -179,5 +185,35 @@ mod tests {
         });
 
         assert_eq!(parse_anthropic_response(response).unwrap(), "first\nsecond");
+    }
+
+    #[test]
+    fn read_api_key_prefers_direct_api_key() {
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: "sk-direct-value".to_string(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        assert_eq!(read_api_key(&config).unwrap(), "sk-direct-value");
+    }
+
+    #[test]
+    fn read_api_key_requires_direct_api_key() {
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: String::new(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        assert_eq!(read_api_key(&config).unwrap_err(), "未提供 API Key");
     }
 }

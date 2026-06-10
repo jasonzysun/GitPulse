@@ -9,7 +9,7 @@
 - 支持项目名映射，例如 `api-service(*) -> 后端服务-`
 - 一键生成上个月绩效月报
 - 月报按项目拆分，并包含“项目进度 / 实际完成情况 / 当月总结”
-- 可选 OpenAI-compatible 或 Anthropic Native AI 润色，API Key 只从环境变量读取
+- 可选 OpenAI-compatible 或 Anthropic Native AI 润色，支持直接保存 API Key
 - 生成结果支持预览、复制和按需保存到本地
 - 支持 Windows x86_64 在线检查更新
 
@@ -72,19 +72,12 @@ npm run release:win
 
 ## AI 润色
 
-应用不会保存真实 API Key。请先在系统环境变量中设置密钥，例如：
-
-```powershell
-$env:OPENAI_API_KEY="sk-..."
-$env:ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-然后在界面中配置：
+在设置中开启 AI 润色后，直接填写以下内容即可：
 
 - 协议：`OpenAI Compatible` 或 `Anthropic Native`
 - Base URL：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
 - 模型：对应协议支持的模型名
-- Key 环境变量：例如 `OPENAI_API_KEY` 或 `ANTHROPIC_API_KEY`
+- API Key：对应服务的密钥，默认隐藏显示，可点击按钮切换可见状态
 
 如果 AI 调用失败，应用会自动回退到本地月报模板。
 

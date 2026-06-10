@@ -109,6 +109,23 @@
   background: rgba(12, 22, 36, 0.92);
 }
 
+:root[data-theme="dark"] .secret-input {
+  border-color: var(--line);
+  background: rgba(10, 18, 31, 0.86);
+}
+
+:root[data-theme="dark"] .secret-input:focus-within {
+  background: rgba(12, 22, 36, 0.96);
+}
+
+:root[data-theme="dark"] .secret-toggle {
+  border-left-color: rgba(52, 74, 103, 0.9);
+}
+
+:root[data-theme="dark"] .secret-toggle:hover {
+  background: rgba(63, 140, 255, 0.12);
+}
+
 :root[data-theme="dark"] .theme-mode-control button.active,
 :root[data-theme="dark"] .mapping-add {
   border-color: rgba(109, 168, 255, 0.3);
@@ -134,4 +151,24 @@
   background:
     linear-gradient(90deg, rgba(109, 168, 255, 0.045) 1px, transparent 1px),
     var(--canvas);
+}
+
+:root[data-theme="dark"] .markdown-preview h1 {
+  border-bottom-color: rgba(109, 168, 255, 0.2);
+}
+
+:root[data-theme="dark"] .markdown-preview blockquote {
+  border-color: rgba(109, 168, 255, 0.18);
+  background: rgba(109, 168, 255, 0.09);
+  color: #c4d8f4;
+}
+
+:root[data-theme="dark"] .markdown-preview code {
+  border-color: rgba(109, 168, 255, 0.18);
+  background: rgba(10, 18, 31, 0.78);
+  color: #ecf4ff;
+}
+
+:root[data-theme="dark"] .markdown-preview hr {
+  border-top-color: rgba(109, 168, 255, 0.18);
 }

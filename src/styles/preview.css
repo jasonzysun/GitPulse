@@ -50,9 +50,130 @@
   background-size: 22px 22px;
   color: var(--canvas-text);
   overflow: auto;
+}
+
+.preview-plain {
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.62;
+}
+
+.markdown-preview {
+  padding: 22px 24px 26px;
+  white-space: normal;
+  word-break: break-word;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.78;
+}
+
+.markdown-preview > :first-child {
+  margin-top: 0;
+}
+
+.markdown-preview > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3,
+.markdown-preview h4,
+.markdown-preview h5,
+.markdown-preview h6 {
+  margin: 1.35em 0 0.55em;
+  color: var(--ink);
+  line-height: 1.24;
+}
+
+.markdown-preview h1 {
+  padding-bottom: 0.42em;
+  border-bottom: 1px solid rgba(63, 140, 255, 0.18);
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.markdown-preview h2 {
+  padding-left: 12px;
+  border-left: 4px solid var(--primary);
+  font-size: 20px;
+}
+
+.markdown-preview h3 {
+  font-size: 16px;
+}
+
+.markdown-preview p,
+.markdown-preview blockquote,
+.markdown-preview ul,
+.markdown-preview ol,
+.markdown-preview pre,
+.markdown-preview hr {
+  margin: 0 0 1em;
+}
+
+.markdown-preview ul,
+.markdown-preview ol {
+  padding-left: 1.4em;
+}
+
+.markdown-preview li + li {
+  margin-top: 0.4em;
+}
+
+.markdown-preview strong {
+  color: var(--ink);
+}
+
+.markdown-preview a {
+  color: var(--primary-dark);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.16em;
+}
+
+.markdown-preview blockquote {
+  padding: 12px 14px;
+  border: 1px solid rgba(63, 140, 255, 0.14);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: rgba(63, 140, 255, 0.08);
+  color: var(--ink-soft);
+}
+
+.markdown-preview code {
+  padding: 0.14em 0.38em;
+  border: 1px solid rgba(63, 140, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.78);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+
+.markdown-preview .md-code-block {
+  padding: 14px 16px;
+  border: 1px solid rgba(24, 35, 52, 0.1);
+  border-radius: var(--radius-sm);
+  background: rgba(20, 31, 48, 0.96);
+  color: #e9f2ff;
+  overflow: auto;
+}
+
+.markdown-preview .md-code-block code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+}
+
+.markdown-preview hr {
+  border: 0;
+  border-top: 1px solid rgba(63, 140, 255, 0.16);
+}
+
+.preview-placeholder {
+  margin: 0;
+  color: var(--muted);
 }

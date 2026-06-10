@@ -66,7 +66,7 @@ pub struct AiConfig {
     pub provider: String,
     pub base_url: String,
     pub model: String,
-    pub api_key_env: String,
+    pub api_key: String,
     pub temperature: f32,
     pub timeout_seconds: u64,
 }

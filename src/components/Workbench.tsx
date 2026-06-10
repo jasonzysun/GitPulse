@@ -9,6 +9,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { MarkdownPreview } from "./MarkdownPreview";
 import type { RepoInfo } from "../model";
 
 type Props = {
@@ -32,6 +33,8 @@ type Props = {
 };
 
 export function Workbench(props: Props) {
+  const previewMeta = props.activePreview === "monthly" ? "Markdown 渲染" : "纯文本";
+
   return (
     <section className="workbench">
       <header className="hero-band">
@@ -69,7 +72,7 @@ export function Workbench(props: Props) {
       <div className="studio-grid">
         <section className="report-canvas">
           <div className="canvas-topline">
-            <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta="Markdown" />
+            <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta={previewMeta} />
             <div className="report-switch" aria-label="报告类型切换">
               <button className={props.activePreview === "summary" ? "active" : ""} onClick={() => props.onPreviewChange("summary")}>
                 <span>Daily</span>
@@ -81,7 +84,11 @@ export function Workbench(props: Props) {
               </button>
             </div>
           </div>
-          <pre className="preview">{props.previewText || "暂无报告内容。"}</pre>
+          {props.activePreview === "monthly" ? (
+            <MarkdownPreview markdown={props.previewText} emptyText="暂无月报内容。" />
+          ) : (
+            <pre className="preview preview-plain">{props.previewText || "暂无报告内容。"}</pre>
+          )}
         </section>
 
         <section className="repo-drawer">
