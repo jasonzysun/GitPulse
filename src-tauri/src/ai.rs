@@ -11,22 +11,49 @@ pub fn enhance_monthly_report(
     refinement_instruction: &str,
     config: &AiConfig,
 ) -> Result<String, String> {
-    if !config.enabled {
-        return Ok(base_report.to_string());
-    }
-
-    validate_config(config)?;
-    let api_key = read_api_key(config)?;
-    let prompt = user_prompt(
+    let prompt = monthly_user_prompt(
         base_report,
         start_date,
         end_date,
         author,
         refinement_instruction,
     );
+    enhance_report(base_report, monthly_system_prompt(), &prompt, config)
+}
+
+pub fn enhance_daily_report(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+    config: &AiConfig,
+) -> Result<String, String> {
+    let prompt = daily_user_prompt(
+        base_report,
+        start_date,
+        end_date,
+        author,
+        refinement_instruction,
+    );
+    enhance_report(base_report, daily_system_prompt(), &prompt, config)
+}
+
+fn enhance_report(
+    base_report: &str,
+    system_prompt: &str,
+    prompt: &str,
+    config: &AiConfig,
+) -> Result<String, String> {
+    if !config.enabled {
+        return Ok(base_report.to_string());
+    }
+
+    validate_config(config)?;
+    let api_key = read_api_key(config)?;
     match config.provider.as_str() {
-        "anthropic-native" => enhance_with_anthropic(config, &api_key, &prompt),
-        _ => enhance_with_openai_compatible(config, &api_key, &prompt),
+        "anthropic-native" => enhance_with_anthropic(config, &api_key, prompt, system_prompt),
+        _ => enhance_with_openai_compatible(config, &api_key, prompt, system_prompt),
     }
 }
 
@@ -52,12 +79,13 @@ fn enhance_with_openai_compatible(
     config: &AiConfig,
     api_key: &str,
     prompt: &str,
+    system_prompt: &str,
 ) -> Result<String, String> {
     let payload = json!({
         "model": config.model,
         "temperature": config.temperature,
         "messages": [
-            { "role": "system", "content": system_prompt() },
+            { "role": "system", "content": system_prompt },
             { "role": "user", "content": prompt }
         ]
     });
@@ -75,12 +103,13 @@ fn enhance_with_anthropic(
     config: &AiConfig,
     api_key: &str,
     prompt: &str,
+    system_prompt: &str,
 ) -> Result<String, String> {
     let payload = json!({
         "model": config.model,
         "max_tokens": 4096,
         "temperature": config.temperature,
-        "system": system_prompt(),
+        "system": system_prompt,
         "messages": [{ "role": "user", "content": prompt }]
     });
     let url = format!("{}/messages", config.base_url.trim_end_matches('/'));
@@ -136,11 +165,15 @@ fn parse_anthropic_response(response: Value) -> Result<String, String> {
     Ok(content)
 }
 
-fn system_prompt() -> &'static str {
+fn monthly_system_prompt() -> &'static str {
     "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。"
 }
 
-fn user_prompt(
+fn daily_system_prompt() -> &'static str {
+    "你是一个严谨的工作日报写作助手。请基于 Git 提交记录润色为当天或指定周期的工作日报，不要虚构没有依据的业务结果、上线结论或百分比。最终输出保持为简洁纯文本或短列表，方便直接复制到工作汇报中。"
+}
+
+fn monthly_user_prompt(
     base_report: &str,
     start_date: &str,
     end_date: &str,
@@ -154,6 +187,28 @@ fn user_prompt(
     };
     format!(
         "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的月报草稿润色为适合绩效考核提交的正式月报。要求语气客观、具体、不过度夸大；保留项目分组；实际完成情况必须贴合提交记录。\n\n{}",
+        start_date,
+        end_date,
+        if author.is_empty() { "未指定" } else { author },
+        instruction,
+        base_report
+    )
+}
+
+fn daily_user_prompt(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+) -> String {
+    let instruction = if refinement_instruction.trim().is_empty() {
+        "无"
+    } else {
+        refinement_instruction.trim()
+    };
+    format!(
+        "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的 Git 提交摘要润色为工作日报。要求保留可追溯的事项，不添加提交记录之外的事实；语言简洁、正式，适合直接复制到日报；如果内容较多，请按项目或事项分组。\n\n{}",
         start_date,
         end_date,
         if author.is_empty() { "未指定" } else { author },

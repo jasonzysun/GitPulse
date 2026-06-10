@@ -150,6 +150,72 @@
   background: rgba(63, 140, 255, 0.18);
 }
 
+:root[data-theme="dark"] .mapping-add:hover {
+  background: rgba(63, 140, 255, 0.28);
+}
+
+:root[data-theme="dark"] .range-dialog {
+  border-color: rgba(52, 74, 103, 0.96);
+  background: rgba(16, 24, 39, 0.98);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .range-error {
+  color: #f4c978;
+}
+
+:root[data-theme="dark"] .ai-inline-toggle {
+  border-color: rgba(52, 74, 103, 0.9);
+  color: var(--ink-soft);
+  background: rgba(16, 24, 39, 0.72);
+}
+
+:root[data-theme="dark"] .ai-inline-toggle:hover {
+  border-color: rgba(109, 168, 255, 0.32);
+  background: rgba(20, 31, 48, 0.9);
+}
+
+:root[data-theme="dark"] .ai-inline-toggle.active {
+  border-color: rgba(109, 168, 255, 0.36);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .ai-inline-toggle.warning {
+  border-color: rgba(244, 201, 120, 0.34);
+  color: #f4c978;
+  background: rgba(101, 65, 16, 0.22);
+}
+
+:root[data-theme="dark"] .ai-inline-toggle.warning strong {
+  color: #f4c978;
+}
+
+:root[data-theme="dark"] .preview-copy-button {
+  border-color: rgba(52, 74, 103, 0.9);
+  color: var(--ink-soft);
+  background: rgba(16, 24, 39, 0.76);
+}
+
+:root[data-theme="dark"] .preview-copy-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.34);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.16);
+}
+
+:root[data-theme="dark"] .copy-toast {
+  border-color: rgba(109, 168, 255, 0.32);
+  color: var(--primary-dark);
+  background: rgba(16, 24, 39, 0.96);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36);
+}
+
+:root[data-theme="dark"] .copy-toast.error {
+  border-color: rgba(244, 201, 120, 0.34);
+  color: #f4c978;
+  background: rgba(45, 30, 12, 0.96);
+}
+
 :root[data-theme="dark"] .settings-trigger {
   color: var(--primary-dark) !important;
   background: rgba(20, 31, 48, 0.88) !important;

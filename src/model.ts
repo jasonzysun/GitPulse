@@ -20,6 +20,13 @@ export type MonthlyReportResult = {
   commitCount: number;
 };
 
+export type PreviewMode = "summary" | "custom" | "monthly";
+
+export type DateRange = {
+  startDate: string;
+  endDate: string;
+};
+
 export type UpdateSummary = {
   currentVersion: string;
   version: string;
@@ -168,17 +175,23 @@ export function parseProjectNames(text: string): Record<string, string> {
   }, {});
 }
 
-export function buildExtractOptions(settings: AppSettings, projectNames: Record<string, string>) {
+export function buildExtractOptions(
+  settings: AppSettings,
+  projectNames: Record<string, string>,
+  dateRange?: DateRange,
+) {
   return {
     rootDir: settings.rootDir,
     author: settings.author,
-    startDate: settings.startDate,
-    endDate: settings.endDate,
+    startDate: dateRange?.startDate ?? settings.startDate,
+    endDate: dateRange?.endDate ?? settings.endDate,
     pullLatestCode: settings.pullLatestCode,
     extractAllBranches: settings.extractAllBranches,
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
     projectNames,
+    refinementInstruction: settings.refinementInstruction,
+    ai: buildAiOptions(settings),
   };
 }
 
@@ -192,15 +205,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
     extractAllBranches: settings.extractAllBranches,
     projectNames,
     refinementInstruction: settings.refinementInstruction,
-    ai: {
-      enabled: settings.aiEnabled,
-      provider: settings.aiProvider,
-      baseUrl: settings.aiBaseUrl,
-      model: settings.aiModel,
-      apiKey: settings.aiApiKey.trim(),
-      temperature: 0.2,
-      timeoutSeconds: 60,
-    },
+    ai: buildAiOptions(settings),
   };
 }
 
@@ -210,17 +215,17 @@ export function validateRequiredSettings(settings: AppSettings) {
 }
 
 export function validateMonthlySettings(settings: AppSettings) {
-  validateRequiredSettings(settings);
-
-  if (!settings.aiEnabled) return;
-  if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
-  if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
-  if (!settings.aiApiKey.trim()) throw new Error("启用 AI 润色时请输入 API Key");
-}
-
-export function validateExtractSettings(settings: AppSettings) {
   validateWorkspaceSettings(settings);
   if (!settings.author) throw new Error("请输入 Git 作者");
+  validateOutputSettings(settings);
+  validateAiSettings(settings);
+}
+
+export function validateExtractSettings(settings: AppSettings, dateRange?: DateRange) {
+  validateWorkspaceSettings(settings);
+  if (!settings.author) throw new Error("请输入 Git 作者");
+  validateDateRange(dateRange?.startDate ?? settings.startDate, dateRange?.endDate ?? settings.endDate);
+  validateAiSettings(settings);
 }
 
 export function validateWorkspaceSettings(settings: AppSettings) {
@@ -229,6 +234,30 @@ export function validateWorkspaceSettings(settings: AppSettings) {
 
 export function validateOutputSettings(settings: AppSettings) {
   if (settings.outputEnabled && !settings.outputDir) throw new Error("请在设置中选择输出目录");
+}
+
+export function validateAiSettings(settings: AppSettings) {
+  if (!settings.aiEnabled) return;
+  if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
+  if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
+  if (!settings.aiApiKey.trim()) throw new Error("启用 AI 润色时请输入 API Key");
+}
+
+export function validateDateRange(startDate: string, endDate: string) {
+  if (!startDate || !endDate) throw new Error("请选择完整的日期范围");
+  if (startDate > endDate) throw new Error("开始日期不能晚于结束日期");
+}
+
+function buildAiOptions(settings: AppSettings) {
+  return {
+    enabled: settings.aiEnabled,
+    provider: settings.aiProvider,
+    baseUrl: settings.aiBaseUrl,
+    model: settings.aiModel,
+    apiKey: settings.aiApiKey.trim(),
+    temperature: 0.2,
+    timeoutSeconds: 60,
+  };
 }
 
 function getToday() {

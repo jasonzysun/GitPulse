@@ -9,10 +9,12 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
 import {
   type AppSettings,
+  type DateRange,
   type ExtractResult,
   type GitIdentity,
   type LoadedSettingsState,
   type MonthlyReportResult,
+  type PreviewMode,
   type RepoInfo,
   type UpdateSummary,
   STORAGE_KEY,
@@ -34,16 +36,28 @@ import "./styles/dialogs.css";
 import "./styles/onboarding.css";
 import "./styles/theme.css";
 
+type CopyNotice = {
+  id: number;
+  message: string;
+  tone: "success" | "error";
+};
+
 function App() {
   const [loadedSettings] = useState<LoadedSettingsState>(loadSettingsState);
   const [settings, setSettings] = useState<AppSettings>(loadedSettings.settings);
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [summaryText, setSummaryText] = useState("");
+  const [customReport, setCustomReport] = useState("");
+  const [customRange, setCustomRange] = useState<DateRange>(() => ({
+    startDate: loadedSettings.settings.startDate,
+    endDate: loadedSettings.settings.endDate,
+  }));
   const [monthlyReport, setMonthlyReport] = useState("");
-  const [activePreview, setActivePreview] = useState<"monthly" | "summary">("summary");
+  const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
   const [status, setStatus] = useState(
     loadedSettings.recoveredLegacyApiKey ? "已迁移旧配置中的 API Key" : "就绪",
   );
+  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -58,12 +72,19 @@ function App() {
   const [pendingUpdate, setPendingUpdate] = useState<PendingAppUpdate | null>(null);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
-  const previewText = activePreview === "monthly" ? monthlyReport : summaryText;
+  const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "custom" ? customReport : summaryText;
   const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
+  const aiConfigured = Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    if (!copyNotice) return;
+    const timer = window.setTimeout(() => setCopyNotice(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [copyNotice]);
 
   useEffect(() => {
     getVersion()
@@ -132,6 +153,11 @@ function App() {
   }, [settings.rootDir]);
 
   useEffect(() => {
+    if (customReport) return;
+    setCustomRange({ startDate: settings.startDate, endDate: settings.endDate });
+  }, [customReport, settings.startDate, settings.endDate]);
+
+  useEffect(() => {
     return () => {
       pendingUpdate?.close().catch(() => undefined);
     };
@@ -160,8 +186,23 @@ function App() {
       setWarnings(result.warnings);
       setCommitCount(result.commits.length);
       setActivePreview("summary");
-      setStatus(`已提取 ${result.commits.length} 条提交`);
+      setStatus(buildExtractStatus("日报", result, settings.aiEnabled));
     }, () => validateExtractSettings(settings));
+  }
+
+  async function generateCustomReport(range: DateRange) {
+    await runTask("正在生成自定义报告", async () => {
+      const result = await invoke<ExtractResult>("extract_commits", {
+        options: buildExtractOptions(settings, projectNames, range),
+      });
+      setRepos(result.repos);
+      setCustomRange(range);
+      setCustomReport(result.detailedText || result.summaryText);
+      setWarnings(result.warnings);
+      setCommitCount(result.commits.length);
+      setActivePreview("custom");
+      setStatus(buildExtractStatus("自定义报告", result, settings.aiEnabled));
+    }, () => validateExtractSettings(settings, range));
   }
 
   async function generateMonthlyReport() {
@@ -174,27 +215,41 @@ function App() {
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
       setActivePreview("monthly");
-      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成` : `${result.monthLabel} 月报已生成，未写入文件`);
+      const aiSuffix = settings.aiEnabled && !hasAiWarning(result.warnings) ? "，AI 润色已应用" : settings.aiEnabled ? "，AI 润色失败" : "";
+      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成${aiSuffix}` : `${result.monthLabel} 月报已生成${aiSuffix}，未写入文件`);
     }, () => validateMonthlySettings(settings));
   }
 
   async function copyPreview() {
     if (!previewText) return;
-    await navigator.clipboard.writeText(previewText);
-    setStatus("内容已复制到剪贴板");
+    try {
+      await navigator.clipboard.writeText(previewText);
+      setStatus("内容已复制到剪贴板");
+      setCopyNotice({ id: Date.now(), message: "已复制到剪贴板", tone: "success" });
+    } catch {
+      setStatus("复制失败，请重试");
+      setCopyNotice({ id: Date.now(), message: "复制失败，请重试", tone: "error" });
+    }
   }
 
   async function saveSummary() {
-    if (!summaryText) return;
+    const activeExtractText = activePreview === "custom" ? customReport : summaryText;
+    if (!activeExtractText || activePreview === "monthly") return;
+    const range = activePreview === "custom" ? customRange : settings;
     await runTask("正在保存摘要", async () => {
       const outputFile = await invoke<string>("save_text_file", {
         outputDir: settings.outputDir,
-        fileName: `git_commits_${settings.startDate}_to_${settings.endDate}.md`,
-        content: summaryText,
+        fileName: `git_commits_${range.startDate}_to_${range.endDate}.md`,
+        content: activeExtractText,
       });
       setLastOutputFile(outputFile);
       setStatus("摘要已保存");
     }, () => validateOutputSettings(settings));
+  }
+
+  function toggleAiEnabled(enabled: boolean) {
+    updateSetting("aiEnabled", enabled);
+    setStatus(enabled ? "AI 润色已开启" : "AI 润色已关闭");
   }
 
   async function checkForUpdates() {
@@ -308,21 +363,27 @@ function App() {
         repos={repos}
         previewText={previewText}
         activePreview={activePreview}
+        copyNotice={copyNotice}
         status={status}
         warnings={warnings}
         isBusy={isBusy}
         lastOutputFile={lastOutputFile}
-        summaryText={summaryText}
+        summaryText={activePreview === "custom" ? customReport : summaryText}
         repoCount={repos.length}
         commitCount={commitCount}
         author={settings.author}
         startDate={settings.startDate}
         endDate={settings.endDate}
+        customRange={customRange}
+        aiEnabled={settings.aiEnabled}
+        aiConfigured={aiConfigured}
         onExtract={extractCommits}
+        onGenerateCustom={generateCustomReport}
         onGenerateMonthly={generateMonthlyReport}
         onCopy={copyPreview}
         onSaveSummary={saveSummary}
-        canSaveSummary={settings.outputEnabled}
+        canSaveSummary={settings.outputEnabled && activePreview !== "monthly"}
+        onToggleAi={toggleAiEnabled}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -343,6 +404,18 @@ function App() {
       />
     </main>
   );
+}
+
+function buildExtractStatus(label: string, result: ExtractResult, aiEnabled: boolean) {
+  if (aiEnabled && hasAiWarning(result.warnings)) {
+    return `${label}已生成 ${result.commits.length} 条提交，AI 润色失败`;
+  }
+  const aiSuffix = aiEnabled && result.commits.length > 0 ? "，AI 润色已应用" : "";
+  return `${label}已生成 ${result.commits.length} 条提交${aiSuffix}`;
+}
+
+function hasAiWarning(warnings: string[]) {
+  return warnings.some((warning) => warning.includes("AI 润色失败"));
 }
 
 function formatUpdaterError(error: unknown) {

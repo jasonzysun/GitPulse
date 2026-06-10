@@ -7,8 +7,8 @@ use crate::models::{
     ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
     MonthlyReportResult, RepoInfo,
 };
-use tauri::async_runtime;
 use std::path::PathBuf;
+use tauri::async_runtime;
 
 #[tauri::command]
 async fn scan_repos(root_dir: String) -> Result<Vec<RepoInfo>, String> {
@@ -30,13 +30,17 @@ async fn extract_commits(options: ExtractOptions) -> Result<ExtractResult, Strin
 }
 
 #[tauri::command]
-async fn generate_monthly_report(options: MonthlyReportOptions) -> Result<MonthlyReportResult, String> {
+async fn generate_monthly_report(
+    options: MonthlyReportOptions,
+) -> Result<MonthlyReportResult, String> {
     async_runtime::spawn_blocking(move || generate_monthly_report_sync(options))
         .await
         .map_err(|err| format!("生成月报任务中断：{}", err))?
 }
 
-fn generate_monthly_report_sync(options: MonthlyReportOptions) -> Result<MonthlyReportResult, String> {
+fn generate_monthly_report_sync(
+    options: MonthlyReportOptions,
+) -> Result<MonthlyReportResult, String> {
     let dates = report::previous_month_range();
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
     let (_, commits, mut warnings) = collect_commits(&extract_options)?;
@@ -64,14 +68,16 @@ fn generate_monthly_report_sync(options: MonthlyReportOptions) -> Result<Monthly
 
 fn extract_commits_sync(options: ExtractOptions) -> Result<ExtractResult, String> {
     let (repos, commits, warnings) = collect_commits(&options)?;
-    Ok(report::build_extract_result(
+    let mut result = report::build_extract_result(
         repos,
         commits,
         warnings,
         &options.project_names,
         options.show_project_and_branch,
         options.detailed_output,
-    ))
+    );
+    apply_ai_to_extract_result(&mut result, &options);
+    Ok(result)
 }
 
 fn save_monthly_if_enabled(
@@ -158,7 +164,8 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             #[cfg(desktop)]
-            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
@@ -224,6 +231,43 @@ fn monthly_extract_options(
         detailed_output: false,
         show_project_and_branch: true,
         project_names: options.project_names.clone(),
+        refinement_instruction: options.refinement_instruction.clone(),
+        ai: options.ai.clone(),
+    }
+}
+
+fn apply_ai_to_extract_result(result: &mut ExtractResult, options: &ExtractOptions) {
+    if !options.ai.enabled {
+        return;
+    }
+
+    let base_report = if options.detailed_output {
+        &result.detailed_text
+    } else {
+        &result.summary_text
+    };
+    if base_report.trim().is_empty() {
+        return;
+    }
+
+    match ai::enhance_daily_report(
+        base_report,
+        &options.start_date,
+        &options.end_date,
+        &options.author,
+        &options.refinement_instruction,
+        &options.ai,
+    ) {
+        Ok(enhanced) => {
+            if options.detailed_output {
+                result.detailed_text = enhanced;
+            } else {
+                result.summary_text = enhanced;
+            }
+        }
+        Err(err) => result
+            .warnings
+            .push(format!("AI 润色失败，已使用本地摘要：{}", err)),
     }
 }
 

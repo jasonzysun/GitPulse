@@ -47,6 +47,8 @@ pub struct ExtractOptions {
     pub detailed_output: bool,
     pub show_project_and_branch: bool,
     pub project_names: HashMap<String, String>,
+    pub refinement_instruction: String,
+    pub ai: AiConfig,
 }
 
 #[derive(Debug, Clone, Serialize)]

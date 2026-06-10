@@ -1,5 +1,8 @@
 import {
+  AlertCircle,
+  Bot,
   CalendarDays,
+  CheckCircle2,
   Clipboard,
   FileDown,
   GitBranch,
@@ -13,13 +16,15 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import type { DateRange, PreviewMode, RepoInfo } from "../model";
+import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
-import type { RepoInfo } from "../model";
 
 type Props = {
   repos: RepoInfo[];
   previewText: string;
-  activePreview: "monthly" | "summary";
+  activePreview: PreviewMode;
+  copyNotice: { id: number; message: string; tone: "success" | "error" } | null;
   status: string;
   warnings: string[];
   isBusy: boolean;
@@ -30,18 +35,24 @@ type Props = {
   author: string;
   startDate: string;
   endDate: string;
+  customRange: DateRange;
+  aiEnabled: boolean;
+  aiConfigured: boolean;
   onExtract: () => void;
+  onGenerateCustom: (range: DateRange) => void;
   onGenerateMonthly: () => void;
   onCopy: () => void;
   onSaveSummary: () => void;
   canSaveSummary: boolean;
-  onPreviewChange: (preview: "monthly" | "summary") => void;
+  onToggleAi: (enabled: boolean) => void;
+  onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
 
 export function Workbench(props: Props) {
-  const previewMeta = props.activePreview === "monthly" ? "Markdown 渲染" : "纯文本";
+  const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : props.activePreview === "monthly" ? "Markdown 渲染" : "纯文本";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -55,6 +66,22 @@ export function Workbench(props: Props) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isPreviewExpanded]);
+
+  function handlePreviewChange(preview: PreviewMode) {
+    if (preview === "custom") {
+      setCustomDialogOpen(true);
+      return;
+    }
+    props.onPreviewChange(preview);
+  }
+
+  function generateCustom(range: DateRange) {
+    setCustomDialogOpen(false);
+    props.onGenerateCustom(range);
+  }
+
+  const aiStateLabel = props.aiEnabled ? (props.aiConfigured ? "已开启" : "待配置") : "已关闭";
+  const previewEmptyText = props.activePreview === "monthly" ? "暂无月报内容。" : props.activePreview === "custom" ? "请选择时间段生成自定义报告。" : "暂无日报内容。";
 
   return (
     <section className="workbench">
@@ -103,29 +130,55 @@ export function Workbench(props: Props) {
       <div className="action-dock">
         <CommandButton icon={<GitBranch size={17} />} label="生成日报" onClick={props.onExtract} disabled={props.isBusy} tone="primary" />
         <CommandButton icon={<FileDown size={17} />} label="生成上月月报" onClick={props.onGenerateMonthly} disabled={props.isBusy} tone="primary" />
-        <CommandButton icon={<Clipboard size={17} />} label="复制结果" onClick={props.onCopy} disabled={!props.previewText} tone="plain" />
         <CommandButton icon={<RefreshCw size={17} />} label="保存摘要" onClick={props.onSaveSummary} disabled={!props.summaryText || !props.canSaveSummary || props.isBusy} tone="plain" />
+        <button
+          className={`ai-inline-toggle ${props.aiEnabled ? "active" : ""} ${props.aiEnabled && !props.aiConfigured ? "warning" : ""}`}
+          type="button"
+          aria-pressed={props.aiEnabled}
+          onClick={() => props.onToggleAi(!props.aiEnabled)}
+          title={props.aiEnabled && !props.aiConfigured ? "请在设置中补齐 AI 配置" : "切换 AI 润色"}
+        >
+          <Bot size={17} />
+          <span>AI 润色</span>
+          <strong>{aiStateLabel}</strong>
+        </button>
       </div>
 
       <div className="studio-grid">
         <section className={`report-canvas ${isPreviewExpanded ? "preview-expanded" : ""}`}>
           <div className="canvas-topline">
             <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta={previewMeta} />
-            <div className="report-switch" aria-label="报告类型切换">
-              <button className={props.activePreview === "summary" ? "active" : ""} onClick={() => props.onPreviewChange("summary")}>
-                <span>Daily</span>
-                日志
+            <div className="canvas-tools">
+              <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
+                <Clipboard size={15} />
+                复制
               </button>
-              <button className={props.activePreview === "monthly" ? "active" : ""} onClick={() => props.onPreviewChange("monthly")}>
-                <span>Monthly</span>
-                月报
-              </button>
+              <div className="report-switch" aria-label="报告类型切换">
+                <button className={props.activePreview === "summary" ? "active" : ""} onClick={() => handlePreviewChange("summary")}>
+                  <span>Daily</span>
+                  日报
+                </button>
+                <button className={props.activePreview === "monthly" ? "active" : ""} onClick={() => handlePreviewChange("monthly")}>
+                  <span>Monthly</span>
+                  月报
+                </button>
+                <button className={props.activePreview === "custom" ? "active" : ""} onClick={() => handlePreviewChange("custom")}>
+                  <span>Custom</span>
+                  自定义
+                </button>
+              </div>
             </div>
           </div>
+          {props.copyNotice && (
+            <div className={`copy-toast ${props.copyNotice.tone}`} role="status" aria-live="polite" key={props.copyNotice.id}>
+              {props.copyNotice.tone === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+              {props.copyNotice.message}
+            </div>
+          )}
           {props.activePreview === "monthly" ? (
-            <MarkdownPreview markdown={props.previewText} emptyText="暂无月报内容。" />
+            <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
           ) : (
-            <pre className="preview preview-plain">{props.previewText || "暂无报告内容。"}</pre>
+            <pre className="preview preview-plain">{props.previewText || previewEmptyText}</pre>
           )}
           <button
             className="preview-expand-button"
@@ -161,6 +214,13 @@ export function Workbench(props: Props) {
           {props.warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </footer>
       )}
+      <CustomRangeDialog
+        open={customDialogOpen}
+        initialRange={props.customRange}
+        isBusy={props.isBusy}
+        onClose={() => setCustomDialogOpen(false)}
+        onConfirm={generateCustom}
+      />
     </section>
   );
 }
