@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow, type Theme } from "@tauri-apps/api/window";
 import { check, type Update as PendingAppUpdate } from "@tauri-apps/plugin-updater";
-import { ControlPanel } from "./components/ControlPanel";
+import { OnboardingWizard } from "./components/OnboardingWizard";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
 import {
@@ -31,6 +31,7 @@ import "./styles/layout.css";
 import "./styles/components.css";
 import "./styles/preview.css";
 import "./styles/dialogs.css";
+import "./styles/onboarding.css";
 import "./styles/theme.css";
 
 function App() {
@@ -288,13 +289,21 @@ function App() {
     setPendingUpdate(nextUpdate);
   }
 
-  return (
-    <main className="app-root">
-      <ControlPanel
+  if (!settings.onboardingDone) {
+    return (
+      <OnboardingWizard
         settings={settings}
+        repos={repos}
+        isBusy={isBusy}
         updateSetting={updateSetting}
         chooseDirectory={chooseDirectory}
+        onComplete={() => updateSetting("onboardingDone", true)}
       />
+    );
+  }
+
+  return (
+    <main className="app-root">
       <Workbench
         repos={repos}
         previewText={previewText}
@@ -306,6 +315,9 @@ function App() {
         summaryText={summaryText}
         repoCount={repos.length}
         commitCount={commitCount}
+        author={settings.author}
+        startDate={settings.startDate}
+        endDate={settings.endDate}
         onExtract={extractCommits}
         onGenerateMonthly={generateMonthlyReport}
         onCopy={copyPreview}

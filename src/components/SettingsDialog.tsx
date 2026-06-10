@@ -1,4 +1,4 @@
-import { Bot, Download, Eye, EyeOff, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
+import { Bot, Download, Eye, EyeOff, FileUp, FolderGit2, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -36,6 +36,15 @@ type MappingOption = {
   label: string;
 };
 
+type SettingsTab = "workspace" | "ai" | "mapping" | "general";
+
+const SETTINGS_TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
+  { id: "workspace", label: "工作区", icon: <FolderGit2 size={15} /> },
+  { id: "ai", label: "AI 润色", icon: <Bot size={15} /> },
+  { id: "mapping", label: "项目映射", icon: <Settings2 size={15} /> },
+  { id: "general", label: "通用", icon: <Monitor size={15} /> },
+];
+
 export function SettingsDialog({
   open,
   settings,
@@ -53,10 +62,12 @@ export function SettingsDialog({
 }: Props) {
   const [importNote, setImportNote] = useState("");
   const [showAiApiKey, setShowAiApiKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
   useEffect(() => {
     if (!open) {
       setImportNote("");
       setShowAiApiKey(false);
+      setActiveTab("workspace");
     }
   }, [open]);
   if (!open) return null;
@@ -135,143 +146,191 @@ export function SettingsDialog({
           </button>
         </header>
 
-        <div className="settings-sections">
-          <section className="settings-section">
-            <SectionTitle icon={<Monitor size={16} />} title="外观" />
-            <div className="theme-mode-control" aria-label="颜色模式">
-              <ThemeModeButton
-                active={settings.themeMode === "system"}
-                icon={<Monitor size={15} />}
-                label="跟随系统"
-                onClick={() => updateSetting("themeMode", "system")}
-              />
-              <ThemeModeButton
-                active={settings.themeMode === "light"}
-                icon={<Sun size={15} />}
-                label="亮色"
-                onClick={() => updateSetting("themeMode", "light")}
-              />
-              <ThemeModeButton
-                active={settings.themeMode === "dark"}
-                icon={<Moon size={15} />}
-                label="暗色"
-                onClick={() => updateSetting("themeMode", "dark")}
-              />
-            </div>
-          </section>
+        <div className="settings-body">
+          <nav className="settings-nav" aria-label="设置分类">
+            {SETTINGS_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={activeTab === tab.id ? "active" : ""}
+                onClick={() => setActiveTab(tab.id)}
+                aria-current={activeTab === tab.id ? "page" : undefined}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </nav>
 
-          <UpdateSection
-            currentVersion={currentVersion}
-            updateSummary={updateSummary}
-            updateMessage={updateMessage}
-            updateProgress={updateProgress}
-            updateBusy={updateBusy}
-            onCheckForUpdates={onCheckForUpdates}
-            onInstallUpdate={onInstallUpdate}
-          />
-
-          <section className="settings-section">
-            <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
-            <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
-            {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />}
-            <div className="settings-toggle-grid">
-              <Toggle label="拉取最新代码" checked={settings.pullLatestCode} onChange={(value) => updateSetting("pullLatestCode", value)} />
-              <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
-              <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
-              <Toggle label="显示项目与分支" checked={settings.showProjectAndBranch} onChange={(value) => updateSetting("showProjectAndBranch", value)} />
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <SectionTitle icon={<Bot size={16} />} title="AI 润色" />
-            <Toggle label="启用 AI 润色" checked={settings.aiEnabled} onChange={(value) => updateSetting("aiEnabled", value)} />
-            <Field label="协议">
-              <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
-                <option value="openai-compatible">OpenAI Compatible</option>
-                <option value="anthropic-native">Anthropic Native</option>
-              </select>
-            </Field>
-            <Field label="Base URL">
-              <input value={settings.aiBaseUrl} onChange={(event) => updateSetting("aiBaseUrl", event.target.value)} />
-            </Field>
-            <Field label="API Key">
-              <div className="secret-input">
-                <input
-                  type={showAiApiKey ? "text" : "password"}
-                  value={settings.aiApiKey}
-                  onChange={(event) => updateSetting("aiApiKey", event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  className="secret-toggle"
-                  onClick={() => setShowAiApiKey((current) => !current)}
-                  aria-label={showAiApiKey ? "隐藏 API Key" : "显示 API Key"}
-                  aria-pressed={showAiApiKey}
-                >
-                  {showAiApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </Field>
-            <Field label="模型">
-              <input value={settings.aiModel} onChange={(event) => updateSetting("aiModel", event.target.value)} />
-            </Field>
-            <textarea
-              className="refinement-input"
-              value={settings.refinementInstruction}
-              onChange={(event) => updateSetting("refinementInstruction", event.target.value)}
-              placeholder="语气正式一些，突出项目交付、问题闭环和协作价值。"
-            />
-          </section>
-
-          <section className="settings-section mapping-section">
-            <SectionTitle icon={<Settings2 size={16} />} title="项目映射" />
-            <div className="mapping-editor">
-              {visibleMappingRows.map((row, index) => (
-                <div className="mapping-row" key={`${index}-${row.key}`}>
-                  <Field label="项目与分支">
-                    <select value={row.key} onChange={(event) => updateMappingRow(index, { key: event.target.value })}>
-                      <option value="">{repos.length > 0 ? "选择项目与分支" : "请先扫描仓库"}</option>
-                      {mappingOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+          <div className="settings-content" key={activeTab}>
+            {activeTab === "workspace" && (
+              <>
+                <section className="settings-section">
+                  <SectionTitle icon={<FolderGit2 size={16} />} title="工作区与日期" />
+                  <PathInput label="仓库根目录" value={settings.rootDir} onBrowse={() => chooseDirectory("rootDir")} />
+                  <Field label="Git 作者">
+                    <input value={settings.author} onChange={(event) => updateSetting("author", event.target.value)} />
                   </Field>
-                  <Field label="映射名称">
+                  <div className="date-pair">
+                    <Field label="开始日期">
+                      <input type="date" value={settings.startDate} onChange={(event) => updateSetting("startDate", event.target.value)} />
+                    </Field>
+                    <Field label="结束日期">
+                      <input type="date" value={settings.endDate} onChange={(event) => updateSetting("endDate", event.target.value)} />
+                    </Field>
+                  </div>
+                  <p className="mapping-hint">日期范围仅用于日报；月报固定取上个自然月。</p>
+                </section>
+
+                <section className="settings-section">
+                  <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
+                  <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
+                  {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />}
+                  <div className="settings-toggle-grid">
+                    <Toggle label="拉取最新代码" checked={settings.pullLatestCode} onChange={(value) => updateSetting("pullLatestCode", value)} />
+                    <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
+                    <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
+                    <Toggle label="显示项目与分支" checked={settings.showProjectAndBranch} onChange={(value) => updateSetting("showProjectAndBranch", value)} />
+                  </div>
+                </section>
+              </>
+            )}
+
+            {activeTab === "ai" && (
+              <section className="settings-section">
+                <SectionTitle icon={<Bot size={16} />} title="AI 润色" />
+                <Toggle label="启用 AI 润色" checked={settings.aiEnabled} onChange={(value) => updateSetting("aiEnabled", value)} />
+                <Field label="协议">
+                  <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
+                    <option value="openai-compatible">OpenAI Compatible</option>
+                    <option value="anthropic-native">Anthropic Native</option>
+                  </select>
+                </Field>
+                <Field label="Base URL">
+                  <input value={settings.aiBaseUrl} onChange={(event) => updateSetting("aiBaseUrl", event.target.value)} />
+                </Field>
+                <Field label="API Key">
+                  <div className="secret-input">
                     <input
-                      value={row.displayName}
-                      onChange={(event) => updateMappingRow(index, { displayName: event.target.value })}
-                      placeholder="例如：后端服务-"
+                      type={showAiApiKey ? "text" : "password"}
+                      value={settings.aiApiKey}
+                      onChange={(event) => updateSetting("aiApiKey", event.target.value)}
+                      autoComplete="off"
+                      spellCheck={false}
                     />
-                  </Field>
-                  <button type="button" className="icon-button mapping-remove" onClick={() => removeMappingRow(index)} aria-label="删除映射">
-                    <Trash2 size={16} />
-                  </button>
+                    <button
+                      type="button"
+                      className="secret-toggle"
+                      onClick={() => setShowAiApiKey((current) => !current)}
+                      aria-label={showAiApiKey ? "隐藏 API Key" : "显示 API Key"}
+                      aria-pressed={showAiApiKey}
+                    >
+                      {showAiApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </Field>
+                <Field label="模型">
+                  <input value={settings.aiModel} onChange={(event) => updateSetting("aiModel", event.target.value)} />
+                </Field>
+                <Field label="润色指令" hint="留空则使用默认指令">
+                  <textarea
+                    className="refinement-input"
+                    value={settings.refinementInstruction}
+                    onChange={(event) => updateSetting("refinementInstruction", event.target.value)}
+                    placeholder="语气正式一些，突出项目交付、问题闭环和协作价值。"
+                  />
+                </Field>
+              </section>
+            )}
+
+            {activeTab === "mapping" && (
+              <section className="settings-section mapping-section">
+                <SectionTitle icon={<Settings2 size={16} />} title="项目映射" />
+                <div className="mapping-editor">
+                  {visibleMappingRows.map((row, index) => (
+                    <div className="mapping-row" key={`${index}-${row.key}`}>
+                      <Field label="项目与分支">
+                        <select value={row.key} onChange={(event) => updateMappingRow(index, { key: event.target.value })}>
+                          <option value="">{repos.length > 0 ? "选择项目与分支" : "请先扫描仓库"}</option>
+                          {mappingOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="映射名称">
+                        <input
+                          value={row.displayName}
+                          onChange={(event) => updateMappingRow(index, { displayName: event.target.value })}
+                          placeholder="例如：后端服务-"
+                        />
+                      </Field>
+                      <button type="button" className="icon-button mapping-remove" onClick={() => removeMappingRow(index)} aria-label="删除映射">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="mapping-actions">
+                    <button type="button" className="mapping-add" onClick={addMappingRow}>
+                      <Plus size={16} />
+                      添加映射
+                    </button>
+                    <button type="button" className="mapping-import" onClick={downloadTemplate}>
+                      <Download size={16} />
+                      下载模板
+                    </button>
+                    <button type="button" className="mapping-import" onClick={importMappingFile}>
+                      <FileUp size={16} />
+                      导入文件
+                    </button>
+                  </div>
+                  <p className="mapping-hint">
+                    下载 Excel 模板后，在「显示名称」列填写名称再导入；「项目(分支)」列已自动列出，请勿改动。
+                  </p>
+                  {importNote && <p className="mapping-note">{importNote}</p>}
                 </div>
-              ))}
-              <div className="mapping-actions">
-                <button type="button" className="mapping-add" onClick={addMappingRow}>
-                  <Plus size={16} />
-                  添加映射
-                </button>
-                <button type="button" className="mapping-import" onClick={downloadTemplate}>
-                  <Download size={16} />
-                  下载模板
-                </button>
-                <button type="button" className="mapping-import" onClick={importMappingFile}>
-                  <FileUp size={16} />
-                  导入文件
-                </button>
-              </div>
-              <p className="mapping-hint">
-                下载 Excel 模板后，在「显示名称」列填写名称再导入；「项目(分支)」列已自动列出，请勿改动。
-              </p>
-              {importNote && <p className="mapping-note">{importNote}</p>}
-            </div>
-          </section>
+              </section>
+            )}
+
+            {activeTab === "general" && (
+              <>
+                <section className="settings-section">
+                  <SectionTitle icon={<Monitor size={16} />} title="外观" />
+                  <div className="theme-mode-control" aria-label="颜色模式">
+                    <ThemeModeButton
+                      active={settings.themeMode === "system"}
+                      icon={<Monitor size={15} />}
+                      label="跟随系统"
+                      onClick={() => updateSetting("themeMode", "system")}
+                    />
+                    <ThemeModeButton
+                      active={settings.themeMode === "light"}
+                      icon={<Sun size={15} />}
+                      label="亮色"
+                      onClick={() => updateSetting("themeMode", "light")}
+                    />
+                    <ThemeModeButton
+                      active={settings.themeMode === "dark"}
+                      icon={<Moon size={15} />}
+                      label="暗色"
+                      onClick={() => updateSetting("themeMode", "dark")}
+                    />
+                  </div>
+                </section>
+
+                <UpdateSection
+                  currentVersion={currentVersion}
+                  updateSummary={updateSummary}
+                  updateMessage={updateMessage}
+                  updateProgress={updateProgress}
+                  updateBusy={updateBusy}
+                  onCheckForUpdates={onCheckForUpdates}
+                  onInstallUpdate={onInstallUpdate}
+                />
+              </>
+            )}
+          </div>
         </div>
       </section>
     </div>

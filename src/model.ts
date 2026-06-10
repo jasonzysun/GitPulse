@@ -35,6 +35,7 @@ export type GitIdentity = {
 export type ThemeMode = "system" | "light" | "dark";
 
 export type AppSettings = {
+  onboardingDone: boolean;
   rootDir: string;
   outputDir: string;
   outputEnabled: boolean;
@@ -65,6 +66,7 @@ const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const defaultSettings: AppSettings = {
+  onboardingDone: false,
   rootDir: "",
   outputDir: "",
   outputEnabled: false,
@@ -96,6 +98,10 @@ export function loadSettingsState(): LoadedSettingsState {
 
   const rawSettings = JSON.parse(saved) as Partial<AppSettings> & { aiKeyEnv?: string };
   const parsed = { ...defaultSettings, ...rawSettings } as AppSettings;
+  // Settings saved before the onboarding flow existed imply a configured workspace.
+  if (rawSettings.onboardingDone === undefined && parsed.rootDir.trim()) {
+    parsed.onboardingDone = true;
+  }
   const legacyAiKeyEnv = rawSettings.aiKeyEnv?.trim() ?? "";
   const aiApiKey = parsed.aiApiKey.trim();
 

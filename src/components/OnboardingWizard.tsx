@@ -1,0 +1,196 @@
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FolderGit2,
+  FolderOpen,
+  Loader2,
+  Rocket,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
+import type { AppSettings, RepoInfo } from "../model";
+
+type Props = {
+  settings: AppSettings;
+  repos: RepoInfo[];
+  isBusy: boolean;
+  updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  chooseDirectory: (field: "rootDir" | "outputDir") => void;
+  onComplete: () => void;
+};
+
+const STEPS = [
+  { title: "欢迎使用", desc: "了解 GitPulse 能做什么" },
+  { title: "仓库根目录", desc: "告诉我们代码放在哪里" },
+  { title: "Git 作者", desc: "确认提交归属" },
+] as const;
+
+export function OnboardingWizard({ settings, repos, isBusy, updateSetting, chooseDirectory, onComplete }: Props) {
+  const [step, setStep] = useState(0);
+
+  const rootReady = settings.rootDir.trim().length > 0;
+  const authorReady = settings.author.trim().length > 0;
+  const canAdvance = step === 0 || (step === 1 ? rootReady : authorReady);
+
+  function goNext() {
+    if (step < STEPS.length - 1) {
+      setStep(step + 1);
+      return;
+    }
+    onComplete();
+  }
+
+  return (
+    <div className="onboarding-stage">
+      <section className="onboarding-card" aria-label="首次使用引导">
+        <aside className="onboarding-rail">
+          <div className="brand-logo onboarding-brand" role="img" aria-label="GitPulse" />
+          <ol className="onboarding-steps">
+            {STEPS.map((item, index) => (
+              <li
+                key={item.title}
+                className={index === step ? "current" : index < step ? "done" : ""}
+                aria-current={index === step ? "step" : undefined}
+              >
+                <span className="step-dot">{index < step ? <Check size={13} /> : index + 1}</span>
+                <span className="step-copy">
+                  <strong>{item.title}</strong>
+                  <small>{item.desc}</small>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="onboarding-rail-note">所有数据仅保存在本机，可随时在设置中修改。</p>
+        </aside>
+
+        <div className="onboarding-pane" key={step}>
+          {step === 0 && (
+            <StepBody
+              icon={<Sparkles size={22} />}
+              kicker="Welcome"
+              title="三步开始生成工作报告"
+              subtitle="GitPulse 扫描本机 Git 仓库，按作者与日期提取提交，一键产出日报与绩效月报。"
+            >
+              <ul className="onboarding-points">
+                <li><FolderGit2 size={16} />自动发现根目录下的全部 Git 仓库</li>
+                <li><Sparkles size={16} />日报、上月绩效月报一键生成，支持 AI 润色</li>
+                <li><UserRound size={16} />完全本地运行，提交数据不离开你的电脑</li>
+              </ul>
+            </StepBody>
+          )}
+
+          {step === 1 && (
+            <StepBody
+              icon={<FolderGit2 size={22} />}
+              kicker="Step 1"
+              title="选择仓库根目录"
+              subtitle="选择存放代码项目的文件夹，GitPulse 会扫描其中所有 Git 仓库。"
+            >
+              <button type="button" className="onboarding-picker" onClick={() => chooseDirectory("rootDir")}>
+                <FolderOpen size={18} />
+                <span className={settings.rootDir ? "" : "placeholder"}>
+                  {settings.rootDir || "点击选择文件夹，例如 D:\\workspace"}
+                </span>
+              </button>
+              {rootReady && (
+                <p className={`onboarding-feedback ${isBusy ? "" : repos.length > 0 ? "ok" : "warn"}`}>
+                  {isBusy ? (
+                    <>
+                      <Loader2 className="spin" size={14} />
+                      正在扫描仓库……
+                    </>
+                  ) : repos.length > 0 ? (
+                    <>
+                      <Check size={14} />
+                      已发现 {repos.length} 个 Git 仓库
+                    </>
+                  ) : (
+                    "该目录下暂未发现 Git 仓库，可继续下一步或换个目录"
+                  )}
+                </p>
+              )}
+            </StepBody>
+          )}
+
+          {step === 2 && (
+            <StepBody
+              icon={<UserRound size={22} />}
+              kicker="Step 2"
+              title="确认 Git 作者"
+              subtitle="报告只统计该作者的提交。已自动读取本机 Git 配置，可直接修改。"
+            >
+              <label className="onboarding-author">
+                <span>Git 作者</span>
+                <input
+                  value={settings.author}
+                  onChange={(event) => updateSetting("author", event.target.value)}
+                  placeholder="git config user.name 中的名字"
+                  autoFocus
+                />
+              </label>
+            </StepBody>
+          )}
+
+          <footer className="onboarding-footer">
+            {step > 0 ? (
+              <button type="button" className="onboarding-back" onClick={() => setStep(step - 1)}>
+                <ArrowLeft size={15} />
+                上一步
+              </button>
+            ) : (
+              <button type="button" className="onboarding-skip" onClick={onComplete}>
+                暂时跳过，稍后在设置中配置
+              </button>
+            )}
+            <button type="button" className="onboarding-next" onClick={goNext} disabled={!canAdvance}>
+              {step === 0 && (
+                <>
+                  开始配置
+                  <ArrowRight size={15} />
+                </>
+              )}
+              {step === 1 && (
+                <>
+                  下一步
+                  <ArrowRight size={15} />
+                </>
+              )}
+              {step === 2 && (
+                <>
+                  <Rocket size={15} />
+                  进入工作台
+                </>
+              )}
+            </button>
+          </footer>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StepBody({
+  icon,
+  kicker,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: ReactNode;
+  kicker: string;
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="onboarding-body">
+      <span className="onboarding-glyph">{icon}</span>
+      <p className="kicker">{kicker}</p>
+      <h1>{title}</h1>
+      <p className="onboarding-subtitle">{subtitle}</p>
+      {children}
+    </div>
+  );
+}

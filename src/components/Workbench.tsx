@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   Clipboard,
   FileDown,
   GitBranch,
@@ -9,6 +10,7 @@ import {
   Settings2,
   Sparkles,
   TerminalSquare,
+  UserRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -25,6 +27,9 @@ type Props = {
   summaryText: string;
   repoCount: number;
   commitCount: number;
+  author: string;
+  startDate: string;
+  endDate: string;
   onExtract: () => void;
   onGenerateMonthly: () => void;
   onCopy: () => void;
@@ -62,7 +67,7 @@ export function Workbench(props: Props) {
       )}
       <header className="hero-band">
         <div className="hero-copy">
-          <p className="kicker">Performance Report Pipeline</p>
+          <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
           <p className="hero-subcopy">本地 Git 数据源 · 日报取选定日期 · 月报取上月</p>
         </div>
@@ -75,6 +80,16 @@ export function Workbench(props: Props) {
             <button className="settings-trigger" type="button" onClick={props.onOpenSettings} aria-label="打开设置">
               <Settings2 size={16} />
               设置
+            </button>
+          </div>
+          <div className="context-chips" aria-label="当前工作区上下文">
+            <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改日期范围">
+              <CalendarDays size={13} />
+              {props.startDate === props.endDate ? props.startDate : `${props.startDate} ~ ${props.endDate}`}
+            </button>
+            <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改 Git 作者">
+              <UserRound size={13} />
+              {props.author || "未设置作者"}
             </button>
           </div>
           <div className="quick-stats" aria-label="当前结果概览">

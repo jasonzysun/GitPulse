@@ -1,4 +1,3 @@
-:root[data-theme="dark"] .control-rail,
 :root[data-theme="dark"] .hero-band,
 :root[data-theme="dark"] .action-dock,
 :root[data-theme="dark"] .repo-drawer,
@@ -6,11 +5,6 @@
 :root[data-theme="dark"] .event-log {
   border-color: rgba(52, 74, 103, 0.92);
   background: rgba(16, 24, 39, 0.9);
-}
-
-:root[data-theme="dark"] .control-section {
-  border-color: rgba(52, 74, 103, 0.82);
-  background: rgba(20, 31, 48, 0.72);
 }
 
 :root[data-theme="dark"] .brand-logo {
@@ -26,6 +20,16 @@
 :root[data-theme="dark"] .settings-trigger {
   border-color: rgba(52, 74, 103, 0.9);
   background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .context-chip {
+  border-color: rgba(109, 168, 255, 0.28);
+  background: rgba(63, 140, 255, 0.16);
+}
+
+:root[data-theme="dark"] .context-chip:hover {
+  border-color: rgba(109, 168, 255, 0.46);
+  background: rgba(63, 140, 255, 0.26);
 }
 
 :root[data-theme="dark"] .dialog-backdrop {
@@ -92,6 +96,20 @@
 :root[data-theme="dark"] .dialog-header {
   border-color: var(--line);
   background: linear-gradient(180deg, #121d2e, #101827);
+}
+
+:root[data-theme="dark"] .settings-nav {
+  border-right-color: rgba(52, 74, 103, 0.82);
+  background: rgba(13, 20, 32, 0.6);
+}
+
+:root[data-theme="dark"] .settings-nav button:hover {
+  background: rgba(109, 168, 255, 0.1);
+}
+
+:root[data-theme="dark"] .settings-nav button.active {
+  border-color: rgba(109, 168, 255, 0.3);
+  background: rgba(63, 140, 255, 0.18);
 }
 
 :root[data-theme="dark"] .icon-button,
