@@ -20,6 +20,7 @@ import {
   STORAGE_KEY,
   buildExtractOptions,
   buildMonthlyOptions,
+  getTodayRange,
   loadSettingsState,
   parseProjectNames,
   validateExtractSettings,
@@ -48,10 +49,7 @@ function App() {
   const [repos, setRepos] = useState<RepoInfo[]>([]);
   const [summaryText, setSummaryText] = useState("");
   const [customReport, setCustomReport] = useState("");
-  const [customRange, setCustomRange] = useState<DateRange>(() => ({
-    startDate: loadedSettings.settings.startDate,
-    endDate: loadedSettings.settings.endDate,
-  }));
+  const [customRange, setCustomRange] = useState<DateRange>(getTodayRange);
   const [monthlyReport, setMonthlyReport] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
   const [status, setStatus] = useState(
@@ -153,11 +151,6 @@ function App() {
   }, [settings.rootDir]);
 
   useEffect(() => {
-    if (customReport) return;
-    setCustomRange({ startDate: settings.startDate, endDate: settings.endDate });
-  }, [customReport, settings.startDate, settings.endDate]);
-
-  useEffect(() => {
     return () => {
       pendingUpdate?.close().catch(() => undefined);
     };
@@ -178,8 +171,9 @@ function App() {
 
   async function extractCommits() {
     await runTask("正在提取提交记录", async () => {
+      const dailyRange = getTodayRange();
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames),
+        options: buildExtractOptions(settings, projectNames, dailyRange),
       });
       setRepos(result.repos);
       setSummaryText(result.detailedText || result.summaryText);
@@ -235,7 +229,7 @@ function App() {
   async function saveSummary() {
     const activeExtractText = activePreview === "custom" ? customReport : summaryText;
     if (!activeExtractText || activePreview === "monthly") return;
-    const range = activePreview === "custom" ? customRange : settings;
+    const range = activePreview === "custom" ? customRange : getTodayRange();
     await runTask("正在保存摘要", async () => {
       const outputFile = await invoke<string>("save_text_file", {
         outputDir: settings.outputDir,
@@ -372,8 +366,7 @@ function App() {
         repoCount={repos.length}
         commitCount={commitCount}
         author={settings.author}
-        startDate={settings.startDate}
-        endDate={settings.endDate}
+        dailyDate={getTodayRange().startDate}
         customRange={customRange}
         aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}

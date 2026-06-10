@@ -144,6 +144,35 @@
   background: rgba(63, 140, 255, 0.12);
 }
 
+:root[data-theme="dark"] .model-fetch-button {
+  border-color: rgba(109, 168, 255, 0.28);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .model-fetch-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.42);
+  background: rgba(63, 140, 255, 0.28);
+}
+
+:root[data-theme="dark"] .model-fetch-note {
+  border-color: rgba(109, 168, 255, 0.28);
+  color: #d9eaff;
+  background: rgba(63, 140, 255, 0.13);
+}
+
+:root[data-theme="dark"] .model-fetch-note.success {
+  border-color: rgba(90, 214, 159, 0.28);
+  color: #9ee8c7;
+  background: rgba(28, 109, 76, 0.22);
+}
+
+:root[data-theme="dark"] .model-fetch-note.error {
+  border-color: rgba(244, 201, 120, 0.34);
+  color: #f4c978;
+  background: rgba(101, 65, 16, 0.22);
+}
+
 :root[data-theme="dark"] .theme-mode-control button.active,
 :root[data-theme="dark"] .mapping-add {
   border-color: rgba(109, 168, 255, 0.3);

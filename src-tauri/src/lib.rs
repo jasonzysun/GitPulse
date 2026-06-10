@@ -4,8 +4,8 @@ mod models;
 mod report;
 
 use crate::models::{
-    ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
-    MonthlyReportResult, RepoInfo,
+    AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
+    MonthlyReportOptions, MonthlyReportResult, RepoInfo,
 };
 use std::path::PathBuf;
 use tauri::async_runtime;
@@ -36,6 +36,13 @@ async fn generate_monthly_report(
     async_runtime::spawn_blocking(move || generate_monthly_report_sync(options))
         .await
         .map_err(|err| format!("生成月报任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn list_ai_models(config: AiConfig) -> Result<Vec<AiModelInfo>, String> {
+    async_runtime::spawn_blocking(move || ai::list_models(&config))
+        .await
+        .map_err(|err| format!("获取模型列表任务中断：{}", err))?
 }
 
 fn generate_monthly_report_sync(
@@ -175,6 +182,7 @@ pub fn run() {
             get_git_identity,
             extract_commits,
             generate_monthly_report,
+            list_ai_models,
             save_text_file,
             read_mapping_xlsx,
             write_mapping_template_xlsx

@@ -33,8 +33,7 @@ type Props = {
   repoCount: number;
   commitCount: number;
   author: string;
-  startDate: string;
-  endDate: string;
+  dailyDate: string;
   customRange: DateRange;
   aiEnabled: boolean;
   aiConfigured: boolean;
@@ -82,6 +81,11 @@ export function Workbench(props: Props) {
 
   const aiStateLabel = props.aiEnabled ? (props.aiConfigured ? "已开启" : "待配置") : "已关闭";
   const previewEmptyText = props.activePreview === "monthly" ? "暂无月报内容。" : props.activePreview === "custom" ? "请选择时间段生成自定义报告。" : "暂无日报内容。";
+  const dateChipLabel = props.activePreview === "custom"
+    ? `${props.customRange.startDate} ~ ${props.customRange.endDate}`
+    : props.activePreview === "monthly"
+      ? "上月月报"
+      : `今日日报 · ${props.dailyDate}`;
 
   return (
     <section className="workbench">
@@ -96,7 +100,7 @@ export function Workbench(props: Props) {
         <div className="hero-copy">
           <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 日报取选定日期 · 月报取上月</p>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 自定义可选周期 · 月报取上月</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">
@@ -110,9 +114,9 @@ export function Workbench(props: Props) {
             </button>
           </div>
           <div className="context-chips" aria-label="当前工作区上下文">
-            <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改日期范围">
+            <button type="button" className="context-chip" onClick={() => setCustomDialogOpen(true)} title="选择自定义报告周期">
               <CalendarDays size={13} />
-              {props.startDate === props.endDate ? props.startDate : `${props.startDate} ~ ${props.endDate}`}
+              {dateChipLabel}
             </button>
             <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改 Git 作者">
               <UserRound size={13} />

@@ -1,7 +1,7 @@
-use crate::models::AiConfig;
+use crate::models::{AiConfig, AiModelInfo};
 use reqwest::blocking::Client;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 pub fn enhance_monthly_report(
     base_report: &str,
@@ -39,6 +39,24 @@ pub fn enhance_daily_report(
     enhance_report(base_report, daily_system_prompt(), &prompt, config)
 }
 
+pub fn list_models(config: &AiConfig) -> Result<Vec<AiModelInfo>, String> {
+    validate_model_list_config(config)?;
+    let api_key = read_api_key(config)?;
+    let url = format!("{}/models", config.base_url.trim_end_matches('/'));
+    let request = http_client(config)?.get(url);
+    let request = if config.provider == "anthropic-native" {
+        request
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+    } else {
+        request.bearer_auth(api_key)
+    };
+
+    parse_model_list_response(parse_json_response(
+        request.send().map_err(|err| err.to_string())?,
+    )?)
+}
+
 fn enhance_report(
     base_report: &str,
     system_prompt: &str,
@@ -61,6 +79,13 @@ fn validate_config(config: &AiConfig) -> Result<(), String> {
     if config.model.trim().is_empty() {
         return Err("未配置 AI 模型名".to_string());
     }
+    if config.base_url.trim().is_empty() {
+        return Err("未配置 AI Base URL".to_string());
+    }
+    Ok(())
+}
+
+fn validate_model_list_config(config: &AiConfig) -> Result<(), String> {
     if config.base_url.trim().is_empty() {
         return Err("未配置 AI Base URL".to_string());
     }
@@ -165,6 +190,37 @@ fn parse_anthropic_response(response: Value) -> Result<String, String> {
     Ok(content)
 }
 
+fn parse_model_list_response(response: Value) -> Result<Vec<AiModelInfo>, String> {
+    let candidates = response
+        .get("data")
+        .or_else(|| response.get("models"))
+        .and_then(Value::as_array)
+        .cloned()
+        .or_else(|| response.as_array().cloned())
+        .ok_or_else(|| "AI 服务返回的模型列表格式不正确".to_string())?;
+    let mut seen = HashSet::new();
+    let mut models = candidates
+        .iter()
+        .filter_map(extract_model_id)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .filter(|id| seen.insert((*id).to_string()))
+        .map(|id| AiModelInfo { id: id.to_string() })
+        .collect::<Vec<_>>();
+    models.sort_by(|left, right| left.id.to_lowercase().cmp(&right.id.to_lowercase()));
+    if models.is_empty() {
+        return Err("AI 服务未返回可用模型".to_string());
+    }
+    Ok(models)
+}
+
+fn extract_model_id(value: &Value) -> Option<&str> {
+    value
+        .as_str()
+        .or_else(|| value.get("id").and_then(Value::as_str))
+        .or_else(|| value.get("name").and_then(Value::as_str))
+}
+
 fn monthly_system_prompt() -> &'static str {
     "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。"
 }
@@ -240,6 +296,35 @@ mod tests {
         });
 
         assert_eq!(parse_anthropic_response(response).unwrap(), "first\nsecond");
+    }
+
+    #[test]
+    fn parse_model_list_response_reads_openai_data() {
+        let response = json!({
+            "data": [
+                { "id": "gpt-4.1-mini" },
+                { "id": "gpt-4.1" }
+            ]
+        });
+
+        let models = parse_model_list_response(response).unwrap();
+
+        assert_eq!(
+            models.into_iter().map(|model| model.id).collect::<Vec<_>>(),
+            vec!["gpt-4.1", "gpt-4.1-mini"]
+        );
+    }
+
+    #[test]
+    fn parse_model_list_response_accepts_string_arrays() {
+        let response = json!({ "models": ["z-model", "a-model", "a-model"] });
+
+        let models = parse_model_list_response(response).unwrap();
+
+        assert_eq!(
+            models.into_iter().map(|model| model.id).collect::<Vec<_>>(),
+            vec!["a-model", "z-model"]
+        );
     }
 
     #[test]

@@ -76,8 +76,8 @@ npm run release:win
 
 - 协议：`OpenAI Compatible` 或 `Anthropic Native`
 - Base URL：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
-- 模型：对应协议支持的模型名
 - API Key：对应服务的密钥，默认隐藏显示，可点击按钮切换可见状态
+- 模型：可手动填写，也可点击“获取模型”后从服务返回的模型列表中选择
 
 如果 AI 调用失败，应用会自动回退到本地月报模板。
 

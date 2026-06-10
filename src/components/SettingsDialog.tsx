@@ -1,4 +1,22 @@
-import { Bot, Download, Eye, EyeOff, FileUp, FolderGit2, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
+import {
+  AlertCircle,
+  Bot,
+  CheckCircle2,
+  Download,
+  Eye,
+  EyeOff,
+  FileUp,
+  FolderGit2,
+  Loader2,
+  Monitor,
+  Moon,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Sun,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -7,6 +25,7 @@ import {
   mergeMappingEntries,
   parseMappingText,
   serializeMappingText,
+  type AiModelInfo,
   type AppSettings,
   type MappingEntry,
   type RepoInfo,
@@ -36,7 +55,14 @@ type MappingOption = {
   label: string;
 };
 
+type ModelFetchStatus = {
+  type: "idle" | "loading" | "success" | "error";
+  message: string;
+};
+
 type SettingsTab = "workspace" | "ai" | "mapping" | "general";
+
+const EMPTY_MODEL_FETCH_STATUS: ModelFetchStatus = { type: "idle", message: "" };
 
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "workspace", label: "工作区", icon: <FolderGit2 size={15} /> },
@@ -63,11 +89,15 @@ export function SettingsDialog({
   const [importNote, setImportNote] = useState("");
   const [showAiApiKey, setShowAiApiKey] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
+  const [aiModelOptions, setAiModelOptions] = useState<string[]>([]);
+  const [modelFetchStatus, setModelFetchStatus] = useState<ModelFetchStatus>(EMPTY_MODEL_FETCH_STATUS);
   useEffect(() => {
     if (!open) {
       setImportNote("");
       setShowAiApiKey(false);
       setActiveTab("workspace");
+      setAiModelOptions([]);
+      setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
     }
   }, [open]);
   if (!open) return null;
@@ -76,13 +106,67 @@ export function SettingsDialog({
   const visibleMappingRows = mappingRows.length > 0 ? mappingRows : [{ key: "", displayName: "" }];
   const mappingOptions = buildMappingOptions(repos, mappingRows);
 
+  function resetAiModelFetch() {
+    setAiModelOptions([]);
+    setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
+  }
+
   function updateAiProvider(provider: AppSettings["aiProvider"]) {
+    resetAiModelFetch();
     updateSetting("aiProvider", provider);
+    updateSetting("aiModel", "");
     if (provider === "anthropic-native") {
       updateSetting("aiBaseUrl", "https://api.anthropic.com/v1");
       return;
     }
     updateSetting("aiBaseUrl", "https://api.openai.com/v1");
+  }
+
+  function updateAiConnectionSetting<K extends "aiBaseUrl" | "aiApiKey">(key: K, value: AppSettings[K]) {
+    resetAiModelFetch();
+    updateSetting(key, value);
+  }
+
+  function updateAiModel(model: string) {
+    updateSetting("aiModel", model);
+  }
+
+  async function fetchAiModels() {
+    if (!settings.aiBaseUrl.trim()) {
+      setModelFetchStatus({ type: "error", message: "请先填写 Base URL" });
+      return;
+    }
+    if (!settings.aiApiKey.trim()) {
+      setModelFetchStatus({ type: "error", message: "请先填写 API Key" });
+      return;
+    }
+
+    setModelFetchStatus({ type: "loading", message: "正在向当前 AI 服务获取模型列表..." });
+    try {
+      const models = await invoke<AiModelInfo[]>("list_ai_models", {
+        config: {
+          enabled: true,
+          provider: settings.aiProvider,
+          baseUrl: settings.aiBaseUrl.trim(),
+          model: settings.aiModel,
+          apiKey: settings.aiApiKey.trim(),
+          temperature: 0.2,
+          timeoutSeconds: 30,
+        },
+      });
+      const modelIds = [...new Set(models.map((model) => model.id.trim()).filter(Boolean))];
+      if (modelIds.length === 0) {
+        setAiModelOptions([]);
+        setModelFetchStatus({ type: "error", message: "没有读取到可用模型，请检查服务返回内容" });
+        return;
+      }
+      setAiModelOptions(modelIds);
+      if (!settings.aiModel.trim()) updateAiModel(modelIds[0]);
+      setModelFetchStatus({ type: "success", message: `已获取 ${modelIds.length} 个模型，可在下方直接选择` });
+    } catch (error) {
+      setAiModelOptions([]);
+      setModelFetchStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   function updateMappingRow(index: number, patch: Partial<MappingEntry>) {
@@ -166,20 +250,12 @@ export function SettingsDialog({
             {activeTab === "workspace" && (
               <>
                 <section className="settings-section">
-                  <SectionTitle icon={<FolderGit2 size={16} />} title="工作区与日期" />
+                  <SectionTitle icon={<FolderGit2 size={16} />} title="工作区" />
                   <PathInput label="仓库根目录" value={settings.rootDir} onBrowse={() => chooseDirectory("rootDir")} />
                   <Field label="Git 作者">
                     <input value={settings.author} onChange={(event) => updateSetting("author", event.target.value)} />
                   </Field>
-                  <div className="date-pair">
-                    <Field label="开始日期">
-                      <input type="date" value={settings.startDate} onChange={(event) => updateSetting("startDate", event.target.value)} />
-                    </Field>
-                    <Field label="结束日期">
-                      <input type="date" value={settings.endDate} onChange={(event) => updateSetting("endDate", event.target.value)} />
-                    </Field>
-                  </div>
-                  <p className="mapping-hint">日期范围仅用于日报；月报固定取上个自然月。</p>
+                  <p className="mapping-hint">日报默认使用今天；其他日期范围请在首页切换到「自定义」。月报固定取上个自然月。</p>
                 </section>
 
                 <section className="settings-section">
@@ -207,14 +283,14 @@ export function SettingsDialog({
                   </select>
                 </Field>
                 <Field label="Base URL">
-                  <input value={settings.aiBaseUrl} onChange={(event) => updateSetting("aiBaseUrl", event.target.value)} />
+                  <input value={settings.aiBaseUrl} onChange={(event) => updateAiConnectionSetting("aiBaseUrl", event.target.value)} />
                 </Field>
                 <Field label="API Key">
                   <div className="secret-input">
                     <input
                       type={showAiApiKey ? "text" : "password"}
                       value={settings.aiApiKey}
-                      onChange={(event) => updateSetting("aiApiKey", event.target.value)}
+                      onChange={(event) => updateAiConnectionSetting("aiApiKey", event.target.value)}
                       autoComplete="off"
                       spellCheck={false}
                     />
@@ -229,8 +305,53 @@ export function SettingsDialog({
                     </button>
                   </div>
                 </Field>
-                <Field label="模型">
-                  <input value={settings.aiModel} onChange={(event) => updateSetting("aiModel", event.target.value)} />
+                <Field label="模型" hint="可手动输入；也可以根据当前 Base URL 与 API Key 获取模型列表后选择。">
+                  <div className="model-picker">
+                    <input
+                      value={settings.aiModel}
+                      onChange={(event) => updateAiModel(event.target.value)}
+                      list="ai-model-options"
+                      placeholder="例如：gpt-4.1-mini"
+                    />
+                    <button
+                      type="button"
+                      className="model-fetch-button"
+                      onClick={fetchAiModels}
+                      disabled={modelFetchStatus.type === "loading"}
+                      aria-busy={modelFetchStatus.type === "loading"}
+                    >
+                      {modelFetchStatus.type === "loading" ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
+                      {modelFetchStatus.type === "loading" ? "获取中" : "获取模型"}
+                    </button>
+                  </div>
+                  <datalist id="ai-model-options">
+                    {aiModelOptions.map((model) => (
+                      <option key={model} value={model} />
+                    ))}
+                  </datalist>
+                  {aiModelOptions.length > 0 && (
+                    <select
+                      className="model-select"
+                      value={aiModelOptions.includes(settings.aiModel) ? settings.aiModel : ""}
+                      onChange={(event) => event.target.value && updateAiModel(event.target.value)}
+                      aria-label="从获取的模型列表中选择"
+                    >
+                      <option value="">从获取的模型列表中选择</option>
+                      {aiModelOptions.map((model) => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {modelFetchStatus.message && (
+                    <p className={`model-fetch-note ${modelFetchStatus.type}`}>
+                      {modelFetchStatus.type === "loading" && <Loader2 className="spin" size={14} />}
+                      {modelFetchStatus.type === "success" && <CheckCircle2 size={14} />}
+                      {modelFetchStatus.type === "error" && <AlertCircle size={14} />}
+                      {modelFetchStatus.message}
+                    </p>
+                  )}
                 </Field>
                 <Field label="润色指令" hint="留空则使用默认指令">
                   <textarea

@@ -39,6 +39,10 @@ export type GitIdentity = {
   userEmail: string;
 };
 
+export type AiModelInfo = {
+  id: string;
+};
+
 export type ThemeMode = "system" | "light" | "dark";
 
 export type AppSettings = {
@@ -48,8 +52,6 @@ export type AppSettings = {
   outputEnabled: boolean;
   themeMode: ThemeMode;
   author: string;
-  startDate: string;
-  endDate: string;
   pullLatestCode: boolean;
   extractAllBranches: boolean;
   detailedOutput: boolean;
@@ -79,8 +81,6 @@ export const defaultSettings: AppSettings = {
   outputEnabled: false,
   themeMode: "system",
   author: "",
-  startDate: getToday(),
-  endDate: getToday(),
   pullLatestCode: false,
   extractAllBranches: false,
   detailedOutput: false,
@@ -103,8 +103,15 @@ export function loadSettingsState(): LoadedSettingsState {
     };
   }
 
-  const rawSettings = JSON.parse(saved) as Partial<AppSettings> & { aiKeyEnv?: string };
-  const parsed = { ...defaultSettings, ...rawSettings } as AppSettings;
+  const rawSettings = JSON.parse(saved) as Partial<AppSettings> & {
+    aiKeyEnv?: string;
+    startDate?: string;
+    endDate?: string;
+  };
+  const persistedSettings = { ...rawSettings };
+  delete persistedSettings.startDate;
+  delete persistedSettings.endDate;
+  const parsed = { ...defaultSettings, ...persistedSettings } as AppSettings;
   // Settings saved before the onboarding flow existed imply a configured workspace.
   if (rawSettings.onboardingDone === undefined && parsed.rootDir.trim()) {
     parsed.onboardingDone = true;
@@ -180,11 +187,12 @@ export function buildExtractOptions(
   projectNames: Record<string, string>,
   dateRange?: DateRange,
 ) {
+  const range = dateRange ?? getTodayRange();
   return {
     rootDir: settings.rootDir,
     author: settings.author,
-    startDate: dateRange?.startDate ?? settings.startDate,
-    endDate: dateRange?.endDate ?? settings.endDate,
+    startDate: range.startDate,
+    endDate: range.endDate,
     pullLatestCode: settings.pullLatestCode,
     extractAllBranches: settings.extractAllBranches,
     detailedOutput: settings.detailedOutput,
@@ -224,7 +232,8 @@ export function validateMonthlySettings(settings: AppSettings) {
 export function validateExtractSettings(settings: AppSettings, dateRange?: DateRange) {
   validateWorkspaceSettings(settings);
   if (!settings.author) throw new Error("请输入 Git 作者");
-  validateDateRange(dateRange?.startDate ?? settings.startDate, dateRange?.endDate ?? settings.endDate);
+  const range = dateRange ?? getTodayRange();
+  validateDateRange(range.startDate, range.endDate);
   validateAiSettings(settings);
 }
 
@@ -260,8 +269,17 @@ function buildAiOptions(settings: AppSettings) {
   };
 }
 
-function getToday() {
-  return new Date().toISOString().slice(0, 10);
+export function getTodayRange(): DateRange {
+  const today = getToday();
+  return { startDate: today, endDate: today };
+}
+
+export function getToday() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function looksLikeEnvVarName(value: string) {
