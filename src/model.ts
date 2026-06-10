@@ -20,6 +20,13 @@ export type MonthlyReportResult = {
   commitCount: number;
 };
 
+export type UpdateSummary = {
+  currentVersion: string;
+  version: string;
+  notes: string;
+  date?: string;
+};
+
 export type GitIdentity = {
   userName: string;
   userEmail: string;
@@ -85,7 +92,8 @@ export type MappingEntry = {
 
 export function parseMappingText(text: string): MappingEntry[] {
   return text.split(/\r?\n/).reduce<MappingEntry[]>((rows, line) => {
-    if (!line.trim()) return rows;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return rows;
     const separatorIndex = line.indexOf("->");
     if (separatorIndex < 0) return rows;
     rows.push({
@@ -100,13 +108,21 @@ export function serializeMappingText(rows: MappingEntry[]): string {
   return rows.map((row) => `${row.key} -> ${row.displayName}`).join("\n");
 }
 
-export function mergeMappingText(existing: string, imported: string): string {
+export function mergeMappingEntries(existing: string, entries: MappingEntry[]): string {
   const merged = new Map<string, string>();
   for (const row of parseMappingText(existing)) merged.set(row.key, row.displayName);
-  for (const row of parseMappingText(imported)) {
-    if (row.key) merged.set(row.key, row.displayName);
+  for (const row of entries) {
+    if (row.key && row.displayName) merged.set(row.key, row.displayName);
   }
   return serializeMappingText([...merged].map(([key, displayName]) => ({ key, displayName })));
+}
+
+export function buildMappingKeys(repos: RepoInfo[]): string[] {
+  return repos.flatMap((repo) => {
+    const keys = [`${repo.name}(*)`];
+    if (repo.branch) keys.push(`${repo.name}(${repo.branch})`);
+    return keys;
+  });
 }
 
 export function parseProjectNames(text: string): Record<string, string> {

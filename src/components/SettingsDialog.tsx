@@ -1,23 +1,33 @@
-import { Bot, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
+import { Bot, Download, FileUp, Monitor, Moon, Plus, Settings2, Sun, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import {
-  mergeMappingText,
+  buildMappingKeys,
+  mergeMappingEntries,
   parseMappingText,
   serializeMappingText,
   type AppSettings,
   type MappingEntry,
   type RepoInfo,
+  type UpdateSummary,
 } from "../model";
 import { Field, PathInput, Toggle } from "./Primitives";
+import { UpdateSection } from "./UpdateSection";
 
 type Props = {
   open: boolean;
   settings: AppSettings;
   repos: RepoInfo[];
+  currentVersion: string;
+  updateSummary: UpdateSummary | null;
+  updateMessage: string;
+  updateProgress: string;
+  updateBusy: "checking" | "installing" | null;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
   chooseDirectory: (field: "rootDir" | "outputDir") => void;
+  onCheckForUpdates: () => void;
+  onInstallUpdate: () => void;
   onClose: () => void;
 };
 
@@ -26,7 +36,21 @@ type MappingOption = {
   label: string;
 };
 
-export function SettingsDialog({ open, settings, repos, updateSetting, chooseDirectory, onClose }: Props) {
+export function SettingsDialog({
+  open,
+  settings,
+  repos,
+  currentVersion,
+  updateSummary,
+  updateMessage,
+  updateProgress,
+  updateBusy,
+  updateSetting,
+  chooseDirectory,
+  onCheckForUpdates,
+  onInstallUpdate,
+  onClose,
+}: Props) {
   const [importNote, setImportNote] = useState("");
   useEffect(() => {
     if (!open) setImportNote("");
@@ -67,17 +91,30 @@ export function SettingsDialog({ open, settings, repos, updateSetting, chooseDir
     try {
       const selected = await openDialog({
         multiple: false,
-        filters: [{ name: "项目映射", extensions: ["txt", "csv"] }],
+        filters: [{ name: "Excel 工作簿", extensions: ["xlsx"] }],
       });
       if (typeof selected !== "string") return;
-      const content = await invoke<string>("read_text_file", { path: selected });
-      const incoming = parseMappingText(content);
-      if (incoming.length === 0) {
-        setImportNote("未解析到映射，请确认每行格式为：项目(分支) -> 名称");
+      const entries = await invoke<MappingEntry[]>("read_mapping_xlsx", { path: selected });
+      if (entries.length === 0) {
+        setImportNote("未读取到映射，请确认已在「显示名称」列填写内容");
         return;
       }
-      updateSetting("projectNamesText", mergeMappingText(settings.projectNamesText, content));
-      setImportNote(`已导入 ${incoming.length} 条映射`);
+      updateSetting("projectNamesText", mergeMappingEntries(settings.projectNamesText, entries));
+      setImportNote(`已导入 ${entries.length} 条映射`);
+    } catch (error) {
+      setImportNote(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function downloadTemplate() {
+    try {
+      const path = await saveDialog({
+        defaultPath: "gitpulse-映射模板.xlsx",
+        filters: [{ name: "Excel 工作簿", extensions: ["xlsx"] }],
+      });
+      if (typeof path !== "string") return;
+      await invoke("write_mapping_template_xlsx", { path, keys: buildMappingKeys(repos) });
+      setImportNote(`模板已保存：${path}`);
     } catch (error) {
       setImportNote(error instanceof Error ? error.message : String(error));
     }
@@ -120,6 +157,16 @@ export function SettingsDialog({ open, settings, repos, updateSetting, chooseDir
               />
             </div>
           </section>
+
+          <UpdateSection
+            currentVersion={currentVersion}
+            updateSummary={updateSummary}
+            updateMessage={updateMessage}
+            updateProgress={updateProgress}
+            updateBusy={updateBusy}
+            onCheckForUpdates={onCheckForUpdates}
+            onInstallUpdate={onInstallUpdate}
+          />
 
           <section className="settings-section">
             <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
@@ -193,11 +240,18 @@ export function SettingsDialog({ open, settings, repos, updateSetting, chooseDir
                   <Plus size={16} />
                   添加映射
                 </button>
+                <button type="button" className="mapping-import" onClick={downloadTemplate}>
+                  <Download size={16} />
+                  下载模板
+                </button>
                 <button type="button" className="mapping-import" onClick={importMappingFile}>
                   <FileUp size={16} />
                   导入文件
                 </button>
               </div>
+              <p className="mapping-hint">
+                下载 Excel 模板后，在「显示名称」列填写名称再导入；「项目(分支)」列已自动列出，请勿改动。
+              </p>
               {importNote && <p className="mapping-note">{importNote}</p>}
             </div>
           </section>

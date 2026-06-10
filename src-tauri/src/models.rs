@@ -11,6 +11,13 @@ pub struct RepoInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MappingEntry {
+    pub key: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitIdentity {
     pub user_name: String,
     pub user_email: String,

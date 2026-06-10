@@ -11,6 +11,7 @@
 - 月报按项目拆分，并包含“项目进度 / 实际完成情况 / 当月总结”
 - 可选 OpenAI-compatible 或 Anthropic Native AI 润色，API Key 只从环境变量读取
 - 生成结果支持预览、复制和按需保存到本地
+- 支持 Windows x86_64 在线检查更新
 
 ## 技术栈
 
@@ -57,6 +58,16 @@ npm run tauri build
 
 ```text
 src-tauri/target/release/bundle/
+```
+
+发布在线更新包：
+
+```bash
+# Windows PowerShell
+Copy-Item .release.env.example .release.env.local
+
+# Build, sign, upload and publish latest.json
+npm run release:win
 ```
 
 ## AI 润色

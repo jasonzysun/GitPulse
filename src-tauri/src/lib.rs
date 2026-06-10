@@ -4,7 +4,8 @@ mod models;
 mod report;
 
 use crate::models::{
-    ExtractOptions, ExtractResult, GitIdentity, MonthlyReportOptions, MonthlyReportResult, RepoInfo,
+    ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
+    MonthlyReportResult, RepoInfo,
 };
 use std::path::PathBuf;
 
@@ -80,13 +81,71 @@ fn save_text_file(
 }
 
 #[tauri::command]
-fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|err| format!("读取文件失败：{}", err))
+fn read_mapping_xlsx(path: String) -> Result<Vec<MappingEntry>, String> {
+    use calamine::{open_workbook, Reader, Xlsx};
+
+    let mut workbook: Xlsx<_> =
+        open_workbook(&path).map_err(|err| format!("无法打开 Excel 文件：{}", err))?;
+    let sheet_name = workbook
+        .sheet_names()
+        .first()
+        .cloned()
+        .ok_or_else(|| "Excel 中没有工作表".to_string())?;
+    let range = workbook
+        .worksheet_range(&sheet_name)
+        .map_err(|err| format!("读取工作表失败：{}", err))?;
+
+    let mut entries = Vec::new();
+    for row in range.rows().skip(1) {
+        let key = row.get(0).map(|cell| cell.to_string()).unwrap_or_default();
+        let display_name = row.get(1).map(|cell| cell.to_string()).unwrap_or_default();
+        let key = key.trim().to_string();
+        let display_name = display_name.trim().to_string();
+        if !key.is_empty() && !display_name.is_empty() {
+            entries.push(MappingEntry { key, display_name });
+        }
+    }
+    Ok(entries)
+}
+
+#[tauri::command]
+fn write_mapping_template_xlsx(path: String, keys: Vec<String>) -> Result<(), String> {
+    use rust_xlsxwriter::{Format, Workbook};
+
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    let header_format = Format::new().set_bold();
+    worksheet
+        .set_column_width(0, 36.0)
+        .map_err(|err| err.to_string())?;
+    worksheet
+        .set_column_width(1, 24.0)
+        .map_err(|err| err.to_string())?;
+    worksheet
+        .write_with_format(0, 0, "项目(分支)", &header_format)
+        .map_err(|err| err.to_string())?;
+    worksheet
+        .write_with_format(0, 1, "显示名称", &header_format)
+        .map_err(|err| err.to_string())?;
+    for (index, key) in keys.iter().enumerate() {
+        worksheet
+            .write((index + 1) as u32, 0, key.as_str())
+            .map_err(|err| err.to_string())?;
+    }
+    workbook
+        .save(&path)
+        .map_err(|err| format!("保存 Excel 失败：{}", err))?;
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(desktop)]
+            app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -95,7 +154,8 @@ pub fn run() {
             extract_commits,
             generate_monthly_report,
             save_text_file,
-            read_text_file
+            read_mapping_xlsx,
+            write_mapping_template_xlsx
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
