@@ -192,7 +192,7 @@ export function SettingsDialog({
       }
       setAiModelOptions(modelIds);
       if (!settings.aiModel.trim()) updateAiModel(modelIds[0]);
-      setModelFetchStatus({ type: "success", message: `已获取 ${modelIds.length} 个模型，可在下方直接选择` });
+      setModelFetchStatus({ type: "success", message: `已获取 ${modelIds.length} 个模型，点击模型框即可下拉选择` });
     } catch (error) {
       setAiModelOptions([]);
       setModelFetchStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
@@ -484,21 +484,6 @@ export function SettingsDialog({
                       <option key={model} value={model} />
                     ))}
                   </datalist>
-                  {aiModelOptions.length > 0 && (
-                    <select
-                      className="model-select"
-                      value={aiModelOptions.includes(settings.aiModel) ? settings.aiModel : ""}
-                      onChange={(event) => event.target.value && updateAiModel(event.target.value)}
-                      aria-label="从获取的模型列表中选择"
-                    >
-                      <option value="">从获取的模型列表中选择</option>
-                      {aiModelOptions.map((model) => (
-                        <option key={model} value={model}>
-                          {model}
-                        </option>
-                      ))}
-                    </select>
-                  )}
                   {modelFetchStatus.message && (
                     <p className={`model-fetch-note ${modelFetchStatus.type}`}>
                       {modelFetchStatus.type === "loading" && <Loader2 className="spin" size={14} />}

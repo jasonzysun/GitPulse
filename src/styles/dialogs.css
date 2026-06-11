@@ -334,10 +334,6 @@
   opacity: 0.72;
 }
 
-.model-select {
-  margin-top: 2px;
-}
-
 .model-fetch-note {
   display: inline-flex;
   align-items: center;
