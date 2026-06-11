@@ -1,163 +1,162 @@
-# GitPulse
+<div align="center">
 
-本地优先的 Git 工作报告生成器。应用使用 **Tauri + React + Rust** 构建，不依赖 Python 运行时，适合从本机多个 Git 仓库生成日报、提交摘要和绩效月报。
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="public/brand-dark.png" />
+  <img src="public/brand-light.png" alt="GitPulse" width="300" />
+</picture>
 
-## 功能
+### 本地优先的 Git 工作报告生成器
 
-- 扫描本机 workspace 下的 Git 仓库
-- 按作者、日期范围、当前分支或所有分支提取 commit
-- 支持项目名映射，例如 `api-service(*) -> 后端服务-`
-- 一键生成上个月绩效月报
-- 月报按项目拆分，并包含“项目进度 / 实际完成情况 / 当月总结”
-- 可选 OpenAI-compatible 或 Anthropic Native AI 润色，支持直接保存 API Key
-- 生成结果支持预览、复制和按需保存到本地
-- 支持 Windows x86_64 在线检查更新
+<em>Local-first Git work reports — turn scattered commits into daily, custom &amp; monthly reports in one click.</em>
 
-## 技术栈
+把散落在多个仓库里的提交，**一键**变成可直接交付的日报、自定义区间报告和绩效月报。数据全程不出本机。
 
-```text
-Tauri 2
-React 19
-Vite
-Rust
-```
+<br />
 
-旧版 Python/Tkinter 代码已保留在分支：
+[![Release](https://img.shields.io/github/v/release/GoldenZqqq/GitPulse?style=flat-square&color=01A3B0&label=release)](https://github.com/GoldenZqqq/GitPulse/releases)
+[![Downloads](https://img.shields.io/github/downloads/GoldenZqqq/GitPulse/total?style=flat-square&color=FD7319&label=downloads)](https://github.com/GoldenZqqq/GitPulse/releases)
+[![License](https://img.shields.io/github/license/GoldenZqqq/GitPulse?style=flat-square&color=01A3B0)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/GoldenZqqq/GitPulse?style=flat-square&color=FD7319)](https://github.com/GoldenZqqq/GitPulse/stargazers)
+
+![Windows](https://img.shields.io/badge/Windows-x86__64-2A5E8C?style=flat-square&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-universal-000000?style=flat-square&logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-AppImage-444444?style=flat-square&logo=linux&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?style=flat-square&logo=tauri&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-stable-DEA584?style=flat-square&logo=rust&logoColor=white)
+
+<b><a href="#-下载与安装">下载</a> · <a href="#-快速开始">快速开始</a> · <a href="#-功能特性">功能</a> · <a href="#-ai-润色">AI 润色</a> · <a href="#-本地开发">开发</a></b>
+
+</div>
+
+<br />
+
+<div align="center">
+  <a href="docs/gitpulse-demo.mp4">
+    <img src="docs/gitpulse-demo.gif" alt="GitPulse 操作流程演示" width="820" />
+  </a>
+  <p><sub>▲ 操作流程演示 · <a href="docs/gitpulse-demo.mp4">点此查看高清 MP4</a></sub></p>
+</div>
+
+---
+
+## 🌟 为什么是 GitPulse
+
+每到周五、月底，写日报和绩效月报都是一件麻烦事：要翻多个仓库的 git log、手动拼凑、再润色成人话。GitPulse 把这件事自动化——
+
+- **本地优先**：所有扫描、提取、生成都在本机用 Rust 完成，提交记录与 API Key 不上传任何服务器。
+- **多仓库聚合**：指向工作区目录，自动发现下面所有 Git 仓库，按作者和时间一次性汇总。
+- **直接能交付**：输出按项目分组、结构清晰的 Markdown，可一键复制进周报系统，或保存到本地。
+- **轻量**：基于 Tauri，安装包小、启动快，不依赖 Python 或任何运行时。
+
+## ✨ 功能特性
+
+| | |
+|---|---|
+| 🔍 **仓库扫描** | 扫描工作区目录下的所有 Git 仓库，自动读取本机 git 作者 |
+| 📅 **灵活提取** | 按作者、日期区间、当前分支或全部分支提取 commit |
+| 🏷️ **项目名映射** | 把仓库名/分支映射成中文项目名，例如 `api-service(*) -> 后端服务-` |
+| 📰 **日报** | 一键生成当天提交摘要 |
+| 🗓️ **自定义区间** | 任意起止日期生成报告 |
+| 📊 **绩效月报** | 一键生成上月月报，按项目拆分为「项目进度 / 实际完成情况 / 当月总结」 |
+| 🤖 **AI 润色（可选）** | 接入 OpenAI 兼容或 Anthropic 原生接口，把流水账润色成绩效；失败自动回退本地模板 |
+| 📋 **预览 / 复制 / 保存** | 实时预览、一键复制到剪贴板、按需保存为本地 Markdown |
+| 🌗 **明暗主题** | 跟随系统自动切换深色 / 浅色 |
+| ⬆️ **在线更新** | 支持 Windows x86_64 在应用内检查并安装更新 |
+
+## 📦 下载与安装
+
+### 直接下载（推荐）
+
+前往 **[Releases](https://github.com/GoldenZqqq/GitPulse/releases)** 下载对应平台的安装包：
+
+- **Windows** — `.exe`（NSIS 安装包），安装后可在应用内一键检查更新
+- **macOS** — `.dmg`（通用包，同时支持 Apple Silicon 与 Intel）
+- **Linux** — `.AppImage`（单文件，`chmod +x` 后直接运行）
+
+> **macOS 首次打开**：当前 macOS 包未做 Apple 签名，首次启动可能被 Gatekeeper 拦截。请**右键点按** GitPulse.app 选「打开」，或在终端执行：
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/GitPulse.app
+> ```
+>
+> **自动更新目前仅 Windows 支持**；macOS / Linux 请到 Releases 页面手动下载新版本。
+
+### 从源码构建
 
 ```bash
-codex/legacy-python-desktop
-```
-
-## 开发
-
-安装依赖：
-
-```bash
+git clone https://github.com/GoldenZqqq/GitPulse.git
+cd GitPulse
 npm install
+npm run tauri build      # 产物位于 src-tauri/target/release/bundle/
 ```
 
-启动桌面应用：
+## 🚀 快速开始
 
-```bash
-npm run tauri dev
-```
+首次启动会有引导流程，整体只需四步：
 
-仅启动前端：
+1. **选择工作区目录** — 指向你存放代码的根目录，GitPulse 自动扫描其中的所有 Git 仓库。
+2. **确认作者与范围** — 自动读取本机 git 作者（也可手动填写），选择日期区间与分支范围。
+3. **一键生成** — 选择「日报 / 自定义区间 / 绩效月报」，提交记录会按项目分组汇总成报告。
+4. **复制或保存** — 预览结果，一键复制到剪贴板或保存为本地 Markdown；需要的话开启 AI 润色。
 
-```bash
-npm run dev
-```
+> **项目名映射**：在设置里维护映射规则，把仓库或分支变成可读的项目名。
+> 支持 `project(branch) -> 显示名-` 与 `project(*) -> 显示名-` 两种格式，例如 `api-service(*) -> 后端服务-`。
 
-构建安装包：
+## 🤖 AI 润色
 
-```bash
-npm run tauri build
-```
+在设置中开启 AI 润色后，按服务填写以下内容即可：
 
-构建产物位于：
+- **协议**：`OpenAI Compatible` 或 `Anthropic Native`
+- **Base URL**：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
+- **API Key**：对应服务的密钥，默认隐藏，可点按钮切换可见
+- **模型**：可手动填写，或点「获取模型」从服务返回列表中选择
+
+> API Key 仅保存在本机。如果 AI 调用失败，应用会**自动回退到本地月报模板**，不影响出报告。
+
+## 🛠️ 技术栈
 
 ```text
-src-tauri/target/release/bundle/
+Tauri 2  ·  React 19  ·  Vite  ·  Rust  ·  lucide-react
 ```
 
-发布在线更新包：
+- `src/` — React 前端（状态、布局、预览、交互）
+- `src-tauri/src/git_ops.rs` — 本地 Git 仓库发现与提交提取（Rust）
+- `src-tauri/src/report.rs` — 报告渲染与文件输出
+- `src-tauri/src/ai.rs` — 可选的 OpenAI 兼容 / Anthropic 原生润色
+- `src-tauri/src/lib.rs` — Tauri 命令
+
+> 旧版 Python/Tkinter 实现已归档在分支 `codex/legacy-python-desktop`。
+
+## 🧑‍💻 本地开发
+
+环境要求：[Node.js](https://nodejs.org/) 与 [Rust 工具链](https://www.rust-lang.org/tools/install)。
 
 ```bash
-# Windows PowerShell
-Copy-Item .release.env.example .release.env.local
-
-# 自动升级 patch 版本、构建、签名，并发布到 GitHub Release
-# Release assets 会包含安装包、签名文件和 gitpulse-latest.json
-npm run release:win
+npm install            # 安装依赖
+npm run tauri dev      # 启动桌面应用（开发模式）
+npm run dev            # 仅启动前端（浏览器预览）
+npm run tauri build    # 构建安装包
 ```
 
-生成 release notes 草稿：
-
-```bash
-# 根据上一个 tag..HEAD 的提交生成下个 patch 版本的说明草稿
-npm run release:notes
-
-# 或者为指定版本生成草稿
-npm run release:notes:set -- 0.1.1
-
-# 如果默认对比范围过大，可以手动指定起始 tag / ref
-node ./scripts/generate-release-notes.mjs patch --from-tag 82d4287
-```
-
-常用版本与发布命令：
-
-```bash
-# 仅同步版本号到 package.json / package-lock.json / Tauri / Cargo
-npm run version:patch
-npm run version:minor
-npm run version:major
-npm run version:set -- 1.2.3
-
-# 升级版本并本地打包，不上传
-npm run build:patch
-npm run build:minor
-npm run build:major
-
-# 升级版本并发布 GitHub Release 在线更新包
-npm run release:win:patch
-npm run release:win:minor
-npm run release:win:major
-npm run release:win:set -- 1.2.3
-
-# 按当前版本重新构建并发布，适合重传安装包
-npm run release:win:current
-
-# 预览版本升级计划，不写文件、不构建、不上传
-npm run release:win -- --dry-run
-```
-
-发布前请在 `.release.env.local` 中配置 GitHub Release 与 Tauri updater 签名：
-
-```bash
-TAURI_SIGNING_PRIVATE_KEY_PATH=C:\Users\YourName\.gitpulse\updater\gitpulse-updater.key
-TAURI_SIGNING_PRIVATE_KEY_PASSWORD=replace-with-your-signing-password
-
-GITPULSE_GITHUB_TOKEN=github_pat_xxx
-# 可选，不填时默认从 git remote origin 自动推断
-GITPULSE_GITHUB_REPO=GoldenZqqq/GitPulse
-# 可选，优先使用本地 markdown 文件作为 GitHub Release 正文
-GITPULSE_RELEASE_NOTES_FILE=release-notes/v0.1.1.md
-```
-
-`npm run release:win*` 会执行这些步骤：
-
-- 要求当前 Git 工作区先保持干净，避免源码 tag 与安装包不一致
-- 自动提交版本号同步产生的改动，提交信息为 `chore: 发布 vX.Y.Z`
-- 自动创建并推送 `vX.Y.Z` tag
-- 自动创建或更新对应的 GitHub Release
-- 自动上传 `.exe`、`.exe.sig` 与 `gitpulse-latest.json` 到该 release
-
-Tauri updater 固定读取 `https://github.com/GoldenZqqq/GitPulse/releases/latest/download/gitpulse-latest.json`。
-建议给 Token 配置 GitHub `Contents: Read and write` 权限即可。
-如果 `release-notes/vX.Y.Z.md` 存在，发布脚本会优先读取这个文件作为 release 正文；否则才回退到 `GITPULSE_RELEASE_NOTES` 或默认模板。
-
-## AI 润色
-
-在设置中开启 AI 润色后，直接填写以下内容即可：
-
-- 协议：`OpenAI Compatible` 或 `Anthropic Native`
-- Base URL：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
-- API Key：对应服务的密钥，默认隐藏显示，可点击按钮切换可见状态
-- 模型：可手动填写，也可点击“获取模型”后从服务返回的模型列表中选择
-
-如果 AI 调用失败，应用会自动回退到本地月报模板。
-
-## 验证
+提交前的校验：
 
 ```bash
 npm run build
-cd src-tauri
-cargo check
-cargo test
+cd src-tauri && cargo check && cargo test
 ```
 
-完整打包验证：
+> 版本号同步、发版与在线更新的完整流程见 **[CONTRIBUTING.md](CONTRIBUTING.md)**。
 
-```bash
-npm run tauri build
-```
+## 🤝 贡献
+
+欢迎 Issue 与 PR！开发规范、验证步骤与发布流程请见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+## 📄 许可证
+
+基于 [MIT](LICENSE) 许可证开源。
+
+<div align="center">
+<br />
+如果 GitPulse 帮你省下了写日报的时间，点个 ⭐ <a href="https://github.com/GoldenZqqq/GitPulse/stargazers">Star</a> 支持一下吧！
+</div>

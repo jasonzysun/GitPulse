@@ -1,0 +1,119 @@
+name: Release (macOS / Linux)
+
+# 这个 workflow 只负责补齐 macOS 与 Linux 安装包，并追加到 Release 上。
+# Windows 安装包与自动更新清单（gitpulse-latest.json）仍由本地 `npm run release:win` 生成。
+# 时序：release:win 先推送 vX.Y.Z tag → 触发本 workflow；本地随即创建 Release 并上传
+# Windows 资产；本 workflow 构建完 mac/Linux 后，把产物追加到同一个 Release。
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "已存在的 Release tag（如 v0.1.1），用于补传 macOS / Linux 安装包"
+        required: true
+        type: string
+
+# 允许默认 GITHUB_TOKEN 上传 Release 资产（无需额外配置 secret）
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label: macOS (universal .dmg)
+            rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
+            build_args: --target universal-apple-darwin --bundles dmg
+            artifacts: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          - os: ubuntu-22.04
+            label: Linux (AppImage)
+            rust_targets: ""
+            build_args: --bundles appimage
+            artifacts: src-tauri/target/release/bundle/appimage/*.AppImage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      # 使用基础 tauri.conf.json（不带 --config tauri.release.conf.json）：
+      # 基础配置未开启 createUpdaterArtifacts，因此不生成 updater 产物、不需要签名私钥。
+      - name: Build app (${{ matrix.label }})
+        run: npx tauri build ${{ matrix.build_args }}
+
+      # 等待本地 release:win 创建出对应 Release，再追加资产（消除时序竞争）
+      - name: Wait for GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          tag="${{ steps.tag.outputs.name }}"
+          for i in $(seq 1 30); do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Release $tag found."
+              exit 0
+            fi
+            echo "Release $tag not found yet, retrying ($i/30)..."
+            sleep 10
+          done
+          echo "::error::Release $tag not found after 5 minutes. 请确认已先运行 npm run release:win 创建 Release。"
+          exit 1
+
+      - name: Upload installers to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          tag="${{ steps.tag.outputs.name }}"
+          gh release upload "$tag" ${{ matrix.artifacts }} --clobber
