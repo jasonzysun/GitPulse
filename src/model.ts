@@ -58,7 +58,7 @@ export type AppSettings = {
   showProjectAndBranch: boolean;
   projectNamesText: string;
   aiEnabled: boolean;
-  aiProvider: "openai-compatible" | "anthropic-native";
+  aiProvider: "openai-compatible" | "anthropic-native" | "codex-oauth";
   aiBaseUrl: string;
   aiModel: string;
   aiApiKey: string;
@@ -248,6 +248,7 @@ export function validateOutputSettings(settings: AppSettings) {
 export function validateAiSettings(settings: AppSettings) {
   if (!settings.aiEnabled) return;
   if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
+  if (settings.aiProvider === "codex-oauth") return;
   if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
   if (!settings.aiApiKey.trim()) throw new Error("启用 AI 润色时请输入 API Key");
 }

@@ -1,4 +1,5 @@
 mod ai;
+mod codex_oauth;
 mod git_ops;
 mod models;
 mod report;
@@ -43,6 +44,33 @@ async fn list_ai_models(config: AiConfig) -> Result<Vec<AiModelInfo>, String> {
     async_runtime::spawn_blocking(move || ai::list_models(&config))
         .await
         .map_err(|err| format!("获取模型列表任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn codex_oauth_start_device_flow() -> Result<codex_oauth::DeviceFlowInfo, String> {
+    async_runtime::spawn_blocking(codex_oauth::start_device_flow)
+        .await
+        .map_err(|err| format!("启动 ChatGPT 登录任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn codex_oauth_poll(
+    device_code: String,
+    user_code: String,
+) -> Result<codex_oauth::PollResult, String> {
+    async_runtime::spawn_blocking(move || codex_oauth::poll_once(&device_code, &user_code))
+        .await
+        .map_err(|err| format!("ChatGPT 登录轮询任务中断：{}", err))?
+}
+
+#[tauri::command]
+fn codex_oauth_status() -> codex_oauth::AuthStatus {
+    codex_oauth::status()
+}
+
+#[tauri::command]
+fn codex_oauth_logout() -> Result<(), String> {
+    codex_oauth::logout()
 }
 
 fn generate_monthly_report_sync(
@@ -185,7 +213,11 @@ pub fn run() {
             list_ai_models,
             save_text_file,
             read_mapping_xlsx,
-            write_mapping_template_xlsx
+            write_mapping_template_xlsx,
+            codex_oauth_start_device_flow,
+            codex_oauth_poll,
+            codex_oauth_status,
+            codex_oauth_logout
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

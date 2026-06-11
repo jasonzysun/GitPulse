@@ -3,11 +3,13 @@ import {
   Bot,
   CheckCircle2,
   Download,
+  ExternalLink,
   Eye,
   EyeOff,
   FileUp,
   FolderGit2,
   Loader2,
+  LogOut,
   Monitor,
   Moon,
   Plus,
@@ -17,8 +19,9 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import {
   buildMappingKeys,
@@ -92,6 +95,11 @@ export function SettingsDialog({
   const [aiModelOptions, setAiModelOptions] = useState<string[]>([]);
   const [modelFetchStatus, setModelFetchStatus] = useState<ModelFetchStatus>(EMPTY_MODEL_FETCH_STATUS);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+  const [codexAuth, setCodexAuth] = useState<{ authenticated: boolean; email?: string }>({ authenticated: false });
+  const [codexFlow, setCodexFlow] = useState<{ userCode: string; verificationUri: string } | null>(null);
+  const [codexBusy, setCodexBusy] = useState(false);
+  const [codexMessage, setCodexMessage] = useState("");
+  const codexPollTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!open) {
       setImportNote("");
@@ -100,8 +108,16 @@ export function SettingsDialog({
       setAiModelOptions([]);
       setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
       setPendingDeleteIndex(null);
+      setCodexFlow(null);
+      setCodexMessage("");
+      stopCodexPolling();
     }
   }, [open]);
+  useEffect(() => () => stopCodexPolling(), []);
+  useEffect(() => {
+    if (open && settings.aiProvider === "codex-oauth") void refreshCodexStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, settings.aiProvider]);
   if (!open) return null;
 
   const mappingRows = parseMappingText(settings.projectNamesText);
@@ -117,6 +133,11 @@ export function SettingsDialog({
     resetAiModelFetch();
     updateSetting("aiProvider", provider);
     updateSetting("aiModel", "");
+    if (provider === "codex-oauth") {
+      setCodexMessage("");
+      void refreshCodexStatus();
+      return;
+    }
     if (provider === "anthropic-native") {
       updateSetting("aiBaseUrl", "https://api.anthropic.com/v1");
       return;
@@ -134,13 +155,20 @@ export function SettingsDialog({
   }
 
   async function fetchAiModels() {
-    if (!settings.aiBaseUrl.trim()) {
-      setModelFetchStatus({ type: "error", message: "请先填写 Base URL" });
-      return;
-    }
-    if (!settings.aiApiKey.trim()) {
-      setModelFetchStatus({ type: "error", message: "请先填写 API Key" });
-      return;
+    if (settings.aiProvider === "codex-oauth") {
+      if (!codexAuth.authenticated) {
+        setModelFetchStatus({ type: "error", message: "请先登录 ChatGPT 账号" });
+        return;
+      }
+    } else {
+      if (!settings.aiBaseUrl.trim()) {
+        setModelFetchStatus({ type: "error", message: "请先填写 Base URL" });
+        return;
+      }
+      if (!settings.aiApiKey.trim()) {
+        setModelFetchStatus({ type: "error", message: "请先填写 API Key" });
+        return;
+      }
     }
 
     setModelFetchStatus({ type: "loading", message: "正在向当前 AI 服务获取模型列表..." });
@@ -169,6 +197,88 @@ export function SettingsDialog({
       setAiModelOptions([]);
       setModelFetchStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
     }
+  }
+
+  function stopCodexPolling() {
+    if (codexPollTimer.current !== null) {
+      clearTimeout(codexPollTimer.current);
+      codexPollTimer.current = null;
+    }
+  }
+
+  async function refreshCodexStatus() {
+    try {
+      const result = await invoke<{ authenticated: boolean; email?: string }>("codex_oauth_status");
+      setCodexAuth(result);
+    } catch {
+      setCodexAuth({ authenticated: false });
+    }
+  }
+
+  async function startCodexLogin() {
+    stopCodexPolling();
+    setCodexBusy(true);
+    setCodexMessage("");
+    try {
+      const flow = await invoke<{
+        deviceCode: string;
+        userCode: string;
+        verificationUri: string;
+        interval: number;
+        expiresIn: number;
+      }>("codex_oauth_start_device_flow");
+      setCodexFlow({ userCode: flow.userCode, verificationUri: flow.verificationUri });
+      try {
+        await openUrl(flow.verificationUri);
+      } catch {
+        // 打开浏览器失败不阻断，用户可点下方链接手动访问
+      }
+      const deadline = Date.now() + flow.expiresIn * 1000;
+      const tick = async () => {
+        if (Date.now() > deadline) {
+          setCodexFlow(null);
+          setCodexBusy(false);
+          setCodexMessage("登录超时，请重试");
+          return;
+        }
+        try {
+          const result = await invoke<{ status: string; email?: string }>("codex_oauth_poll", {
+            deviceCode: flow.deviceCode,
+            userCode: flow.userCode,
+          });
+          if (result.status === "done") {
+            setCodexFlow(null);
+            setCodexBusy(false);
+            setCodexMessage("ChatGPT 账号已登录");
+            await refreshCodexStatus();
+            return;
+          }
+        } catch (error) {
+          setCodexFlow(null);
+          setCodexBusy(false);
+          setCodexMessage(error instanceof Error ? error.message : String(error));
+          return;
+        }
+        codexPollTimer.current = window.setTimeout(() => void tick(), flow.interval * 1000);
+      };
+      codexPollTimer.current = window.setTimeout(() => void tick(), flow.interval * 1000);
+    } catch (error) {
+      setCodexFlow(null);
+      setCodexBusy(false);
+      setCodexMessage(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  async function codexLogout() {
+    stopCodexPolling();
+    setCodexFlow(null);
+    try {
+      await invoke("codex_oauth_logout");
+      setCodexMessage("已登出 ChatGPT 账号");
+    } catch (error) {
+      setCodexMessage(error instanceof Error ? error.message : String(error));
+    }
+    await refreshCodexStatus();
   }
 
   function updateMappingRow(index: number, patch: Partial<MappingEntry>) {
@@ -289,31 +399,67 @@ export function SettingsDialog({
                   <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
                     <option value="openai-compatible">OpenAI Compatible</option>
                     <option value="anthropic-native">Anthropic Native</option>
+                    <option value="codex-oauth">ChatGPT (Codex OAuth)</option>
                   </select>
                 </Field>
-                <Field label="Base URL">
-                  <input value={settings.aiBaseUrl} onChange={(event) => updateAiConnectionSetting("aiBaseUrl", event.target.value)} />
-                </Field>
-                <Field label="API Key">
-                  <div className="secret-input">
-                    <input
-                      type={showAiApiKey ? "text" : "password"}
-                      value={settings.aiApiKey}
-                      onChange={(event) => updateAiConnectionSetting("aiApiKey", event.target.value)}
-                      autoComplete="off"
-                      spellCheck={false}
-                    />
-                    <button
-                      type="button"
-                      className="secret-toggle"
-                      onClick={() => setShowAiApiKey((current) => !current)}
-                      aria-label={showAiApiKey ? "隐藏 API Key" : "显示 API Key"}
-                      aria-pressed={showAiApiKey}
-                    >
-                      {showAiApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </Field>
+                {settings.aiProvider === "codex-oauth" ? (
+                  <Field label="ChatGPT 账号" hint="使用 ChatGPT Plus/Pro 订阅额度润色，无需 API Key。属非官方接入，可能随时失效。">
+                    <div className="codex-auth">
+                      {codexAuth.authenticated ? (
+                        <div className="codex-auth-row">
+                          <span className="codex-auth-ok">
+                            <CheckCircle2 size={15} /> 已登录{codexAuth.email ? ` · ${codexAuth.email}` : ""}
+                          </span>
+                          <button type="button" className="mapping-import" onClick={() => void codexLogout()}>
+                            <LogOut size={15} /> 登出
+                          </button>
+                        </div>
+                      ) : codexFlow ? (
+                        <div className="codex-flow">
+                          <p>请在打开的页面输入验证码完成授权：</p>
+                          <code className="codex-user-code">{codexFlow.userCode}</code>
+                          <a className="codex-link" href={codexFlow.verificationUri} target="_blank" rel="noreferrer">
+                            <ExternalLink size={13} /> {codexFlow.verificationUri}
+                          </a>
+                          <p className="codex-waiting">
+                            <Loader2 className="spin" size={14} /> 等待授权...
+                          </p>
+                        </div>
+                      ) : (
+                        <button type="button" className="mapping-add" onClick={() => void startCodexLogin()} disabled={codexBusy}>
+                          <Bot size={16} /> 使用 ChatGPT 登录
+                        </button>
+                      )}
+                      {codexMessage && <p className="mapping-note">{codexMessage}</p>}
+                    </div>
+                  </Field>
+                ) : (
+                  <>
+                    <Field label="Base URL">
+                      <input value={settings.aiBaseUrl} onChange={(event) => updateAiConnectionSetting("aiBaseUrl", event.target.value)} />
+                    </Field>
+                    <Field label="API Key">
+                      <div className="secret-input">
+                        <input
+                          type={showAiApiKey ? "text" : "password"}
+                          value={settings.aiApiKey}
+                          onChange={(event) => updateAiConnectionSetting("aiApiKey", event.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                        <button
+                          type="button"
+                          className="secret-toggle"
+                          onClick={() => setShowAiApiKey((current) => !current)}
+                          aria-label={showAiApiKey ? "隐藏 API Key" : "显示 API Key"}
+                          aria-pressed={showAiApiKey}
+                        >
+                          {showAiApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </Field>
+                  </>
+                )}
                 <Field label="模型" hint="可手动输入；也可以根据当前 Base URL 与 API Key 获取模型列表后选择。">
                   <div className="model-picker">
                     <input

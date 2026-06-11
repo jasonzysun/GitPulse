@@ -40,6 +40,9 @@ pub fn enhance_daily_report(
 }
 
 pub fn list_models(config: &AiConfig) -> Result<Vec<AiModelInfo>, String> {
+    if config.provider == "codex-oauth" {
+        return crate::codex_oauth::list_models();
+    }
     validate_model_list_config(config)?;
     let api_key = read_api_key(config)?;
     let url = format!("{}/models", config.base_url.trim_end_matches('/'));
@@ -68,6 +71,9 @@ fn enhance_report(
     }
 
     validate_config(config)?;
+    if config.provider == "codex-oauth" {
+        return crate::codex_oauth::enhance(system_prompt, prompt, &config.model);
+    }
     let api_key = read_api_key(config)?;
     match config.provider.as_str() {
         "anthropic-native" => enhance_with_anthropic(config, &api_key, prompt, system_prompt),
@@ -79,7 +85,7 @@ fn validate_config(config: &AiConfig) -> Result<(), String> {
     if config.model.trim().is_empty() {
         return Err("未配置 AI 模型名".to_string());
     }
-    if config.base_url.trim().is_empty() {
+    if config.provider != "codex-oauth" && config.base_url.trim().is_empty() {
         return Err("未配置 AI Base URL".to_string());
     }
     Ok(())

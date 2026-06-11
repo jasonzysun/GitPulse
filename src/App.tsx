@@ -72,7 +72,10 @@ function App() {
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
   const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "custom" ? customReport : summaryText;
   const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
-  const aiConfigured = Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
+  const aiConfigured =
+    settings.aiProvider === "codex-oauth"
+      ? Boolean(settings.aiModel.trim())
+      : Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));

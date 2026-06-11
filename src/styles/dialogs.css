@@ -559,6 +559,70 @@
   transform: translateY(-1px);
 }
 
+.codex-auth {
+  display: grid;
+  gap: 10px;
+}
+
+.codex-auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.codex-auth-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.codex-flow {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper-soft);
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.codex-flow p {
+  margin: 0;
+}
+
+.codex-user-code {
+  justify-self: start;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 820;
+  letter-spacing: 2px;
+}
+
+.codex-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary-dark);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.codex-waiting {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+}
+
 @media (max-width: 980px) {
   .settings-body {
     grid-template-columns: 1fr;
