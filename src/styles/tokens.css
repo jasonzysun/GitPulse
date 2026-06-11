@@ -10,6 +10,9 @@
   --primary: #3f8cff;
   --primary-dark: #245fd4;
   --primary-soft: #d9ebff;
+  --danger: #e5484d;
+  --danger-strong: #c2363b;
+  --danger-soft: #ffe4e3;
   --accent: #f3a95f;
   --amber: #f5c86a;
   --blue: #5bb6f1;
@@ -91,6 +94,9 @@ body {
   --primary: #6da8ff;
   --primary-dark: #a8ccff;
   --primary-soft: rgba(63, 140, 255, 0.18);
+  --danger: #f0575c;
+  --danger-strong: #ff7a7e;
+  --danger-soft: rgba(240, 87, 92, 0.16);
   --accent: #f2b56f;
   --amber: #f4c978;
   --blue: #76c2f5;

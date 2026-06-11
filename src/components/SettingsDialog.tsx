@@ -91,6 +91,7 @@ export function SettingsDialog({
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
   const [aiModelOptions, setAiModelOptions] = useState<string[]>([]);
   const [modelFetchStatus, setModelFetchStatus] = useState<ModelFetchStatus>(EMPTY_MODEL_FETCH_STATUS);
+  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   useEffect(() => {
     if (!open) {
       setImportNote("");
@@ -98,6 +99,7 @@ export function SettingsDialog({
       setActiveTab("workspace");
       setAiModelOptions([]);
       setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
+      setPendingDeleteIndex(null);
     }
   }, [open]);
   if (!open) return null;
@@ -184,6 +186,12 @@ export function SettingsDialog({
     updateSetting("projectNamesText", serializeMappingText(rows));
   }
 
+  function confirmRemoveMapping() {
+    if (pendingDeleteIndex === null) return;
+    removeMappingRow(pendingDeleteIndex);
+    setPendingDeleteIndex(null);
+  }
+
   async function importMappingFile() {
     try {
       const selected = await openDialog({
@@ -218,6 +226,7 @@ export function SettingsDialog({
   }
 
   return (
+    <>
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="settings-dialog" role="dialog" aria-modal="true" aria-label="应用设置" onMouseDown={(event) => event.stopPropagation()}>
         <header className="dialog-header">
@@ -387,7 +396,7 @@ export function SettingsDialog({
                           placeholder="例如：后端服务-"
                         />
                       </Field>
-                      <button type="button" className="icon-button mapping-remove" onClick={() => removeMappingRow(index)} aria-label="删除映射">
+                      <button type="button" className="mapping-remove" onClick={() => setPendingDeleteIndex(index)} aria-label="删除映射">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -455,6 +464,42 @@ export function SettingsDialog({
         </div>
       </section>
     </div>
+    {pendingDeleteIndex !== null && (
+      <div
+        className="dialog-backdrop compact-backdrop confirm-backdrop"
+        role="presentation"
+        onMouseDown={() => setPendingDeleteIndex(null)}
+      >
+        <section
+          className="range-dialog confirm-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="mapping-delete-title"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <header className="range-dialog-header">
+            <div>
+              <p className="kicker">Delete Mapping</p>
+              <h2 id="mapping-delete-title">删除这条映射？</h2>
+            </div>
+            <button className="icon-button" type="button" onClick={() => setPendingDeleteIndex(null)} aria-label="取消删除">
+              <X size={17} />
+            </button>
+          </header>
+          <p className="confirm-dialog-text">删除后该项目映射将立即移除，此操作不可撤销。</p>
+          <footer className="range-dialog-actions">
+            <button type="button" className="mapping-import" onClick={() => setPendingDeleteIndex(null)}>
+              取消
+            </button>
+            <button type="button" className="danger-button" onClick={confirmRemoveMapping}>
+              <Trash2 size={16} />
+              确定删除
+            </button>
+          </footer>
+        </section>
+      </div>
+    )}
+    </>
   );
 }
 
