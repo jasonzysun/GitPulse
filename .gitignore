@@ -31,6 +31,7 @@ src-tauri/gen
 # Release and updater artifacts
 latest.json
 *-latest.json
+release-notes/
 *.sig
 *.exe
 *.msi

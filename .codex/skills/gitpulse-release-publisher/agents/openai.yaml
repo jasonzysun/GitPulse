@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitPulse Release Publisher"
+  short_description: "Publish GitPulse releases with notes and asset checks"
+  default_prompt: "Use $gitpulse-release-publisher to prepare GitPulse release notes and publish a new version."

@@ -67,7 +67,21 @@ src-tauri/target/release/bundle/
 Copy-Item .release.env.example .release.env.local
 
 # 自动升级 patch 版本、构建、签名、上传安装包并发布 latest.json
+# 如果同时开启 GITPULSE_GITHUB_RELEASE_ENABLED=true，还会自动推送 tag 并发布 GitHub Release
 npm run release:win
+```
+
+生成 release notes 草稿：
+
+```bash
+# 根据上一个 tag..HEAD 的提交生成下个 patch 版本的说明草稿
+npm run release:notes
+
+# 或者为指定版本生成草稿
+npm run release:notes:set -- 0.1.1
+
+# 如果默认对比范围过大，可以手动指定起始 tag / ref
+node ./scripts/generate-release-notes.mjs patch --from-tag 82d4287
 ```
 
 常用版本与发布命令：
@@ -96,6 +110,28 @@ npm run release:win:current
 # 预览版本升级计划，不写文件、不构建、不上传
 npm run release:win -- --dry-run
 ```
+
+如果你希望每次发版时自动同步 GitHub Release，请继续补充 `.release.env.local`：
+
+```bash
+GITPULSE_GITHUB_RELEASE_ENABLED=true
+GITPULSE_GITHUB_TOKEN=github_pat_xxx
+# 可选，不填时默认从 git remote origin 自动推断
+GITPULSE_GITHUB_REPO=GoldenZqqq/GitPulse
+# 可选，优先使用本地 markdown 文件作为 GitHub Release 正文
+GITPULSE_RELEASE_NOTES_FILE=release-notes/v0.1.1.md
+```
+
+开启后，`npm run release:win*` 会额外执行这些步骤：
+
+- 要求当前 Git 工作区先保持干净，避免源码 tag 与安装包不一致
+- 自动提交版本号同步产生的改动，提交信息为 `chore: 发布 vX.Y.Z`
+- 自动创建并推送 `vX.Y.Z` tag
+- 自动创建或更新对应的 GitHub Release
+- 自动上传 `.exe`、`.exe.sig` 与 `gitpulse-latest.json` 到该 release
+
+建议给 Token 配置 GitHub `Contents: Read and write` 权限即可。
+如果 `release-notes/vX.Y.Z.md` 存在，发布脚本会优先读取这个文件作为 release 正文；否则才回退到 `GITPULSE_RELEASE_NOTES` 或默认模板。
 
 ## AI 润色
 
