@@ -246,7 +246,6 @@ function App() {
 
   function toggleAiEnabled(enabled: boolean) {
     updateSetting("aiEnabled", enabled);
-    setStatus(enabled ? "AI 润色已开启" : "AI 润色已关闭");
   }
 
   async function checkForUpdates() {

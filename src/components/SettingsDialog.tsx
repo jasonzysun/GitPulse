@@ -394,7 +394,6 @@ export function SettingsDialog({
             {activeTab === "ai" && (
               <section className="settings-section">
                 <SectionTitle icon={<Bot size={16} />} title="AI 润色" />
-                <Toggle label="启用 AI 润色" checked={settings.aiEnabled} onChange={(value) => updateSetting("aiEnabled", value)} />
                 <Field label="协议">
                   <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
                     <option value="openai-compatible">OpenAI Compatible</option>
