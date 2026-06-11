@@ -393,7 +393,7 @@ export function SettingsDialog({
                         <input
                           value={row.displayName}
                           onChange={(event) => updateMappingRow(index, { displayName: event.target.value })}
-                          placeholder="例如：后端服务-"
+                          placeholder="例如：后端服务"
                         />
                       </Field>
                       <button type="button" className="mapping-remove" onClick={() => setPendingDeleteIndex(index)} aria-label="删除映射">

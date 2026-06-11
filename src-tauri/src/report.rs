@@ -128,20 +128,35 @@ fn render_detailed_text(commits: &[CommitRecord]) -> String {
         .join("\n========================================\n")
 }
 
+/// 映射名末尾可能带各种连接符（也可能不带）。统一在此规整：由系统补连接符，
+/// 用户无需手动维护，同时兼容历史上已手动加了 "-" 的映射。
+const TRAILING_CONNECTORS: [char; 8] = ['-', '_', '：', ':', '；', ';', '、', ' '];
+
 fn render_summary_line(
     commit: &CommitRecord,
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
 ) -> String {
-    let display_name = resolve_project_name(project_names, commit);
+    let prefix = display_prefix(&resolve_project_name(project_names, commit));
     let message = clean_commit_message(&commit.message);
     if show_project_and_branch {
         format!(
             "{}({}) - {}{}",
-            commit.project_name, commit.branch_name, display_name, message
+            commit.project_name, commit.branch_name, prefix, message
         )
     } else {
-        format!("{}{}", display_name, message)
+        format!("{}{}", prefix, message)
+    }
+}
+
+/// 将映射名转成展示前缀：去掉末尾已有的连接符后统一补一个 "-"。
+/// 未配置映射（名称为空）时返回空串，保持"仅展示提交内容"的既有行为。
+fn display_prefix(display_name: &str) -> String {
+    let trimmed = display_name.trim_end_matches(TRAILING_CONNECTORS);
+    if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{}-", trimmed)
     }
 }
 
@@ -184,7 +199,7 @@ fn group_commits_by_project(
 
 fn monthly_project_name(project_names: &HashMap<String, String>, commit: &CommitRecord) -> String {
     let custom_name = resolve_project_name(project_names, commit);
-    let trimmed = custom_name.trim_end_matches(['-', '_', '：', ':', '；', ';', '、', ' ']);
+    let trimmed = custom_name.trim_end_matches(TRAILING_CONNECTORS);
     if trimmed.is_empty() {
         format!("{}({})", commit.project_name, commit.branch_name)
     } else {
