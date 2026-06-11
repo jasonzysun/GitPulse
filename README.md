@@ -66,8 +66,35 @@ src-tauri/target/release/bundle/
 # Windows PowerShell
 Copy-Item .release.env.example .release.env.local
 
-# Build, sign, upload and publish latest.json
+# 自动升级 patch 版本、构建、签名、上传安装包并发布 latest.json
 npm run release:win
+```
+
+常用版本与发布命令：
+
+```bash
+# 仅同步版本号到 package.json / package-lock.json / Tauri / Cargo
+npm run version:patch
+npm run version:minor
+npm run version:major
+npm run version:set -- 1.2.3
+
+# 升级版本并本地打包，不上传
+npm run build:patch
+npm run build:minor
+npm run build:major
+
+# 升级版本并发布在线更新包
+npm run release:win:patch
+npm run release:win:minor
+npm run release:win:major
+npm run release:win:set -- 1.2.3
+
+# 按当前版本重新构建并发布，适合重传安装包
+npm run release:win:current
+
+# 预览版本升级计划，不写文件、不构建、不上传
+npm run release:win -- --dry-run
 ```
 
 ## AI 润色

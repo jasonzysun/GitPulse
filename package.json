@@ -9,7 +9,19 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:build:release": "tauri build --config src-tauri/tauri.release.conf.json",
-    "release:win": "node ./scripts/publish-release.mjs"
+    "version:patch": "node ./scripts/bump-version.mjs patch",
+    "version:minor": "node ./scripts/bump-version.mjs minor",
+    "version:major": "node ./scripts/bump-version.mjs major",
+    "version:set": "node ./scripts/set-version.mjs",
+    "build:patch": "node ./scripts/bump-version.mjs patch && npm run tauri:build:release",
+    "build:minor": "node ./scripts/bump-version.mjs minor && npm run tauri:build:release",
+    "build:major": "node ./scripts/bump-version.mjs major && npm run tauri:build:release",
+    "release:win": "node ./scripts/publish-release.mjs patch",
+    "release:win:patch": "node ./scripts/publish-release.mjs patch",
+    "release:win:minor": "node ./scripts/publish-release.mjs minor",
+    "release:win:major": "node ./scripts/publish-release.mjs major",
+    "release:win:set": "node ./scripts/publish-release.mjs --set",
+    "release:win:current": "node ./scripts/publish-release.mjs current"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

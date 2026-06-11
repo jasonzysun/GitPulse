@@ -1,62 +1,125 @@
+#!/usr/bin/env node
+
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
+import {
+  assertSemver,
+  assertVersionType,
+  bumpVersion,
+  getRootDir,
+  readCurrentVersion,
+  syncVersion,
+} from "./version-utils.mjs";
 
-const rootDir = process.cwd();
-const releaseEnv = loadReleaseEnv(path.join(rootDir, ".release.env.local"));
-const config = readConfig(releaseEnv);
-const packageJson = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
-const version = packageJson.version;
-const notes = releaseEnv.GITPULSE_RELEASE_NOTES || `GitPulse ${version} 发布`;
-const manifestPath = path.join(rootDir, "src-tauri", "target", "release", "bundle", "gitpulse-latest.json");
-const privateKey = fs.readFileSync(config.privateKeyPath, "utf8");
+const rootDir = getRootDir(import.meta.url);
+try {
+  await main();
+} catch (error) {
+  console.error(`发布失败：${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
 
-runReleaseBuild({
-  ...process.env,
-  TAURI_SIGNING_PRIVATE_KEY: privateKey,
-  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: config.privateKeyPassword,
-});
+async function main() {
+  const releasePlan = createReleasePlan(process.argv.slice(2));
+  const currentVersion = readCurrentVersion(rootDir);
+  const releaseVersion = resolveReleaseVersion(currentVersion, releasePlan);
 
-const bundleDir = path.join(rootDir, "src-tauri", "target", "release", "bundle", "nsis");
-const installerArtifact = pickArtifact(
-  bundleDir,
-  (fileName) => fileName.endsWith(".exe") && !fileName.endsWith(".exe.sig"),
-);
-const updaterSignaturePath = `${installerArtifact}.sig`;
+  console.log("GitPulse 自动发布流程");
+  console.log(`当前版本：${currentVersion}`);
+  console.log(`发布模式：${releasePlan.label}`);
+  console.log(`${releasePlan.dryRun ? "计划发布" : "发布版本"}：${releaseVersion}`);
 
-uploadFile(config, installerArtifact);
-uploadFile(config, updaterSignaturePath);
+  if (releasePlan.kind !== "current") {
+    for (const update of syncVersion(rootDir, releaseVersion, { dryRun: releasePlan.dryRun })) {
+      console.log(update);
+    }
+  }
 
-const installerEntry = await waitForFileEntry(config, path.basename(installerArtifact));
-const installerUrl = buildSignedOpenListUrl(config, path.basename(installerArtifact), installerEntry.sign);
-const signature = fs.readFileSync(updaterSignaturePath, "utf8").trim();
+  if (releasePlan.dryRun) {
+    console.log("dry-run 完成，未写入版本文件、未构建、未上传。");
+    return;
+  }
 
-const manifest = {
-  version,
-  notes,
-  pub_date: new Date().toISOString(),
-  platforms: {
-    "windows-x86_64": {
-      signature,
-      url: installerUrl,
+  const releaseEnv = loadReleaseEnv(path.join(rootDir, ".release.env.local"));
+  const config = readConfig(releaseEnv);
+  const notes = releaseEnv.GITPULSE_RELEASE_NOTES || `GitPulse ${releaseVersion} 发布`;
+  const manifestPath = path.join(rootDir, "src-tauri", "target", "release", "bundle", "gitpulse-latest.json");
+  const privateKey = fs.readFileSync(resolveConfigPath(config.privateKeyPath), "utf8");
+
+  runReleaseBuild({
+    ...process.env,
+    TAURI_SIGNING_PRIVATE_KEY: privateKey,
+    TAURI_SIGNING_PRIVATE_KEY_PASSWORD: config.privateKeyPassword,
+  });
+
+  const bundleDir = path.join(rootDir, "src-tauri", "target", "release", "bundle", "nsis");
+  const installerArtifact = pickArtifact(
+    bundleDir,
+    (fileName) => fileName.endsWith(".exe") && !fileName.endsWith(".exe.sig"),
+  );
+  const updaterSignaturePath = `${installerArtifact}.sig`;
+
+  uploadFile(config, installerArtifact);
+  uploadFile(config, updaterSignaturePath);
+
+  const installerEntry = await waitForFileEntry(config, path.basename(installerArtifact));
+  const installerUrl = buildSignedOpenListUrl(config, path.basename(installerArtifact), installerEntry.sign);
+  const signature = fs.readFileSync(updaterSignaturePath, "utf8").trim();
+
+  const manifest = {
+    version: releaseVersion,
+    notes,
+    pub_date: new Date().toISOString(),
+    platforms: {
+      "windows-x86_64": {
+        signature,
+        url: installerUrl,
+      },
     },
-  },
-  extras: {
-    installer: installerUrl,
-  },
-};
+    extras: {
+      installer: installerUrl,
+    },
+  };
 
-fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-publishManifest(config, manifestPath);
-await verifyManifest(config.manifestPublicUrl, version);
+  publishManifest(config, manifestPath);
+  await verifyManifest(config.manifestPublicUrl, releaseVersion);
 
-console.log(`GitPulse ${version} 发布完成`);
-console.log(`Updater: ${installerUrl}`);
-console.log(`Installer: ${installerUrl}`);
-console.log(`Manifest: ${config.manifestPublicUrl}`);
+  console.log(`GitPulse ${releaseVersion} 发布完成`);
+  console.log(`Updater: ${installerUrl}`);
+  console.log(`Installer: ${installerUrl}`);
+  console.log(`Manifest: ${config.manifestPublicUrl}`);
+}
+
+function createReleasePlan(args) {
+  const dryRun = args.includes("--dry-run");
+  const positional = args.filter((arg) => arg !== "--dry-run");
+  const mode = positional[0] ?? "current";
+
+  if (mode === "current" || mode === "--no-bump" || mode === "no-bump") {
+    return { kind: "current", label: "使用当前版本", dryRun };
+  }
+
+  if (mode === "set" || mode === "--set") {
+    const targetVersion = positional[1];
+    if (!targetVersion) throw new Error("请提供目标版本号，例如 npm run release:win:set -- 1.2.3");
+    assertSemver(targetVersion);
+    return { kind: "set", label: `设置版本 ${targetVersion}`, targetVersion, dryRun };
+  }
+
+  assertVersionType(mode);
+  return { kind: "bump", label: `自动升级 ${mode}`, versionType: mode, dryRun };
+}
+
+function resolveReleaseVersion(version, plan) {
+  if (plan.kind === "bump") return bumpVersion(version, plan.versionType);
+  if (plan.kind === "set") return plan.targetVersion;
+  return version;
+}
 
 function loadReleaseEnv(envPath) {
   const loaded = { ...process.env };
@@ -134,7 +197,7 @@ function uploadFile(config, filePath) {
   const fileName = path.basename(filePath);
   const targetUrl = new URL(encodePathSegment(fileName), ensureTrailingSlash(config.webdavUrl)).toString();
   const result = spawnSync(
-    "curl.exe",
+    process.platform === "win32" ? "curl.exe" : "curl",
     [
       "-sS",
       "-o",
@@ -223,6 +286,10 @@ function ensureTrailingSlash(value) {
 
 function encodePathSegment(value) {
   return encodeURIComponent(value).replace(/%2F/g, "/");
+}
+
+function resolveConfigPath(filePath) {
+  return path.isAbsolute(filePath) ? filePath : path.join(rootDir, filePath);
 }
 
 function shellEscape(value) {

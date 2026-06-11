@@ -10,16 +10,45 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
 src-tauri/target
 src-tauri/gen
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.local
+.release.env
+.release.env.*
+!.release.env.example
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Release and updater artifacts
+latest.json
+*-latest.json
+*.sig
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+*.tar.gz
 
 # Local app data and legacy Python artifacts
 config.yaml
 git_commits_*.txt
+git_commits_*.md
 monthly_report_*.md
 version_info.txt
 GitCommitTool_Portable/
+tmp/
 __pycache__/
 tests/__pycache__/
 .venv/

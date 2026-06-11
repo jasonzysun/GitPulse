@@ -334,12 +334,12 @@ mod tests {
             provider: "openai-compatible".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             model: "gpt-4.1-mini".to_string(),
-            api_key: "sk-direct-value".to_string(),
+            api_key: "test-direct-api-key".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
         };
 
-        assert_eq!(read_api_key(&config).unwrap(), "sk-direct-value");
+        assert_eq!(read_api_key(&config).unwrap(), "test-direct-api-key");
     }
 
     #[test]
