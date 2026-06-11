@@ -37,7 +37,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://openlist.hzqnb.site/gitpulse/latest.json"
+        "https://github.com/GoldenZqqq/GitPulse/releases/latest/download/gitpulse-latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5RUY1RkU5NDhFQ0ZDMTAKUldRUS9PeEk2Vi92ZVhXOEx0ajZjM0l1czBDaXo5anl0eVlhOThHSmV5RnRWV1pVMEF0aGxXa3UK"
     }

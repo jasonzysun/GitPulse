@@ -66,8 +66,8 @@ src-tauri/target/release/bundle/
 # Windows PowerShell
 Copy-Item .release.env.example .release.env.local
 
-# 自动升级 patch 版本、构建、签名、上传安装包并发布 latest.json
-# 如果同时开启 GITPULSE_GITHUB_RELEASE_ENABLED=true，还会自动推送 tag 并发布 GitHub Release
+# 自动升级 patch 版本、构建、签名，并发布到 GitHub Release
+# Release assets 会包含安装包、签名文件和 gitpulse-latest.json
 npm run release:win
 ```
 
@@ -98,7 +98,7 @@ npm run build:patch
 npm run build:minor
 npm run build:major
 
-# 升级版本并发布在线更新包
+# 升级版本并发布 GitHub Release 在线更新包
 npm run release:win:patch
 npm run release:win:minor
 npm run release:win:major
@@ -111,10 +111,12 @@ npm run release:win:current
 npm run release:win -- --dry-run
 ```
 
-如果你希望每次发版时自动同步 GitHub Release，请继续补充 `.release.env.local`：
+发布前请在 `.release.env.local` 中配置 GitHub Release 与 Tauri updater 签名：
 
 ```bash
-GITPULSE_GITHUB_RELEASE_ENABLED=true
+TAURI_SIGNING_PRIVATE_KEY_PATH=C:\Users\YourName\.gitpulse\updater\gitpulse-updater.key
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD=replace-with-your-signing-password
+
 GITPULSE_GITHUB_TOKEN=github_pat_xxx
 # 可选，不填时默认从 git remote origin 自动推断
 GITPULSE_GITHUB_REPO=GoldenZqqq/GitPulse
@@ -122,7 +124,7 @@ GITPULSE_GITHUB_REPO=GoldenZqqq/GitPulse
 GITPULSE_RELEASE_NOTES_FILE=release-notes/v0.1.1.md
 ```
 
-开启后，`npm run release:win*` 会额外执行这些步骤：
+`npm run release:win*` 会执行这些步骤：
 
 - 要求当前 Git 工作区先保持干净，避免源码 tag 与安装包不一致
 - 自动提交版本号同步产生的改动，提交信息为 `chore: 发布 vX.Y.Z`
@@ -130,6 +132,7 @@ GITPULSE_RELEASE_NOTES_FILE=release-notes/v0.1.1.md
 - 自动创建或更新对应的 GitHub Release
 - 自动上传 `.exe`、`.exe.sig` 与 `gitpulse-latest.json` 到该 release
 
+Tauri updater 固定读取 `https://github.com/GoldenZqqq/GitPulse/releases/latest/download/gitpulse-latest.json`。
 建议给 Token 配置 GitHub `Contents: Read and write` 权限即可。
 如果 `release-notes/vX.Y.Z.md` 存在，发布脚本会优先读取这个文件作为 release 正文；否则才回退到 `GITPULSE_RELEASE_NOTES` 或默认模板。
 

@@ -22,18 +22,25 @@ const DEFAULT_HEADERS = {
 };
 
 export function readGitHubReleaseConfig(rootDir, env) {
-  if (!isTruthy(env.GITPULSE_GITHUB_RELEASE_ENABLED)) return null;
-
   const token = env.GITPULSE_GITHUB_TOKEN || env.GITHUB_TOKEN || env.GH_TOKEN;
   if (!token) {
-    throw new Error("已开启 GitHub Release，但缺少 GITPULSE_GITHUB_TOKEN（或 GITHUB_TOKEN / GH_TOKEN）");
+    throw new Error("缺少 GitHub Release 发布配置：GITPULSE_GITHUB_TOKEN（或 GITHUB_TOKEN / GH_TOKEN）");
   }
 
   return {
     apiBaseUrl: stripTrailingSlash(env.GITPULSE_GITHUB_API_BASE_URL || "https://api.github.com"),
     repo: env.GITPULSE_GITHUB_REPO || resolveGitHubRepo(rootDir),
     token,
+    webBaseUrl: stripTrailingSlash(env.GITPULSE_GITHUB_WEB_BASE_URL || "https://github.com"),
   };
+}
+
+export function buildLatestReleaseAssetDownloadUrl(config, assetName) {
+  return `${config.webBaseUrl}/${encodeRepoPath(config.repo)}/releases/latest/download/${encodeURIComponent(assetName)}`;
+}
+
+export function buildReleaseAssetDownloadUrl(config, tagName, assetName) {
+  return `${config.webBaseUrl}/${encodeRepoPath(config.repo)}/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent(assetName)}`;
 }
 
 export function validateGitHubReleaseWorktree(rootDir) {
@@ -258,10 +265,10 @@ function detectContentType(filePath) {
   return "application/octet-stream";
 }
 
-function isTruthy(value) {
-  return typeof value === "string" && ["1", "true", "yes", "on"].includes(value.toLowerCase());
-}
-
 function stripTrailingSlash(value) {
   return value.replace(/\/+$/, "");
+}
+
+function encodeRepoPath(repo) {
+  return repo.split("/").map(encodeURIComponent).join("/");
 }

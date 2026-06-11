@@ -20,16 +20,8 @@ export function loadReleaseEnv(envPath) {
 
 export function readReleaseConfig(rootDir, env) {
   return {
-    webdavUrl: required(env, "OPENLIST_WEBDAV_URL"),
-    webdavUsername: required(env, "OPENLIST_WEBDAV_USERNAME"),
-    webdavPassword: required(env, "OPENLIST_WEBDAV_PASSWORD"),
-    publicOrigin: required(env, "OPENLIST_PUBLIC_ORIGIN"),
-    openlistPath: required(env, "OPENLIST_PATH"),
     privateKeyPath: resolveConfigPath(rootDir, required(env, "TAURI_SIGNING_PRIVATE_KEY_PATH")),
     privateKeyPassword: required(env, "TAURI_SIGNING_PRIVATE_KEY_PASSWORD"),
-    manifestPublicUrl: required(env, "GITPULSE_MANIFEST_PUBLIC_URL"),
-    manifestSshHost: required(env, "GITPULSE_MANIFEST_SSH_HOST"),
-    manifestRemotePath: required(env, "GITPULSE_MANIFEST_REMOTE_PATH"),
   };
 }
 

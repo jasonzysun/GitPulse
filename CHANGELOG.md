@@ -20,4 +20,4 @@
   - Monthly summary
 - Optional OpenAI-compatible AI polishing through environment variables.
 - Release bundle support through `npm run tauri build`.
-- Windows x86_64 updater integration and OpenList release pipeline.
+- Windows x86_64 updater integration and GitHub Release pipeline.

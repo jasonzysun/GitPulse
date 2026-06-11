@@ -18,6 +18,8 @@ import {
   syncVersion,
 } from "./version-utils.mjs";
 import {
+  buildLatestReleaseAssetDownloadUrl,
+  buildReleaseAssetDownloadUrl,
   publishGitHubRelease,
   readGitHubReleaseConfig,
   validateGitHubReleaseWorktree,
@@ -53,7 +55,7 @@ async function main() {
 
   const releaseEnv = loadReleaseEnv(path.join(rootDir, ".release.env.local"));
   const githubConfig = readGitHubReleaseConfig(rootDir, releaseEnv);
-  const gitReleaseState = githubConfig ? validateGitHubReleaseWorktree(rootDir) : null;
+  const gitReleaseState = validateGitHubReleaseWorktree(rootDir);
   if (releasePlan.kind !== "current") {
     for (const update of syncVersion(rootDir, releaseVersion)) {
       console.log(update);
@@ -77,12 +79,13 @@ async function main() {
     (fileName) => fileName.endsWith(".exe") && !fileName.endsWith(".exe.sig"),
   );
   const updaterSignaturePath = `${installerArtifact}.sig`;
-
-  uploadFile(config, installerArtifact);
-  uploadFile(config, updaterSignaturePath);
-
-  const installerEntry = await waitForFileEntry(config, path.basename(installerArtifact));
-  const installerUrl = buildSignedOpenListUrl(config, path.basename(installerArtifact), installerEntry.sign);
+  const tagName = `v${releaseVersion}`;
+  const installerUrl = buildReleaseAssetDownloadUrl(
+    githubConfig,
+    tagName,
+    path.basename(installerArtifact),
+  );
+  const manifestUrl = buildLatestReleaseAssetDownloadUrl(githubConfig, path.basename(manifestPath));
   const signature = fs.readFileSync(updaterSignaturePath, "utf8").trim();
 
   const manifest = {
@@ -103,31 +106,26 @@ async function main() {
   fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
-  publishManifest(config, manifestPath);
-  await verifyManifest(config.manifestPublicUrl, releaseVersion);
-  const githubReleaseUrl = githubConfig
-    ? await publishGitHubRelease({
-        branch: gitReleaseState.branch,
-        githubConfig,
-        installerArtifact,
-        installerUrl,
-        manifestPath,
-        manifestUrl: config.manifestPublicUrl,
-        notes,
-        releasePlan,
-        releaseVersion,
-        rootDir,
-        updaterSignaturePath,
-      })
-    : null;
+  const githubReleaseUrl = await publishGitHubRelease({
+    branch: gitReleaseState.branch,
+    githubConfig,
+    installerArtifact,
+    installerUrl,
+    manifestPath,
+    manifestUrl,
+    notes,
+    releasePlan,
+    releaseVersion,
+    rootDir,
+    updaterSignaturePath,
+  });
+  await verifyManifest(manifestUrl, releaseVersion);
 
   console.log(`GitPulse ${releaseVersion} 发布完成`);
   console.log(`Updater: ${installerUrl}`);
   console.log(`Installer: ${installerUrl}`);
-  console.log(`Manifest: ${config.manifestPublicUrl}`);
-  if (githubReleaseUrl) {
-    console.log(`GitHub Release: ${githubReleaseUrl}`);
-  }
+  console.log(`Manifest: ${manifestUrl}`);
+  console.log(`GitHub Release: ${githubReleaseUrl}`);
 }
 
 function runCommand(command, args, options = {}) {
@@ -164,77 +162,6 @@ function pickArtifact(directory, matcher) {
   return fileNames[0];
 }
 
-function uploadFile(config, filePath) {
-  const fileName = path.basename(filePath);
-  const targetUrl = new URL(encodePathSegment(fileName), ensureTrailingSlash(config.webdavUrl)).toString();
-  const result = spawnSync(
-    process.platform === "win32" ? "curl.exe" : "curl",
-    [
-      "-sS",
-      "-o",
-      process.platform === "win32" ? "NUL" : "/dev/null",
-      "-u",
-      `${config.webdavUsername}:${config.webdavPassword}`,
-      "-T",
-      filePath,
-      targetUrl,
-    ],
-    { stdio: "inherit" },
-  );
-
-  if (result.status !== 0) {
-    throw new Error(`上传文件失败：${fileName}`);
-  }
-}
-
-async function waitForFileEntry(config, fileName) {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const entry = await findFileEntry(config, fileName);
-    if (entry?.sign) return entry;
-    await delay(1500);
-  }
-
-  throw new Error(`未在 OpenList 中找到文件签名：${fileName}`);
-}
-
-async function findFileEntry(config, fileName) {
-  const response = await fetch(`${config.publicOrigin}/api/fs/list`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      path: config.openlistPath,
-      password: "",
-      page: 1,
-      per_page: 200,
-      refresh: false,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`读取 OpenList 目录失败：${response.status}`);
-  }
-
-  const payload = await response.json();
-  if (payload.code !== 200) {
-    throw new Error(`读取 OpenList 目录失败：${payload.message}`);
-  }
-
-  return payload.data.content.find((entry) => entry.name === fileName) ?? null;
-}
-
-function buildSignedOpenListUrl(config, fileName, sign) {
-  const filePath = `${config.openlistPath.replace(/^\/+/, "")}/${fileName}`
-    .split("/")
-    .map(encodePathSegment)
-    .join("/");
-  return `${config.publicOrigin}/d/${filePath}?sign=${encodeURIComponent(sign)}`;
-}
-
-function publishManifest(config, filePath) {
-  const remoteDir = path.posix.dirname(config.manifestRemotePath);
-  runCommand("ssh", [config.manifestSshHost, `mkdir -p ${shellEscape(remoteDir)}`]);
-  runCommand("scp", [filePath, `${config.manifestSshHost}:${config.manifestRemotePath}`]);
-}
-
 async function verifyManifest(manifestUrl, version) {
   const response = await fetch(manifestUrl, { headers: { "Cache-Control": "no-cache" } });
   if (!response.ok) {
@@ -245,18 +172,6 @@ async function verifyManifest(manifestUrl, version) {
   if (payload.version !== version) {
     throw new Error(`latest.json 版本不匹配：期望 ${version}，实际 ${payload.version}`);
   }
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function ensureTrailingSlash(value) {
-  return value.endsWith("/") ? value : `${value}/`;
-}
-
-function encodePathSegment(value) {
-  return encodeURIComponent(value).replace(/%2F/g, "/");
 }
 
 function resolveReleaseNotes(env, releaseVersion) {
@@ -279,8 +194,4 @@ function resolveReleaseNotes(env, releaseVersion) {
 
 function resolveReleaseNotesPath(filePath) {
   return path.isAbsolute(filePath) ? filePath : path.join(rootDir, filePath);
-}
-
-function shellEscape(value) {
-  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
 }
