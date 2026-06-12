@@ -137,8 +137,22 @@ fn parse_commit_record(repo: &RepoInfo, record: &str) -> Option<CommitRecord> {
     })
 }
 
+/// 创建 git 子进程命令。Windows 上设置 CREATE_NO_WINDOW，避免生产包（GUI 子系统、无控制台）
+/// 每调用一次 git 就弹出一个一闪而过的 cmd/终端窗口——有多少仓库就弹多少次。
+/// 开发环境因为应用挂在控制台上、子进程复用它，所以看不到这个问题。
+fn git_command() -> Command {
+    #[allow(unused_mut)]
+    let mut command = Command::new("git");
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    command
+}
+
 fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
+    let output = git_command()
         .args(args)
         .current_dir(repo_path)
         .output()
@@ -152,7 +166,7 @@ fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn run_git_config(key: &str) -> String {
-    Command::new("git")
+    git_command()
         .args(["config", "--global", key])
         .output()
         .ok()
