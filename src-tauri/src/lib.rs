@@ -8,7 +8,6 @@ use crate::models::{
     AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
     MonthlyReportOptions, MonthlyReportResult, RepoInfo,
 };
-use std::path::PathBuf;
 use tauri::async_runtime;
 
 #[tauri::command]
@@ -231,8 +230,8 @@ fn collect_commits(
     let mut warnings = Vec::new();
 
     for repo in &repos {
-        if options.pull_latest_code {
-            collect_pull_warning(repo, &mut warnings);
+        if options.disabled_repos.contains(&repo.path) {
+            continue;
         }
         match git_ops::get_git_commits(
             repo,
@@ -249,13 +248,6 @@ fn collect_commits(
     Ok((repos, commits, warnings))
 }
 
-fn collect_pull_warning(repo: &RepoInfo, warnings: &mut Vec<String>) {
-    let path = PathBuf::from(&repo.path);
-    if let Err(err) = git_ops::pull_repo(&path) {
-        warnings.push(format!("{} 拉取失败：{}", repo.name, err));
-    }
-}
-
 fn monthly_extract_options(
     options: &MonthlyReportOptions,
     start: &str,
@@ -266,7 +258,7 @@ fn monthly_extract_options(
         author: options.author.clone(),
         start_date: start.to_string(),
         end_date: end.to_string(),
-        pull_latest_code: options.pull_latest_code,
+        disabled_repos: options.disabled_repos.clone(),
         extract_all_branches: options.extract_all_branches,
         detailed_output: false,
         show_project_and_branch: true,

@@ -27,10 +27,6 @@ pub fn current_branch(repo_path: &Path) -> String {
         .unwrap_or_else(|_| "unknown".to_string())
 }
 
-pub fn pull_repo(repo_path: &Path) -> Result<(), String> {
-    run_git(repo_path, &["pull"]).map(|_| ())
-}
-
 pub fn get_git_commits(
     repo: &RepoInfo,
     start_date: &str,

@@ -382,7 +382,6 @@ export function SettingsDialog({
                   <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
                   {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />}
                   <div className="settings-toggle-grid">
-                    <Toggle label="拉取最新代码" checked={settings.pullLatestCode} onChange={(value) => updateSetting("pullLatestCode", value)} />
                     <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
                     <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
                     <Toggle label="显示项目与分支" checked={settings.showProjectAndBranch} onChange={(value) => updateSetting("showProjectAndBranch", value)} />

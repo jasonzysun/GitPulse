@@ -149,14 +149,14 @@ fn render_summary_line(
     }
 }
 
-/// 将映射名转成展示前缀：去掉末尾已有的连接符后统一补一个 "-"。
+/// 将映射名转成展示前缀：去掉末尾已有的连接符后统一补一个 " - "。
 /// 未配置映射（名称为空）时返回空串，保持"仅展示提交内容"的既有行为。
 fn display_prefix(display_name: &str) -> String {
     let trimmed = display_name.trim_end_matches(TRAILING_CONNECTORS);
     if trimmed.is_empty() {
         String::new()
     } else {
-        format!("{}-", trimmed)
+        format!("{} - ", trimmed)
     }
 }
 

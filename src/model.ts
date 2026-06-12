@@ -52,7 +52,7 @@ export type AppSettings = {
   outputEnabled: boolean;
   themeMode: ThemeMode;
   author: string;
-  pullLatestCode: boolean;
+  disabledRepos: string[];
   extractAllBranches: boolean;
   detailedOutput: boolean;
   showProjectAndBranch: boolean;
@@ -81,7 +81,7 @@ export const defaultSettings: AppSettings = {
   outputEnabled: false,
   themeMode: "system",
   author: "",
-  pullLatestCode: false,
+  disabledRepos: [],
   extractAllBranches: false,
   detailedOutput: false,
   showProjectAndBranch: true,
@@ -194,7 +194,7 @@ export function buildExtractOptions(
     author: settings.author,
     startDate: range.startDate,
     endDate: range.endDate,
-    pullLatestCode: settings.pullLatestCode,
+    disabledRepos: settings.disabledRepos,
     extractAllBranches: settings.extractAllBranches,
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
@@ -210,8 +210,8 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
     author: settings.author,
-    pullLatestCode: settings.pullLatestCode,
     extractAllBranches: settings.extractAllBranches,
+    disabledRepos: settings.disabledRepos,
     projectNames,
     refinementInstruction: settings.refinementInstruction,
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },

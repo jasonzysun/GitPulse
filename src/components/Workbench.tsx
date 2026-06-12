@@ -42,6 +42,8 @@ type Props = {
   onCopy: () => void;
   onExport: () => void;
   canExport: boolean;
+  disabledRepos: string[];
+  onToggleRepo: (path: string, enabled: boolean) => void;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
@@ -96,6 +98,10 @@ export function Workbench(props: Props) {
     : props.activePreview === "monthly"
       ? "上月月报"
       : `今日日报 · ${props.dailyDate}`;
+  const enabledRepoCount = props.repos.filter((repo) => !props.disabledRepos.includes(repo.path)).length;
+  const repoMeta = enabledRepoCount === props.repos.length
+    ? `${props.repos.length} repos`
+    : `${enabledRepoCount}/${props.repos.length} repos`;
 
   return (
     <section className="workbench">
@@ -218,18 +224,32 @@ export function Workbench(props: Props) {
         </section>
 
         <section className="repo-drawer">
-          <PanelTitle icon={<TerminalSquare size={17} />} title="仓库索引" meta={`${props.repos.length} repos`} />
+          <PanelTitle icon={<TerminalSquare size={17} />} title="仓库索引" meta={repoMeta} />
           <div className="repo-list">
             {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
-            {props.repos.map((repo) => (
-              <article className="repo-row" key={repo.path}>
-                <div>
-                  <strong>{repo.name}</strong>
-                  <p>{repo.path}</p>
-                </div>
-                <span title={repo.branch}>{repo.branch}</span>
-              </article>
-            ))}
+            {props.repos.map((repo) => {
+              const enabled = !props.disabledRepos.includes(repo.path);
+              return (
+                <article className={`repo-row ${enabled ? "" : "disabled"}`} key={repo.path}>
+                  <label
+                    className="repo-toggle"
+                    title={enabled ? "已纳入报告，点击排除该仓库" : "已排除，点击重新纳入报告"}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={enabled}
+                      onChange={(event) => props.onToggleRepo(repo.path, event.target.checked)}
+                    />
+                    <span aria-hidden="true" />
+                  </label>
+                  <div>
+                    <strong>{repo.name}</strong>
+                    <p>{repo.path}</p>
+                  </div>
+                  <span title={repo.branch}>{repo.branch}</span>
+                </article>
+              );
+            })}
           </div>
         </section>
       </div>

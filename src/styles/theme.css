@@ -68,13 +68,22 @@
   background: rgba(16, 24, 39, 0.7);
 }
 
-:root[data-theme="dark"] .toggle span {
+:root[data-theme="dark"] .toggle span,
+:root[data-theme="dark"] .repo-toggle span {
   background: #25364d;
 }
 
-:root[data-theme="dark"] .repo-row span {
+:root[data-theme="dark"] .repo-toggle input:checked + span {
+  background: var(--primary);
+}
+
+:root[data-theme="dark"] .repo-row > span {
   color: #f5c978;
   background: rgba(244, 201, 120, 0.14);
+}
+
+:root[data-theme="dark"] .repo-row.disabled {
+  background: rgba(12, 18, 30, 0.55);
 }
 
 :root[data-theme="dark"] .settings-dialog {

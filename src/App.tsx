@@ -362,6 +362,14 @@ function App() {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
+  function toggleRepo(repoPath: string, enabled: boolean) {
+    setSettings((current) => {
+      const disabled = current.disabledRepos.filter((path) => path !== repoPath);
+      if (!enabled) disabled.push(repoPath);
+      return { ...current, disabledRepos: disabled };
+    });
+  }
+
   async function replacePendingUpdate(nextUpdate: PendingAppUpdate | null) {
     if (pendingUpdate && pendingUpdate !== nextUpdate) {
       await pendingUpdate.close().catch(() => undefined);
@@ -408,6 +416,8 @@ function App() {
         onCopy={copyPreview}
         onExport={saveReport}
         canExport={settings.outputEnabled && Boolean(settings.outputDir.trim())}
+        disabledRepos={settings.disabledRepos}
+        onToggleRepo={toggleRepo}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />
