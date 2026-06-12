@@ -264,6 +264,7 @@ fn monthly_extract_options(
         show_project_and_branch: true,
         project_names: options.project_names.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
+        system_prompt: String::new(),
         ai: options.ai.clone(),
     }
 }
@@ -288,6 +289,7 @@ fn apply_ai_to_extract_result(result: &mut ExtractResult, options: &ExtractOptio
         &options.end_date,
         &options.author,
         &options.refinement_instruction,
+        &options.system_prompt,
         &options.ai,
     ) {
         Ok(enhanced) => {
@@ -319,6 +321,7 @@ fn apply_ai_if_enabled(
         &dates.1,
         &options.author,
         &options.refinement_instruction,
+        &options.system_prompt,
         &options.ai,
     )
     .unwrap_or_else(|err| {

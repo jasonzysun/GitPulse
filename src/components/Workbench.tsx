@@ -2,6 +2,7 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clipboard,
   FileDown,
   GitBranch,
@@ -38,7 +39,7 @@ type Props = {
   onExtract: () => void;
   onGenerateCustom: (range: DateRange) => void;
   onGenerateMonthly: () => void;
-  onPolish: () => void;
+  onPolish: (extraInstruction?: string) => void;
   onCopy: () => void;
   onExport: () => void;
   canExport: boolean;
@@ -54,6 +55,8 @@ export function Workbench(props: Props) {
   const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [polishMenuOpen, setPolishMenuOpen] = useState(false);
+  const [polishExtra, setPolishExtra] = useState("");
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -67,6 +70,19 @@ export function Workbench(props: Props) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isPreviewExpanded]);
+
+  useEffect(() => {
+    if (!polishMenuOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setPolishMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [polishMenuOpen]);
 
   function handlePreviewChange(preview: PreviewMode) {
     if (preview === "custom") {
@@ -176,16 +192,59 @@ export function Workbench(props: Props) {
               </button>
               <div className="canvas-actions-group">
                 {props.previewText && (
-                  <button
-                    className={`preview-polish-button ${!props.aiConfigured ? "warning" : ""}`}
-                    type="button"
-                    onClick={props.onPolish}
-                    disabled={props.isBusy}
-                    title={props.aiConfigured ? "使用 AI 润色当前报告" : "请在设置中配置 AI"}
-                  >
-                    <Sparkles size={15} />
-                    AI润色
-                  </button>
+                  <div className="polish-split">
+                    <button
+                      className={`preview-polish-button ${!props.aiConfigured ? "warning" : ""}`}
+                      type="button"
+                      onClick={() => props.onPolish()}
+                      disabled={props.isBusy}
+                      title={props.aiConfigured ? "使用 AI 润色当前报告" : "请在设置中配置 AI"}
+                    >
+                      <Sparkles size={15} />
+                      AI润色
+                    </button>
+                    <button
+                      className={`polish-split-toggle ${!props.aiConfigured ? "warning" : ""}`}
+                      type="button"
+                      onClick={() => setPolishMenuOpen((current) => !current)}
+                      disabled={props.isBusy}
+                      aria-expanded={polishMenuOpen}
+                      aria-label="带本次额外要求润色"
+                      title="带本次额外要求润色"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    {polishMenuOpen && (
+                      <div className="polish-popover" role="dialog" aria-label="本次额外要求">
+                        <span className="polish-popover-label">本次额外要求（可选）</span>
+                        <textarea
+                          className="polish-popover-input"
+                          value={polishExtra}
+                          autoFocus
+                          onChange={(event) => setPolishExtra(event.target.value)}
+                          placeholder="例如：这次用英文 / 更精简 / 重点突出修复"
+                        />
+                        <div className="polish-popover-actions">
+                          <button type="button" className="polish-popover-cancel" onClick={() => setPolishMenuOpen(false)}>
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            className="polish-popover-submit"
+                            onClick={() => {
+                              props.onPolish(polishExtra.trim());
+                              setPolishExtra("");
+                              setPolishMenuOpen(false);
+                            }}
+                            disabled={props.isBusy}
+                          >
+                            <Sparkles size={14} />
+                            带要求润色
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {(props.previewText && props.canExport) && (
                   <button className="preview-save-button" type="button" onClick={props.onExport} disabled={props.isBusy} title="导出为文件">

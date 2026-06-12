@@ -9,6 +9,7 @@ pub fn enhance_monthly_report(
     end_date: &str,
     author: &str,
     refinement_instruction: &str,
+    system_prompt: &str,
     config: &AiConfig,
 ) -> Result<String, String> {
     let prompt = monthly_user_prompt(
@@ -18,7 +19,12 @@ pub fn enhance_monthly_report(
         author,
         refinement_instruction,
     );
-    enhance_report(base_report, monthly_system_prompt(), &prompt, config)
+    enhance_report(
+        base_report,
+        resolve_system_prompt(system_prompt, monthly_system_prompt()),
+        &prompt,
+        config,
+    )
 }
 
 pub fn enhance_daily_report(
@@ -27,6 +33,7 @@ pub fn enhance_daily_report(
     end_date: &str,
     author: &str,
     refinement_instruction: &str,
+    system_prompt: &str,
     config: &AiConfig,
 ) -> Result<String, String> {
     let prompt = daily_user_prompt(
@@ -36,7 +43,21 @@ pub fn enhance_daily_report(
         author,
         refinement_instruction,
     );
-    enhance_report(base_report, daily_system_prompt(), &prompt, config)
+    enhance_report(
+        base_report,
+        resolve_system_prompt(system_prompt, daily_system_prompt()),
+        &prompt,
+        config,
+    )
+}
+
+/// 自定义系统提示词非空则采用它，否则回退内置默认。默认字符串保留为同源参照与兜底。
+fn resolve_system_prompt<'a>(custom: &'a str, fallback: &'a str) -> &'a str {
+    if custom.trim().is_empty() {
+        fallback
+    } else {
+        custom
+    }
 }
 
 pub fn list_models(config: &AiConfig) -> Result<Vec<AiModelInfo>, String> {

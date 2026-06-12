@@ -410,6 +410,35 @@
   background: rgba(255, 244, 224, 0.88);
 }
 
+.temperature-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.temperature-control input[type="range"] {
+  flex: 1;
+  accent-color: var(--primary);
+}
+
+.temperature-value {
+  min-width: 30px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary-dark);
+}
+
+.prompt-template-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.prompt-template-editor .prompt-reset {
+  justify-self: start;
+}
+
 .mapping-editor {
   display: grid;
   gap: 10px;

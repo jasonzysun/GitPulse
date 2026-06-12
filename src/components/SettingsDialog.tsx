@@ -25,6 +25,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import {
   buildMappingKeys,
+  DEFAULT_DAILY_SYSTEM_PROMPT,
+  DEFAULT_MONTHLY_SYSTEM_PROMPT,
   mergeMappingEntries,
   parseMappingText,
   serializeMappingText,
@@ -106,6 +108,7 @@ export function SettingsDialog({
   const codexPollTimer = useRef<number | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);
   const lastSettingsRef = useRef(settings);
+  const [promptEditTarget, setPromptEditTarget] = useState<"daily" | "monthly">("daily");
   useEffect(() => {
     if (!open) {
       setImportNote("");
@@ -172,6 +175,11 @@ export function SettingsDialog({
 
   function updateAiModel(model: string) {
     updateSetting("aiModel", model);
+  }
+
+  function resetSystemPrompt() {
+    if (promptEditTarget === "daily") updateSetting("dailySystemPrompt", DEFAULT_DAILY_SYSTEM_PROMPT);
+    else updateSetting("monthlySystemPrompt", DEFAULT_MONTHLY_SYSTEM_PROMPT);
   }
 
   async function fetchAiModels() {
@@ -517,13 +525,66 @@ export function SettingsDialog({
                     </p>
                   )}
                 </Field>
-                <Field label="润色指令" hint="留空则使用默认指令">
+                <Field label="生成温度" hint="越低越稳健保守，越高越灵活多样；默认 0.2">
+                  <div className="temperature-control">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      value={settings.aiTemperature}
+                      onChange={(event) => updateSetting("aiTemperature", Number(event.target.value))}
+                    />
+                    <span className="temperature-value">{settings.aiTemperature.toFixed(1)}</span>
+                  </div>
+                </Field>
+                <Field label="润色指令" hint="常驻的快速微调，追加在系统提示词之上；留空则不追加。临时性的本次要求可在首页润色按钮处填写。">
                   <textarea
                     className="refinement-input"
                     value={settings.refinementInstruction}
                     onChange={(event) => updateSetting("refinementInstruction", event.target.value)}
                     placeholder="语气正式一些，突出项目交付、问题闭环和协作价值。"
                   />
+                </Field>
+                <Field
+                  label="系统提示词模板（高级）"
+                  hint="决定报告的整体结构与角色（如月报的分段方式）。留空则回退内置默认。"
+                >
+                  <div className="prompt-template-editor">
+                    <div className="mapping-scope-control" role="radiogroup" aria-label="选择编辑的报告类型">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={promptEditTarget === "daily"}
+                        className={promptEditTarget === "daily" ? "active" : ""}
+                        onClick={() => setPromptEditTarget("daily")}
+                      >
+                        日报 / 区间
+                      </button>
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={promptEditTarget === "monthly"}
+                        className={promptEditTarget === "monthly" ? "active" : ""}
+                        onClick={() => setPromptEditTarget("monthly")}
+                      >
+                        月报
+                      </button>
+                    </div>
+                    <textarea
+                      className="refinement-input"
+                      value={promptEditTarget === "daily" ? settings.dailySystemPrompt : settings.monthlySystemPrompt}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (promptEditTarget === "daily") updateSetting("dailySystemPrompt", value);
+                        else updateSetting("monthlySystemPrompt", value);
+                      }}
+                    />
+                    <button type="button" className="mapping-import prompt-reset" onClick={resetSystemPrompt}>
+                      <RefreshCw size={15} />
+                      恢复默认
+                    </button>
+                  </div>
                 </Field>
               </section>
             )}

@@ -121,6 +121,11 @@
   color: #6fd99c;
 }
 
+:root[data-theme="dark"] .polish-popover-input,
+:root[data-theme="dark"] .polish-popover-cancel {
+  background: rgba(20, 31, 48, 0.8);
+}
+
 :root[data-theme="dark"] .settings-nav {
   border-right-color: rgba(52, 74, 103, 0.82);
   background: rgba(13, 20, 32, 0.6);

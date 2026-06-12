@@ -48,6 +48,7 @@ pub struct ExtractOptions {
     pub show_project_and_branch: bool,
     pub project_names: HashMap<String, String>,
     pub refinement_instruction: String,
+    pub system_prompt: String,
     pub ai: AiConfig,
 }
 
@@ -90,6 +91,7 @@ pub struct MonthlyReportOptions {
     pub extract_all_branches: bool,
     pub project_names: HashMap<String, String>,
     pub refinement_instruction: String,
+    pub system_prompt: String,
     pub ai: AiConfig,
 }
 

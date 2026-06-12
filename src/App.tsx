@@ -245,11 +245,11 @@ function App() {
     }, () => validateMonthlySettings(settings));
   }
 
-  async function polishReport() {
+  async function polishReport(extraInstruction = "") {
     await runTask("AI 正在润色", async () => {
       if (activePreview === "monthly") {
         const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
-          options: buildMonthlyOptions(settings, projectNames, true),
+          options: buildMonthlyOptions(settings, projectNames, true, extraInstruction),
         });
         setMonthlyReport(result.reportText);
         setMonthlyLabel(result.monthLabel);
@@ -259,7 +259,7 @@ function App() {
       } else {
         const range = activePreview === "custom" ? customRange : getTodayRange();
         const result = await invoke<ExtractResult>("extract_commits", {
-          options: buildExtractOptions(settings, projectNames, range, true),
+          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction),
         });
         if (activePreview === "custom") {
           setCustomReport(result.detailedText || result.summaryText);

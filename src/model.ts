@@ -63,6 +63,9 @@ export type AppSettings = {
   aiModel: string;
   aiApiKey: string;
   refinementInstruction: string;
+  dailySystemPrompt: string;
+  monthlySystemPrompt: string;
+  aiTemperature: number;
 };
 
 export type LoadedSettingsState = {
@@ -73,6 +76,13 @@ export type LoadedSettingsState = {
 export const STORAGE_KEY = "gitpulse-settings";
 const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+// 与 src-tauri/src/ai.rs 的内置默认系统提示词逐字一致。作为可编辑提示词的默认值与“恢复默认”目标；
+// 用户留空时后端会回退到同源的 Rust 默认，行为不变。
+export const DEFAULT_DAILY_SYSTEM_PROMPT =
+  "你是一个严谨的工作日报写作助手。请基于 Git 提交记录润色为当天或指定周期的工作日报，不要虚构没有依据的业务结果、上线结论或百分比。最终输出保持为简洁纯文本或短列表，方便直接复制到工作汇报中。";
+export const DEFAULT_MONTHLY_SYSTEM_PROMPT =
+  "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。";
 
 export const defaultSettings: AppSettings = {
   onboardingDone: false,
@@ -92,6 +102,9 @@ export const defaultSettings: AppSettings = {
   aiModel: "",
   aiApiKey: "",
   refinementInstruction: "",
+  dailySystemPrompt: DEFAULT_DAILY_SYSTEM_PROMPT,
+  monthlySystemPrompt: DEFAULT_MONTHLY_SYSTEM_PROMPT,
+  aiTemperature: 0.2,
 };
 
 export function loadSettingsState(): LoadedSettingsState {
@@ -243,6 +256,7 @@ export function buildExtractOptions(
   projectNames: Record<string, string>,
   dateRange: DateRange | undefined,
   aiEnabled: boolean,
+  extraInstruction = "",
 ) {
   const range = dateRange ?? getTodayRange();
   return {
@@ -255,12 +269,18 @@ export function buildExtractOptions(
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
     projectNames,
-    refinementInstruction: settings.refinementInstruction,
+    refinementInstruction: mergeInstructions(settings.refinementInstruction, extraInstruction),
+    systemPrompt: settings.dailySystemPrompt,
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
 }
 
-export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<string, string>, aiEnabled: boolean) {
+export function buildMonthlyOptions(
+  settings: AppSettings,
+  projectNames: Record<string, string>,
+  aiEnabled: boolean,
+  extraInstruction = "",
+) {
   return {
     rootDirs: settings.rootDirs,
     outputDir: settings.outputDir,
@@ -269,7 +289,8 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
     extractAllBranches: settings.extractAllBranches,
     disabledRepos: settings.disabledRepos,
     projectNames,
-    refinementInstruction: settings.refinementInstruction,
+    refinementInstruction: mergeInstructions(settings.refinementInstruction, extraInstruction),
+    systemPrompt: settings.monthlySystemPrompt,
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
 }
@@ -322,9 +343,20 @@ function buildAiOptions(settings: AppSettings) {
     baseUrl: settings.aiBaseUrl,
     model: settings.aiModel,
     apiKey: settings.aiApiKey.trim(),
-    temperature: 0.2,
+    temperature: clampTemperature(settings.aiTemperature),
     timeoutSeconds: 60,
   };
+}
+
+// AI 采样温度：超出 [0,1] 钳到边界，非数字回退默认 0.2（Anthropic 上限为 1，取并集安全区间）。
+function clampTemperature(value: number): number {
+  if (!Number.isFinite(value)) return 0.2;
+  return Math.min(1, Math.max(0, value));
+}
+
+// 合并常驻润色指令与本次一次性额外要求，二者皆可为空。
+function mergeInstructions(base: string, extra: string): string {
+  return [base.trim(), extra.trim()].filter(Boolean).join("\n");
 }
 
 export function getTodayRange(): DateRange {
