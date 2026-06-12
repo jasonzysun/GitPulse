@@ -230,19 +230,23 @@
 }
 
 .repo-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) fit-content(116px);
+  display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 11px;
+  padding: 9px 10px;
   border: 1px solid rgba(220, 230, 240, 0.9);
   border-radius: var(--radius-sm);
   background: rgba(251, 253, 255, 0.86);
   transition: opacity 0.16s ease, border-color 0.16s ease, background 0.16s ease;
 }
 
-.repo-row > div {
-  min-width: 0;
+.repo-row:hover {
+  border-color: rgba(63, 140, 255, 0.32);
+  background: rgba(63, 140, 255, 0.06);
+}
+
+.repo-row:focus-within {
+  border-color: rgba(63, 140, 255, 0.42);
 }
 
 .repo-row.disabled {
@@ -250,7 +254,7 @@
   background: rgba(241, 245, 250, 0.7);
 }
 
-.repo-row.disabled strong {
+.repo-row.disabled .repo-display-name {
   text-decoration: line-through;
   text-decoration-color: var(--muted);
 }
@@ -306,35 +310,69 @@
   outline-offset: 2px;
 }
 
-.repo-row strong {
-  display: block;
-  margin-bottom: 3px;
+.repo-info {
+  display: grid;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.repo-info:focus-visible {
+  outline: 2px solid rgba(63, 140, 255, 0.5);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.repo-display-name {
   color: var(--ink);
   font-size: 13px;
+  font-weight: 850;
   line-height: 17px;
   overflow-wrap: anywhere;
 }
 
-.repo-row p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 16px;
+.repo-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.repo-origin,
+.repo-branch {
+  max-width: 100%;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 780;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.repo-row > span {
-  align-self: start;
-  max-width: 116px;
-  padding: 2px 7px;
-  border-radius: 999px;
+.repo-origin {
+  border: 1px solid rgba(24, 35, 52, 0.12);
+  color: var(--muted);
+  background: rgba(24, 35, 52, 0.04);
+}
+
+.repo-branch {
   color: #6c430c;
   background: rgba(229, 169, 54, 0.16);
-  font-family: var(--font-mono);
+}
+
+.repo-path {
+  color: var(--muted);
   font-size: 11px;
-  font-weight: 850;
+  line-height: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

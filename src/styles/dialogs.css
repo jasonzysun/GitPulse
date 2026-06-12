@@ -519,6 +519,69 @@
   font-weight: 760;
 }
 
+.mapping-dialog-repo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 0;
+}
+
+.mapping-dialog-repo span {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 850;
+  overflow-wrap: anywhere;
+}
+
+.mapping-dialog-repo em {
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: #6c430c;
+  background: rgba(229, 169, 54, 0.16);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 780;
+}
+
+.mapping-scope-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mapping-scope-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  font-weight: 820;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.mapping-scope-control button:hover:not(:disabled) {
+  border-color: rgba(63, 140, 255, 0.36);
+  background: rgba(217, 235, 255, 0.6);
+}
+
+.mapping-scope-control button.active {
+  border-color: rgba(63, 140, 255, 0.42);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+}
+
+.mapping-scope-control button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .confirm-backdrop {
   z-index: 40;
 }

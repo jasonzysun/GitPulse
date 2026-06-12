@@ -77,13 +77,28 @@
   background: var(--primary);
 }
 
-:root[data-theme="dark"] .repo-row > span {
+:root[data-theme="dark"] .repo-branch {
   color: #f5c978;
   background: rgba(244, 201, 120, 0.14);
 }
 
 :root[data-theme="dark"] .repo-row.disabled {
   background: rgba(12, 18, 30, 0.55);
+}
+
+:root[data-theme="dark"] .repo-origin {
+  border-color: rgba(52, 74, 103, 0.9);
+  color: var(--muted);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .repo-row:hover {
+  border-color: rgba(109, 168, 255, 0.34);
+  background: rgba(26, 38, 58, 0.85);
+}
+
+:root[data-theme="dark"] .repo-info:focus-visible {
+  outline-color: rgba(109, 168, 255, 0.6);
 }
 
 :root[data-theme="dark"] .settings-dialog {
@@ -189,6 +204,33 @@
 
 :root[data-theme="dark"] .range-error {
   color: #f4c978;
+}
+
+:root[data-theme="dark"] .mapping-dialog-repo em {
+  color: #f5c978;
+  background: rgba(244, 201, 120, 0.14);
+}
+
+:root[data-theme="dark"] .mapping-scope-control {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(13, 20, 32, 0.6);
+}
+
+:root[data-theme="dark"] .mapping-scope-control button {
+  border-color: rgba(52, 74, 103, 0.9);
+  color: var(--ink-soft);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .mapping-scope-control button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.3);
+  background: rgba(109, 168, 255, 0.12);
+}
+
+:root[data-theme="dark"] .mapping-scope-control button.active {
+  border-color: rgba(109, 168, 255, 0.3);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.18);
 }
 
 :root[data-theme="dark"] .preview-copy-button,

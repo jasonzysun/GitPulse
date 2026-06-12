@@ -14,7 +14,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import type { DateRange, PreviewMode, RepoInfo } from "../model";
+import { resolveRepoDisplayName, type DateRange, type PreviewMode, type RepoInfo } from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 
@@ -43,7 +43,9 @@ type Props = {
   onExport: () => void;
   canExport: boolean;
   disabledRepos: string[];
+  projectNames: Record<string, string>;
   onToggleRepo: (path: string, enabled: boolean) => void;
+  onEditRepo: (repo: RepoInfo) => void;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
@@ -229,6 +231,8 @@ export function Workbench(props: Props) {
             {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
             {props.repos.map((repo) => {
               const enabled = !props.disabledRepos.includes(repo.path);
+              const displayName = resolveRepoDisplayName(repo, props.projectNames);
+              const isMapped = displayName !== repo.name;
               return (
                 <article className={`repo-row ${enabled ? "" : "disabled"}`} key={repo.path}>
                   <label
@@ -242,11 +246,19 @@ export function Workbench(props: Props) {
                     />
                     <span aria-hidden="true" />
                   </label>
-                  <div>
-                    <strong>{repo.name}</strong>
-                    <p>{repo.path}</p>
-                  </div>
-                  <span title={repo.branch}>{repo.branch}</span>
+                  <button
+                    type="button"
+                    className="repo-info"
+                    onClick={() => props.onEditRepo(repo)}
+                    title="点击编辑项目映射名称"
+                  >
+                    <strong className="repo-display-name">{displayName}</strong>
+                    <span className="repo-meta">
+                      {isMapped && <em className="repo-origin">{repo.name}</em>}
+                      <em className="repo-branch" title={repo.branch}>{repo.branch}</em>
+                    </span>
+                    <span className="repo-path">{repo.path}</span>
+                  </button>
                 </article>
               );
             })}

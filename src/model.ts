@@ -182,6 +182,56 @@ export function parseProjectNames(text: string): Record<string, string> {
   }, {});
 }
 
+// 与 Rust 端 report.rs 的 TRAILING_CONNECTORS 保持一致：映射名末尾可能带连接符，统一去除。
+const TRAILING_CONNECTORS = /[-_：:；;、 ]+$/;
+
+// 复刻 Rust resolve_project_name 的查找规则：先精确键 name(branch)，再通配键 name(*)，
+// 命中则去掉末尾连接符返回映射名；未配置映射时回退到仓库原名，保证索引展示与报告内容一致。
+export function resolveRepoDisplayName(repo: RepoInfo, projectNames: Record<string, string>): string {
+  const mapped = projectNames[`${repo.name}(${repo.branch})`] ?? projectNames[`${repo.name}(*)`];
+  const trimmed = mapped?.replace(TRAILING_CONNECTORS, "").trim();
+  return trimmed ? trimmed : repo.name;
+}
+
+export type MappingScope = "all" | "branch";
+
+// 读取某仓库当前生效的映射：精确键 name(branch) 优先（范围=branch），否则通配键 name(*)（范围=all）。
+// 都没有时返回空名称、默认范围 all，供弹窗作为初始值。
+export function readRepoMapping(
+  text: string,
+  repo: RepoInfo,
+): { scope: MappingScope; displayName: string } {
+  const names = parseProjectNames(text);
+  const branchKey = `${repo.name}(${repo.branch})`;
+  const allKey = `${repo.name}(*)`;
+  if (repo.branch && names[branchKey] !== undefined) {
+    return { scope: "branch", displayName: names[branchKey] };
+  }
+  if (names[allKey] !== undefined) {
+    return { scope: "all", displayName: names[allKey] };
+  }
+  return { scope: "all", displayName: "" };
+}
+
+// 写入/更新单个仓库的映射：先移除该仓库的两个候选键（name(*) 与 name(branch)）避免切换范围后残留孤儿键，
+// 再按所选范围写入新值；名称为空表示清除映射。其他分支的精确键不受影响。
+export function upsertRepoMapping(
+  text: string,
+  repo: RepoInfo,
+  scope: MappingScope,
+  displayName: string,
+): string {
+  const allKey = `${repo.name}(*)`;
+  const branchKey = `${repo.name}(${repo.branch})`;
+  const rows = parseMappingText(text).filter((row) => row.key !== allKey && row.key !== branchKey);
+  const trimmed = displayName.trim();
+  if (trimmed) {
+    const key = scope === "branch" && repo.branch ? branchKey : allKey;
+    rows.push({ key, displayName: trimmed });
+  }
+  return serializeMappingText(rows);
+}
+
 export function buildExtractOptions(
   settings: AppSettings,
   projectNames: Record<string, string>,

@@ -5,6 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow, type Theme } from "@tauri-apps/api/window";
 import { check, type Update as PendingAppUpdate } from "@tauri-apps/plugin-updater";
 import { OnboardingWizard } from "./components/OnboardingWizard";
+import { RepoMappingDialog } from "./components/RepoMappingDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
 import {
@@ -17,12 +18,14 @@ import {
   type PreviewMode,
   type RepoInfo,
   type UpdateSummary,
+  type MappingScope,
   STORAGE_KEY,
   buildExtractOptions,
   buildMonthlyOptions,
   getTodayRange,
   loadSettingsState,
   parseProjectNames,
+  upsertRepoMapping,
   validateExtractSettings,
   validateMonthlySettings,
   validateOutputSettings,
@@ -60,6 +63,7 @@ function App() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
   const [commitCount, setCommitCount] = useState(0);
   const [systemTheme, setSystemTheme] = useState<Theme>(readSystemTheme);
@@ -370,6 +374,16 @@ function App() {
     });
   }
 
+  function saveRepoMapping(scope: MappingScope, displayName: string) {
+    if (!editingRepo) return;
+    setSettings((current) => ({
+      ...current,
+      projectNamesText: upsertRepoMapping(current.projectNamesText, editingRepo, scope, displayName),
+    }));
+    setStatus(displayName.trim() ? `已更新「${editingRepo.name}」的映射名称` : `已清除「${editingRepo.name}」的映射名称`);
+    setEditingRepo(null);
+  }
+
   async function replacePendingUpdate(nextUpdate: PendingAppUpdate | null) {
     if (pendingUpdate && pendingUpdate !== nextUpdate) {
       await pendingUpdate.close().catch(() => undefined);
@@ -394,6 +408,7 @@ function App() {
     <main className="app-root">
       <Workbench
         repos={repos}
+        projectNames={projectNames}
         previewText={previewText}
         activePreview={activePreview}
         copyNotice={copyNotice}
@@ -418,6 +433,7 @@ function App() {
         canExport={settings.outputEnabled && Boolean(settings.outputDir.trim())}
         disabledRepos={settings.disabledRepos}
         onToggleRepo={toggleRepo}
+        onEditRepo={setEditingRepo}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -435,6 +451,13 @@ function App() {
         onCheckForUpdates={checkForUpdates}
         onInstallUpdate={installUpdate}
         onClose={() => setSettingsOpen(false)}
+      />
+      <RepoMappingDialog
+        open={editingRepo !== null}
+        repo={editingRepo}
+        projectNamesText={settings.projectNamesText}
+        onClose={() => setEditingRepo(null)}
+        onConfirm={saveRepoMapping}
       />
     </main>
   );
