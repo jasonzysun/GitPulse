@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  Bot,
   CalendarDays,
   CheckCircle2,
   Clipboard,
@@ -9,7 +8,6 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
-  RefreshCw,
   Settings2,
   Sparkles,
   TerminalSquare,
@@ -40,16 +38,16 @@ type Props = {
   onExtract: () => void;
   onGenerateCustom: (range: DateRange) => void;
   onGenerateMonthly: () => void;
+  onPolish: () => void;
   onCopy: () => void;
-  onSaveSummary: () => void;
-  canSaveSummary: boolean;
-  onToggleAi: (enabled: boolean) => void;
+  onExport: () => void;
+  canExport: boolean;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
 
 export function Workbench(props: Props) {
-  const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : props.activePreview === "monthly" ? "Markdown 渲染" : "纯文本";
+  const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
 
@@ -76,11 +74,23 @@ export function Workbench(props: Props) {
 
   function generateCustom(range: DateRange) {
     setCustomDialogOpen(false);
+    props.onPreviewChange("custom");
     props.onGenerateCustom(range);
   }
 
-  const aiStateLabel = props.aiEnabled ? (props.aiConfigured ? "已开启" : "待配置") : "已关闭";
+  function handleGenerate() {
+    if (props.activePreview === "monthly") {
+      props.onGenerateMonthly();
+    } else if (props.activePreview === "custom") {
+      setCustomDialogOpen(true);
+    } else {
+      props.onExtract();
+    }
+  }
+
   const previewEmptyText = props.activePreview === "monthly" ? "暂无月报内容。" : props.activePreview === "custom" ? "请选择时间段生成自定义报告。" : "暂无日报内容。";
+  const generateButtonLabel = props.activePreview === "monthly" ? "生成月报" : props.activePreview === "custom" ? "生成自定义报告" : "生成日报";
+  const generateButtonIcon = props.activePreview === "monthly" ? <FileDown size={15} /> : props.activePreview === "custom" ? <CalendarDays size={15} /> : <GitBranch size={15} />;
   const dateChipLabel = props.activePreview === "custom"
     ? `${props.customRange.startDate} ~ ${props.customRange.endDate}`
     : props.activePreview === "monthly"
@@ -131,44 +141,53 @@ export function Workbench(props: Props) {
         </div>
       </header>
 
-      <div className="action-dock">
-        <CommandButton icon={<GitBranch size={17} />} label="生成日报" onClick={props.onExtract} disabled={props.isBusy} tone="primary" />
-        <CommandButton icon={<FileDown size={17} />} label="生成上月月报" onClick={props.onGenerateMonthly} disabled={props.isBusy} tone="primary" />
-        <CommandButton icon={<RefreshCw size={17} />} label="保存摘要" onClick={props.onSaveSummary} disabled={!props.summaryText || !props.canSaveSummary || props.isBusy} tone="plain" />
-        <button
-          className={`ai-inline-toggle ${props.aiEnabled ? "active" : ""} ${props.aiEnabled && !props.aiConfigured ? "warning" : ""}`}
-          type="button"
-          aria-pressed={props.aiEnabled}
-          onClick={() => props.onToggleAi(!props.aiEnabled)}
-          title={props.aiEnabled && !props.aiConfigured ? "请在设置中补齐 AI 配置" : "切换 AI 润色"}
-        >
-          <Bot size={17} />
-          <span>AI 润色</span>
-          <strong>{aiStateLabel}</strong>
-        </button>
-      </div>
-
       <div className="studio-grid">
         <section className={`report-canvas ${isPreviewExpanded ? "preview-expanded" : ""}`}>
-          <div className="canvas-topline">
-            <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta={previewMeta} />
-            <div className="canvas-tools">
-              <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
-                <Clipboard size={15} />
-                复制
-              </button>
+          <div className="canvas-head">
+            <div className="canvas-topline">
+              <PanelTitle icon={<Sparkles size={17} />} title="报告预览" meta={previewMeta} />
               <div className="report-switch" aria-label="报告类型切换">
-                <button className={props.activePreview === "summary" ? "active" : ""} onClick={() => handlePreviewChange("summary")}>
+                <button type="button" aria-pressed={props.activePreview === "summary"} className={props.activePreview === "summary" ? "active" : ""} onClick={() => handlePreviewChange("summary")}>
                   <span>Daily</span>
                   日报
                 </button>
-                <button className={props.activePreview === "monthly" ? "active" : ""} onClick={() => handlePreviewChange("monthly")}>
+                <button type="button" aria-pressed={props.activePreview === "monthly"} className={props.activePreview === "monthly" ? "active" : ""} onClick={() => handlePreviewChange("monthly")}>
                   <span>Monthly</span>
                   月报
                 </button>
-                <button className={props.activePreview === "custom" ? "active" : ""} onClick={() => handlePreviewChange("custom")}>
+                <button type="button" aria-pressed={props.activePreview === "custom"} className={props.activePreview === "custom" ? "active" : ""} onClick={() => handlePreviewChange("custom")}>
                   <span>Custom</span>
                   自定义
+                </button>
+              </div>
+            </div>
+            <div className="canvas-actionbar">
+              <button className="preview-generate-button" type="button" onClick={handleGenerate} disabled={props.isBusy}>
+                {generateButtonIcon}
+                {generateButtonLabel}
+              </button>
+              <div className="canvas-actions-group">
+                {props.previewText && (
+                  <button
+                    className={`preview-polish-button ${!props.aiConfigured ? "warning" : ""}`}
+                    type="button"
+                    onClick={props.onPolish}
+                    disabled={props.isBusy}
+                    title={props.aiConfigured ? "使用 AI 润色当前报告" : "请在设置中配置 AI"}
+                  >
+                    <Sparkles size={15} />
+                    AI润色
+                  </button>
+                )}
+                {(props.previewText && props.canExport) && (
+                  <button className="preview-save-button" type="button" onClick={props.onExport} disabled={props.isBusy} title="导出为文件">
+                    <FileDown size={15} />
+                    导出
+                  </button>
+                )}
+                <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
+                  <Clipboard size={15} />
+                  复制
                 </button>
               </div>
             </div>
@@ -179,10 +198,13 @@ export function Workbench(props: Props) {
               {props.copyNotice.message}
             </div>
           )}
-          {props.activePreview === "monthly" ? (
-            <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
+          {props.isBusy ? (
+            <div className="preview-loading">
+              <Loader2 className="spin" size={32} />
+              <p>正在处理...</p>
+            </div>
           ) : (
-            <pre className="preview preview-plain">{props.previewText || previewEmptyText}</pre>
+            <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
           )}
           <button
             className="preview-expand-button"
@@ -226,27 +248,6 @@ export function Workbench(props: Props) {
         onConfirm={generateCustom}
       />
     </section>
-  );
-}
-
-function CommandButton({
-  icon,
-  label,
-  onClick,
-  disabled,
-  tone,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-  disabled: boolean;
-  tone: "primary" | "quiet" | "plain";
-}) {
-  return (
-    <button className={`command-button ${tone}`} onClick={onClick} disabled={disabled}>
-      {icon}
-      {label}
-    </button>
   );
 }
 

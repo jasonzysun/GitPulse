@@ -185,7 +185,8 @@ export function parseProjectNames(text: string): Record<string, string> {
 export function buildExtractOptions(
   settings: AppSettings,
   projectNames: Record<string, string>,
-  dateRange?: DateRange,
+  dateRange: DateRange | undefined,
+  aiEnabled: boolean,
 ) {
   const range = dateRange ?? getTodayRange();
   return {
@@ -199,11 +200,11 @@ export function buildExtractOptions(
     showProjectAndBranch: settings.showProjectAndBranch,
     projectNames,
     refinementInstruction: settings.refinementInstruction,
-    ai: buildAiOptions(settings),
+    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
 }
 
-export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<string, string>) {
+export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<string, string>, aiEnabled: boolean) {
   return {
     rootDir: settings.rootDir,
     outputDir: settings.outputDir,
@@ -213,7 +214,7 @@ export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<
     extractAllBranches: settings.extractAllBranches,
     projectNames,
     refinementInstruction: settings.refinementInstruction,
-    ai: buildAiOptions(settings),
+    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
 }
 

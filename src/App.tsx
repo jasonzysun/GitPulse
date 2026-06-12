@@ -51,6 +51,7 @@ function App() {
   const [customReport, setCustomReport] = useState("");
   const [customRange, setCustomRange] = useState<DateRange>(getTodayRange);
   const [monthlyReport, setMonthlyReport] = useState("");
+  const [monthlyLabel, setMonthlyLabel] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
   const [status, setStatus] = useState(
     loadedSettings.recoveredLegacyApiKey ? "已迁移旧配置中的 API Key" : "就绪",
@@ -176,21 +177,21 @@ function App() {
     await runTask("正在提取提交记录", async () => {
       const dailyRange = getTodayRange();
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames, dailyRange),
+        options: buildExtractOptions(settings, projectNames, dailyRange, false),
       });
       setRepos(result.repos);
       setSummaryText(result.detailedText || result.summaryText);
       setWarnings(result.warnings);
       setCommitCount(result.commits.length);
       setActivePreview("summary");
-      setStatus(buildExtractStatus("日报", result, settings.aiEnabled));
+      setStatus("日报已生成");
     }, () => validateExtractSettings(settings));
   }
 
   async function generateCustomReport(range: DateRange) {
     await runTask("正在生成自定义报告", async () => {
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames, range),
+        options: buildExtractOptions(settings, projectNames, range, false),
       });
       setRepos(result.repos);
       setCustomRange(range);
@@ -198,23 +199,50 @@ function App() {
       setWarnings(result.warnings);
       setCommitCount(result.commits.length);
       setActivePreview("custom");
-      setStatus(buildExtractStatus("自定义报告", result, settings.aiEnabled));
+      setStatus("自定义报告已生成");
     }, () => validateExtractSettings(settings, range));
   }
 
   async function generateMonthlyReport() {
     await runTask("正在生成上月月报", async () => {
       const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
-        options: buildMonthlyOptions(settings, projectNames),
+        options: buildMonthlyOptions(settings, projectNames, false),
       });
       setMonthlyReport(result.reportText);
+      setMonthlyLabel(result.monthLabel);
       setWarnings(result.warnings);
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
       setActivePreview("monthly");
-      const aiSuffix = settings.aiEnabled && !hasAiWarning(result.warnings) ? "，AI 润色已应用" : settings.aiEnabled ? "，AI 润色失败" : "";
-      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成${aiSuffix}` : `${result.monthLabel} 月报已生成${aiSuffix}，未写入文件`);
+      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成` : `${result.monthLabel} 月报已生成，未写入文件`);
     }, () => validateMonthlySettings(settings));
+  }
+
+  async function polishReport() {
+    await runTask("AI 正在润色", async () => {
+      if (activePreview === "monthly") {
+        const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
+          options: buildMonthlyOptions(settings, projectNames, true),
+        });
+        setMonthlyReport(result.reportText);
+        setMonthlyLabel(result.monthLabel);
+        setWarnings(result.warnings);
+        setLastOutputFile(result.outputFile);
+        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
+      } else {
+        const range = activePreview === "custom" ? customRange : getTodayRange();
+        const result = await invoke<ExtractResult>("extract_commits", {
+          options: buildExtractOptions(settings, projectNames, range, true),
+        });
+        if (activePreview === "custom") {
+          setCustomReport(result.detailedText || result.summaryText);
+        } else {
+          setSummaryText(result.detailedText || result.summaryText);
+        }
+        setWarnings(result.warnings);
+        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
+      }
+    }, () => validateExtractSettings(settings));
   }
 
   async function copyPreview() {
@@ -229,23 +257,24 @@ function App() {
     }
   }
 
-  async function saveSummary() {
-    const activeExtractText = activePreview === "custom" ? customReport : summaryText;
-    if (!activeExtractText || activePreview === "monthly") return;
-    const range = activePreview === "custom" ? customRange : getTodayRange();
-    await runTask("正在保存摘要", async () => {
+  async function saveReport() {
+    if (!previewText || !settings.outputEnabled) return;
+    let fileName: string;
+    if (activePreview === "monthly") {
+      fileName = `monthly_report_${monthlyLabel}.md`;
+    } else {
+      const range = activePreview === "custom" ? customRange : getTodayRange();
+      fileName = `git_commits_${range.startDate}_to_${range.endDate}.md`;
+    }
+    await runTask("正在导出报告", async () => {
       const outputFile = await invoke<string>("save_text_file", {
         outputDir: settings.outputDir,
-        fileName: `git_commits_${range.startDate}_to_${range.endDate}.md`,
-        content: activeExtractText,
+        fileName,
+        content: previewText,
       });
       setLastOutputFile(outputFile);
-      setStatus("摘要已保存");
+      setStatus("报告已导出");
     }, () => validateOutputSettings(settings));
-  }
-
-  function toggleAiEnabled(enabled: boolean) {
-    updateSetting("aiEnabled", enabled);
   }
 
   async function checkForUpdates() {
@@ -375,10 +404,10 @@ function App() {
         onExtract={extractCommits}
         onGenerateCustom={generateCustomReport}
         onGenerateMonthly={generateMonthlyReport}
+        onPolish={polishReport}
         onCopy={copyPreview}
-        onSaveSummary={saveSummary}
-        canSaveSummary={settings.outputEnabled && activePreview !== "monthly"}
-        onToggleAi={toggleAiEnabled}
+        onExport={saveReport}
+        canExport={settings.outputEnabled && Boolean(settings.outputDir.trim())}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -399,14 +428,6 @@ function App() {
       />
     </main>
   );
-}
-
-function buildExtractStatus(label: string, result: ExtractResult, aiEnabled: boolean) {
-  if (aiEnabled && hasAiWarning(result.warnings)) {
-    return `${label}已生成 ${result.commits.length} 条提交，AI 润色失败`;
-  }
-  const aiSuffix = aiEnabled && result.commits.length > 0 ? "，AI 润色已应用" : "";
-  return `${label}已生成 ${result.commits.length} 条提交${aiSuffix}`;
 }
 
 function hasAiWarning(warnings: string[]) {

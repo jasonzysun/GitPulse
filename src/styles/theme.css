@@ -1,5 +1,4 @@
 :root[data-theme="dark"] .hero-band,
-:root[data-theme="dark"] .action-dock,
 :root[data-theme="dark"] .repo-drawer,
 :root[data-theme="dark"] .report-canvas,
 :root[data-theme="dark"] .event-log {
@@ -9,10 +8,6 @@
 
 :root[data-theme="dark"] .brand-logo {
   background-image: url("/brand-dark.png");
-}
-
-:root[data-theme="dark"] .command-button.primary {
-  box-shadow: var(--shadow-sm);
 }
 
 :root[data-theme="dark"] .run-status,
@@ -61,14 +56,12 @@
 }
 
 :root[data-theme="dark"] .path-input button,
-:root[data-theme="dark"] .command-button.quiet,
 :root[data-theme="dark"] .mapping-import,
 :root[data-theme="dark"] .settings-card button {
   border-color: rgba(109, 168, 255, 0.28);
   background: rgba(63, 140, 255, 0.18);
 }
 
-:root[data-theme="dark"] .command-button.plain,
 :root[data-theme="dark"] .settings-card,
 :root[data-theme="dark"] .repo-row {
   border-color: rgba(52, 74, 103, 0.9);
@@ -189,43 +182,54 @@
   color: #f4c978;
 }
 
-:root[data-theme="dark"] .ai-inline-toggle {
-  border-color: rgba(52, 74, 103, 0.9);
-  color: var(--ink-soft);
-  background: rgba(16, 24, 39, 0.72);
-}
-
-:root[data-theme="dark"] .ai-inline-toggle:hover {
-  border-color: rgba(109, 168, 255, 0.32);
-  background: rgba(20, 31, 48, 0.9);
-}
-
-:root[data-theme="dark"] .ai-inline-toggle.active {
-  border-color: rgba(109, 168, 255, 0.36);
-  color: var(--primary-dark);
-  background: rgba(63, 140, 255, 0.18);
-}
-
-:root[data-theme="dark"] .ai-inline-toggle.warning {
-  border-color: rgba(244, 201, 120, 0.34);
-  color: #f4c978;
-  background: rgba(101, 65, 16, 0.22);
-}
-
-:root[data-theme="dark"] .ai-inline-toggle.warning strong {
-  color: #f4c978;
-}
-
-:root[data-theme="dark"] .preview-copy-button {
+:root[data-theme="dark"] .preview-copy-button,
+:root[data-theme="dark"] .preview-generate-button,
+:root[data-theme="dark"] .preview-save-button {
   border-color: rgba(52, 74, 103, 0.9);
   color: var(--ink-soft);
   background: rgba(16, 24, 39, 0.76);
 }
 
-:root[data-theme="dark"] .preview-copy-button:hover:not(:disabled) {
+:root[data-theme="dark"] .preview-generate-button {
+  border-color: rgba(109, 168, 255, 0.42);
+  color: #ffffff;
+  background: rgba(63, 140, 255, 0.24);
+}
+
+:root[data-theme="dark"] .preview-copy-button:hover:not(:disabled),
+:root[data-theme="dark"] .preview-generate-button:hover:not(:disabled),
+:root[data-theme="dark"] .preview-save-button:hover:not(:disabled) {
   border-color: rgba(109, 168, 255, 0.34);
   color: var(--primary-dark);
   background: rgba(63, 140, 255, 0.16);
+}
+
+:root[data-theme="dark"] .preview-generate-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.56);
+  color: #ffffff;
+  background: rgba(63, 140, 255, 0.32);
+}
+
+:root[data-theme="dark"] .preview-polish-button {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.8));
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+:root[data-theme="dark"] .preview-polish-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.9), rgba(4, 120, 87, 0.9));
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+:root[data-theme="dark"] .preview-polish-button.warning {
+  border-color: rgba(251, 191, 36, 0.6);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.8), rgba(217, 119, 6, 0.8));
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+:root[data-theme="dark"] .preview-polish-button.warning:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.9), rgba(180, 83, 9, 0.9));
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
 
 :root[data-theme="dark"] .copy-toast {
