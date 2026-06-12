@@ -1,16 +1,27 @@
 use crate::models::{CommitRecord, GitIdentity, RepoInfo};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-pub fn find_git_repos(root_dir: &str) -> Result<Vec<RepoInfo>, String> {
-    let root = PathBuf::from(root_dir);
-    if !root.is_dir() {
-        return Err(format!("目录不存在：{}", root_dir));
-    }
-
+pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
     let mut repos = Vec::new();
-    visit_dir(&root, &mut repos).map_err(|err| err.to_string())?;
+    let mut seen = HashSet::new();
+    for root_dir in root_dirs {
+        let root = PathBuf::from(root_dir);
+        // 单个根目录失效（外置盘未挂载、目录被删）不应中断整次扫描，跳过即可。
+        if !root.is_dir() {
+            continue;
+        }
+        let mut found = Vec::new();
+        visit_dir(&root, &mut found).map_err(|err| err.to_string())?;
+        for repo in found {
+            // 多个根目录可能重叠或经软链指向同一仓库，按绝对路径去重。
+            if seen.insert(repo.path.clone()) {
+                repos.push(repo);
+            }
+        }
+    }
     Ok(repos)
 }
 

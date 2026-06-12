@@ -225,6 +225,10 @@
   background: rgba(217, 235, 255, 0.4);
 }
 
+.onboarding-dir-list {
+  margin-bottom: 10px;
+}
+
 .onboarding-picker svg {
   flex: none;
   color: var(--primary-dark);

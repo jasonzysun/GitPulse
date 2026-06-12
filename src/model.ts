@@ -47,7 +47,7 @@ export type ThemeMode = "system" | "light" | "dark";
 
 export type AppSettings = {
   onboardingDone: boolean;
-  rootDir: string;
+  rootDirs: string[];
   outputDir: string;
   outputEnabled: boolean;
   themeMode: ThemeMode;
@@ -76,7 +76,7 @@ const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export const defaultSettings: AppSettings = {
   onboardingDone: false,
-  rootDir: "",
+  rootDirs: [],
   outputDir: "",
   outputEnabled: false,
   themeMode: "system",
@@ -107,13 +107,19 @@ export function loadSettingsState(): LoadedSettingsState {
     aiKeyEnv?: string;
     startDate?: string;
     endDate?: string;
+    rootDir?: string;
   };
   const persistedSettings = { ...rawSettings };
   delete persistedSettings.startDate;
   delete persistedSettings.endDate;
+  delete persistedSettings.rootDir;
   const parsed = { ...defaultSettings, ...persistedSettings } as AppSettings;
+  // 旧版本只持久化单个 rootDir 字符串，迁移为 rootDirs 数组，避免老用户工作区配置失效。
+  if (parsed.rootDirs.length === 0 && rawSettings.rootDir?.trim()) {
+    parsed.rootDirs = [rawSettings.rootDir.trim()];
+  }
   // Settings saved before the onboarding flow existed imply a configured workspace.
-  if (rawSettings.onboardingDone === undefined && parsed.rootDir.trim()) {
+  if (rawSettings.onboardingDone === undefined && parsed.rootDirs.length > 0) {
     parsed.onboardingDone = true;
   }
   const legacyAiKeyEnv = rawSettings.aiKeyEnv?.trim() ?? "";
@@ -240,7 +246,7 @@ export function buildExtractOptions(
 ) {
   const range = dateRange ?? getTodayRange();
   return {
-    rootDir: settings.rootDir,
+    rootDirs: settings.rootDirs,
     author: settings.author,
     startDate: range.startDate,
     endDate: range.endDate,
@@ -256,7 +262,7 @@ export function buildExtractOptions(
 
 export function buildMonthlyOptions(settings: AppSettings, projectNames: Record<string, string>, aiEnabled: boolean) {
   return {
-    rootDir: settings.rootDir,
+    rootDirs: settings.rootDirs,
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
     author: settings.author,
@@ -289,7 +295,7 @@ export function validateExtractSettings(settings: AppSettings, dateRange?: DateR
 }
 
 export function validateWorkspaceSettings(settings: AppSettings) {
-  if (!settings.rootDir) throw new Error("请选择仓库根目录");
+  if (settings.rootDirs.length === 0) throw new Error("请选择至少一个仓库根目录");
 }
 
 export function validateOutputSettings(settings: AppSettings) {

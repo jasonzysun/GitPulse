@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FolderOpen } from "lucide-react";
+import { FolderGit2, FolderOpen, FolderPlus, X } from "lucide-react";
 
 type FieldProps = {
   label: string;
@@ -32,6 +32,46 @@ export function PathInput({
         <input value={value} readOnly placeholder="尚未选择" />
         <button type="button" onClick={onBrowse} aria-label={`选择${label}`}>
           <FolderOpen size={17} />
+        </button>
+      </div>
+    </Field>
+  );
+}
+
+export function RootDirField({
+  label,
+  dirs,
+  onAdd,
+  onRemove,
+  hint,
+}: {
+  label: string;
+  dirs: string[];
+  onAdd: () => void;
+  onRemove: (dir: string) => void;
+  hint?: string;
+}) {
+  return (
+    <Field label={label} hint={hint}>
+      <div className="root-dir-field">
+        {dirs.length > 0 && (
+          <ul className="root-dir-list">
+            {dirs.map((dir) => (
+              <li className="root-dir-row" key={dir}>
+                <FolderGit2 size={15} />
+                <span className="root-dir-path" title={dir}>
+                  {dir}
+                </span>
+                <button type="button" onClick={() => onRemove(dir)} aria-label={`移除目录 ${dir}`}>
+                  <X size={14} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <button type="button" className="root-dir-add" onClick={onAdd}>
+          <FolderPlus size={16} />
+          {dirs.length > 0 ? "添加目录" : "选择目录"}
         </button>
       </div>
     </Field>

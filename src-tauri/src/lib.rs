@@ -11,8 +11,8 @@ use crate::models::{
 use tauri::async_runtime;
 
 #[tauri::command]
-async fn scan_repos(root_dir: String) -> Result<Vec<RepoInfo>, String> {
-    async_runtime::spawn_blocking(move || git_ops::find_git_repos(&root_dir))
+async fn scan_repos(root_dirs: Vec<String>) -> Result<Vec<RepoInfo>, String> {
+    async_runtime::spawn_blocking(move || git_ops::find_git_repos(&root_dirs))
         .await
         .map_err(|err| format!("扫描仓库任务中断：{}", err))?
 }
@@ -225,7 +225,7 @@ pub fn run() {
 fn collect_commits(
     options: &ExtractOptions,
 ) -> Result<(Vec<RepoInfo>, Vec<crate::models::CommitRecord>, Vec<String>), String> {
-    let repos = git_ops::find_git_repos(&options.root_dir)?;
+    let repos = git_ops::find_git_repos(&options.root_dirs)?;
     let mut commits = Vec::new();
     let mut warnings = Vec::new();
 
@@ -254,7 +254,7 @@ fn monthly_extract_options(
     end: &str,
 ) -> ExtractOptions {
     ExtractOptions {
-        root_dir: options.root_dir.clone(),
+        root_dirs: options.root_dirs.clone(),
         author: options.author.clone(),
         start_date: start.to_string(),
         end_date: end.to_string(),

@@ -15,7 +15,7 @@
 
 .settings-dialog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(860px, 100%);
   height: min(680px, calc(100vh - 56px));
   border: 1px solid rgba(200, 216, 232, 0.92);
@@ -124,6 +124,53 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 20px;
+  border-top: 1px solid var(--line);
+  background: linear-gradient(0deg, #ffffff, #f7fbff);
+}
+
+.settings-save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  transition: color 0.2s ease;
+}
+
+.settings-save-state svg {
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+
+.settings-save-state.pulse {
+  color: #14734a;
+}
+
+.settings-save-state.pulse svg {
+  color: #1f9d63;
+  animation: save-pop 0.42s ease;
+}
+
+@keyframes save-pop {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  55% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
   }
 }
 

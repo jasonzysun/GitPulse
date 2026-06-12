@@ -118,7 +118,7 @@ export function Workbench(props: Props) {
         <div className="hero-copy">
           <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 自定义可选周期 · 月报取上月</p>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 月报取上月 · 自定义可选周期</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">

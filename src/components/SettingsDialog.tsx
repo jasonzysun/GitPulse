@@ -34,7 +34,7 @@ import {
   type RepoInfo,
   type UpdateSummary,
 } from "../model";
-import { Field, PathInput, Toggle } from "./Primitives";
+import { Field, PathInput, RootDirField, Toggle } from "./Primitives";
 import { UpdateSection } from "./UpdateSection";
 
 type Props = {
@@ -47,7 +47,9 @@ type Props = {
   updateProgress: string;
   updateBusy: "checking" | "installing" | null;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
-  chooseDirectory: (field: "rootDir" | "outputDir") => void;
+  onAddRootDirs: () => void;
+  onRemoveRootDir: (dir: string) => void;
+  onChooseOutputDir: () => void;
   onCheckForUpdates: () => void;
   onInstallUpdate: () => void;
   onClose: () => void;
@@ -84,7 +86,9 @@ export function SettingsDialog({
   updateProgress,
   updateBusy,
   updateSetting,
-  chooseDirectory,
+  onAddRootDirs,
+  onRemoveRootDir,
+  onChooseOutputDir,
   onCheckForUpdates,
   onInstallUpdate,
   onClose,
@@ -100,6 +104,8 @@ export function SettingsDialog({
   const [codexBusy, setCodexBusy] = useState(false);
   const [codexMessage, setCodexMessage] = useState("");
   const codexPollTimer = useRef<number | null>(null);
+  const [savedPulse, setSavedPulse] = useState(false);
+  const lastSettingsRef = useRef(settings);
   useEffect(() => {
     if (!open) {
       setImportNote("");
@@ -110,10 +116,24 @@ export function SettingsDialog({
       setPendingDeleteIndex(null);
       setCodexFlow(null);
       setCodexMessage("");
+      setSavedPulse(false);
       stopCodexPolling();
     }
   }, [open]);
   useEffect(() => () => stopCodexPolling(), []);
+  // 设置面板全程自动保存：settings 一变就已写入本地存储，这里只负责把“已保存”反馈显示出来，
+  // 跳过打开面板时的首次同步，避免没改动也闪一下。
+  useEffect(() => {
+    if (!open) {
+      lastSettingsRef.current = settings;
+      return;
+    }
+    if (lastSettingsRef.current === settings) return;
+    lastSettingsRef.current = settings;
+    setSavedPulse(true);
+    const timer = window.setTimeout(() => setSavedPulse(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [open, settings]);
   useEffect(() => {
     if (open && settings.aiProvider === "codex-oauth") void refreshCodexStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -370,17 +390,23 @@ export function SettingsDialog({
               <>
                 <section className="settings-section">
                   <SectionTitle icon={<FolderGit2 size={16} />} title="工作区" />
-                  <PathInput label="仓库根目录" value={settings.rootDir} onBrowse={() => chooseDirectory("rootDir")} />
+                  <RootDirField
+                    label="仓库根目录"
+                    dirs={settings.rootDirs}
+                    onAdd={onAddRootDirs}
+                    onRemove={onRemoveRootDir}
+                    hint="可添加多个分散在不同位置的目录，全部一起扫描"
+                  />
                   <Field label="Git 作者">
                     <input value={settings.author} onChange={(event) => updateSetting("author", event.target.value)} />
                   </Field>
-                  <p className="mapping-hint">日报默认使用今天；其他日期范围请在首页切换到「自定义」。月报固定取上个自然月。</p>
+                  <p className="mapping-hint">日报默认使用今天；月报固定取上个自然月。其他日期范围请在首页切换到「自定义」。</p>
                 </section>
 
                 <section className="settings-section">
                   <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
                   <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
-                  {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={() => chooseDirectory("outputDir")} />}
+                  {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={onChooseOutputDir} />}
                   <div className="settings-toggle-grid">
                     <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
                     <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
@@ -591,6 +617,12 @@ export function SettingsDialog({
             )}
           </div>
         </div>
+        <footer className="settings-footer">
+          <span className={`settings-save-state ${savedPulse ? "pulse" : ""}`}>
+            <CheckCircle2 size={14} />
+            改动自动保存到本机
+          </span>
+        </footer>
       </section>
     </div>
     {pendingDeleteIndex !== null && (
@@ -662,7 +694,7 @@ function buildMappingOptions(repos: RepoInfo[], rows: MappingEntry[]): MappingOp
     }
   }
   for (const row of rows) {
-    if (row.key && !options.has(row.key)) options.set(row.key, `${row.key} · 已保存`);
+    if (row.key && !options.has(row.key)) options.set(row.key, row.key);
   }
   return [...options.entries()].map(([value, label]) => ({ value, label }));
 }

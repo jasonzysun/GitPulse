@@ -154,9 +154,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!settings.rootDir) return;
+    if (settings.rootDirs.length === 0) {
+      setRepos([]);
+      return;
+    }
     scanWorkspace();
-  }, [settings.rootDir]);
+  }, [settings.rootDirs]);
 
   useEffect(() => {
     return () => {
@@ -164,14 +167,34 @@ function App() {
     };
   }, [pendingUpdate]);
 
-  async function chooseDirectory(field: "rootDir" | "outputDir") {
+  async function chooseOutputDir() {
     const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") updateSetting(field, selected);
+    if (typeof selected === "string") updateSetting("outputDir", selected);
+  }
+
+  async function addRootDirs() {
+    const selected = await open({ directory: true, multiple: true });
+    const picked = Array.isArray(selected) ? selected : typeof selected === "string" ? [selected] : [];
+    if (picked.length === 0) return;
+    setSettings((current) => {
+      const merged = [...current.rootDirs];
+      for (const dir of picked) {
+        if (!merged.includes(dir)) merged.push(dir);
+      }
+      return { ...current, rootDirs: merged };
+    });
+  }
+
+  function removeRootDir(dir: string) {
+    setSettings((current) => ({
+      ...current,
+      rootDirs: current.rootDirs.filter((item) => item !== dir),
+    }));
   }
 
   async function scanWorkspace() {
     await runTask("正在扫描仓库", async () => {
-      const result = await invoke<RepoInfo[]>("scan_repos", { rootDir: settings.rootDir });
+      const result = await invoke<RepoInfo[]>("scan_repos", { rootDirs: settings.rootDirs });
       setRepos(result);
       setStatus(`已发现 ${result.length} 个仓库`);
     }, () => validateWorkspaceSettings(settings));
@@ -398,7 +421,8 @@ function App() {
         repos={repos}
         isBusy={isBusy}
         updateSetting={updateSetting}
-        chooseDirectory={chooseDirectory}
+        onAddRootDirs={addRootDirs}
+        onRemoveRootDir={removeRootDir}
         onComplete={() => updateSetting("onboardingDone", true)}
       />
     );
@@ -447,7 +471,9 @@ function App() {
         updateProgress={updateProgress}
         updateBusy={updateBusy}
         updateSetting={updateSetting}
-        chooseDirectory={chooseDirectory}
+        onAddRootDirs={addRootDirs}
+        onRemoveRootDir={removeRootDir}
+        onChooseOutputDir={chooseOutputDir}
         onCheckForUpdates={checkForUpdates}
         onInstallUpdate={installUpdate}
         onClose={() => setSettingsOpen(false)}

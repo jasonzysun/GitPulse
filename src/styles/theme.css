@@ -111,6 +111,16 @@
   background: linear-gradient(180deg, #121d2e, #101827);
 }
 
+:root[data-theme="dark"] .settings-footer {
+  border-top-color: var(--line);
+  background: linear-gradient(0deg, #121d2e, #101827);
+}
+
+:root[data-theme="dark"] .settings-save-state.pulse,
+:root[data-theme="dark"] .settings-save-state.pulse svg {
+  color: #6fd99c;
+}
+
 :root[data-theme="dark"] .settings-nav {
   border-right-color: rgba(52, 74, 103, 0.82);
   background: rgba(13, 20, 32, 0.6);

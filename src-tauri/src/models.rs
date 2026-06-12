@@ -38,7 +38,7 @@ pub struct CommitRecord {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractOptions {
-    pub root_dir: String,
+    pub root_dirs: Vec<String>,
     pub author: String,
     pub start_date: String,
     pub end_date: String,
@@ -82,7 +82,7 @@ pub struct AiModelInfo {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MonthlyReportOptions {
-    pub root_dir: String,
+    pub root_dirs: Vec<String>,
     pub output_dir: String,
     pub output_enabled: bool,
     pub author: String,

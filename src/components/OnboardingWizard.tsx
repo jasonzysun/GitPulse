@@ -3,11 +3,12 @@ import {
   ArrowRight,
   Check,
   FolderGit2,
-  FolderOpen,
+  FolderPlus,
   Loader2,
   Rocket,
   Sparkles,
   UserRound,
+  X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { AppSettings, RepoInfo } from "../model";
@@ -17,7 +18,8 @@ type Props = {
   repos: RepoInfo[];
   isBusy: boolean;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
-  chooseDirectory: (field: "rootDir" | "outputDir") => void;
+  onAddRootDirs: () => void;
+  onRemoveRootDir: (dir: string) => void;
   onComplete: () => void;
 };
 
@@ -27,10 +29,10 @@ const STEPS = [
   { title: "Git 作者", desc: "确认提交归属" },
 ] as const;
 
-export function OnboardingWizard({ settings, repos, isBusy, updateSetting, chooseDirectory, onComplete }: Props) {
+export function OnboardingWizard({ settings, repos, isBusy, updateSetting, onAddRootDirs, onRemoveRootDir, onComplete }: Props) {
   const [step, setStep] = useState(0);
 
-  const rootReady = settings.rootDir.trim().length > 0;
+  const rootReady = settings.rootDirs.length > 0;
   const authorReady = settings.author.trim().length > 0;
   const canAdvance = step === 0 || (step === 1 ? rootReady : authorReady);
 
@@ -86,12 +88,27 @@ export function OnboardingWizard({ settings, repos, isBusy, updateSetting, choos
               icon={<FolderGit2 size={22} />}
               kicker="Step 1"
               title="选择仓库根目录"
-              subtitle="选择存放代码项目的文件夹，GitPulse 会扫描其中所有 Git 仓库。"
+              subtitle="选择存放代码项目的文件夹，可添加多个分散在不同位置的目录，GitPulse 会扫描其中所有 Git 仓库。"
             >
-              <button type="button" className="onboarding-picker" onClick={() => chooseDirectory("rootDir")}>
-                <FolderOpen size={18} />
-                <span className={settings.rootDir ? "" : "placeholder"}>
-                  {settings.rootDir || "点击选择文件夹，例如 D:\\workspace"}
+              {settings.rootDirs.length > 0 && (
+                <ul className="root-dir-list onboarding-dir-list">
+                  {settings.rootDirs.map((dir) => (
+                    <li className="root-dir-row" key={dir}>
+                      <FolderGit2 size={15} />
+                      <span className="root-dir-path" title={dir}>
+                        {dir}
+                      </span>
+                      <button type="button" onClick={() => onRemoveRootDir(dir)} aria-label={`移除目录 ${dir}`}>
+                        <X size={14} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button type="button" className="onboarding-picker" onClick={onAddRootDirs}>
+                <FolderPlus size={18} />
+                <span className="placeholder">
+                  {settings.rootDirs.length > 0 ? "继续添加目录" : "点击选择文件夹，例如 D:\\workspace"}
                 </span>
               </button>
               {rootReady && (
@@ -107,7 +124,7 @@ export function OnboardingWizard({ settings, repos, isBusy, updateSetting, choos
                       已发现 {repos.length} 个 Git 仓库
                     </>
                   ) : (
-                    "该目录下暂未发现 Git 仓库，可继续下一步或换个目录"
+                    "这些目录下暂未发现 Git 仓库，可继续添加或进入下一步"
                   )}
                 </p>
               )}
