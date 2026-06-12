@@ -163,15 +163,39 @@ function pickArtifact(directory, matcher) {
 }
 
 async function verifyManifest(manifestUrl, version) {
-  const response = await fetch(manifestUrl, { headers: { "Cache-Control": "no-cache" } });
-  if (!response.ok) {
-    throw new Error(`验证 latest.json 失败：${response.status}`);
+  // 资产刚上传后，latest/download 重定向与 CDN 传播存在数秒延迟，叠加代理瞬断
+  // 会让一次性 fetch 误判失败（发布主体其实已完成）。这里做有限次退避重试。
+  const maxAttempts = 5;
+  const retryDelayMs = 4000;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(manifestUrl, { headers: { "Cache-Control": "no-cache" } });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      if (payload.version !== version) {
+        throw new Error(`版本不匹配：期望 ${version}，实际 ${payload.version}`);
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.log(`校验 latest.json 第 ${attempt}/${maxAttempts} 次未通过（${reason}），${retryDelayMs / 1000}s 后重试...`);
+        await delay(retryDelayMs);
+      }
+    }
   }
 
-  const payload = await response.json();
-  if (payload.version !== version) {
-    throw new Error(`latest.json 版本不匹配：期望 ${version}，实际 ${payload.version}`);
-  }
+  const reason = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(`验证 latest.json 失败（已重试 ${maxAttempts} 次）：${reason}`);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function resolveReleaseNotes(env, releaseVersion) {
