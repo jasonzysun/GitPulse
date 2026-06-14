@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -23,8 +23,10 @@ import {
   buildExtractOptions,
   buildMonthlyOptions,
   getTodayRange,
+  isAiKeyReference,
   loadSettingsState,
   parseProjectNames,
+  settingsForPersistence,
   upsertRepoMapping,
   validateExtractSettings,
   validateMonthlySettings,
@@ -57,7 +59,11 @@ function App() {
   const [monthlyLabel, setMonthlyLabel] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
   const [status, setStatus] = useState(
-    loadedSettings.recoveredLegacyApiKey ? "已迁移旧配置中的 API Key" : "就绪",
+    loadedSettings.recoveredCorruptedSettings
+      ? "本地设置损坏，已恢复默认配置"
+      : loadedSettings.recoveredLegacyApiKey
+        ? "已迁移旧配置中的 AI 密钥引用"
+        : "就绪",
   );
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -73,6 +79,7 @@ function App() {
   const [updateProgress, setUpdateProgress] = useState("");
   const [updateBusy, setUpdateBusy] = useState<"checking" | "installing" | null>(null);
   const [pendingUpdate, setPendingUpdate] = useState<PendingAppUpdate | null>(null);
+  const aiApiKeySaveTimer = useRef<number | null>(null);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
   const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "custom" ? customReport : summaryText;
@@ -83,8 +90,29 @@ function App() {
       : Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsForPersistence(settings)));
   }, [settings]);
+
+  useEffect(() => {
+    const currentApiKey = settings.aiApiKey.trim();
+    if (currentApiKey) {
+      if (!isAiKeyReference(currentApiKey)) void persistSecureAiApiKey(currentApiKey);
+      return;
+    }
+
+    invoke<string | null>("get_secure_ai_api_key")
+      .then((apiKey) => {
+        if (!apiKey) return;
+        setSettings((current) => {
+          if (current.aiApiKey.trim()) return current;
+          return { ...current, aiApiKey: apiKey, aiApiKeySaved: true };
+        });
+        setStatus("已从系统凭据库读取 AI API Key");
+      })
+      .catch(() => undefined);
+    // Only run on startup; later key edits are handled by updateSetting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!copyNotice) return;
@@ -166,6 +194,14 @@ function App() {
       pendingUpdate?.close().catch(() => undefined);
     };
   }, [pendingUpdate]);
+
+  useEffect(() => {
+    return () => {
+      if (aiApiKeySaveTimer.current !== null) {
+        window.clearTimeout(aiApiKeySaveTimer.current);
+      }
+    };
+  }, []);
 
   async function chooseOutputDir() {
     const selected = await open({ directory: true, multiple: false });
@@ -386,6 +422,20 @@ function App() {
   }
 
   function updateSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]) {
+    if (key === "aiApiKey") {
+      const aiApiKey = String(value);
+      setSettings((current) => ({
+        ...current,
+        aiApiKey,
+        aiApiKeySaved:
+          current.aiApiKeySaved
+          && current.aiApiKey === aiApiKey
+          && Boolean(aiApiKey.trim())
+          && !isAiKeyReference(aiApiKey.trim()),
+      }));
+      scheduleSecureAiApiKeySync(aiApiKey);
+      return;
+    }
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
@@ -412,6 +462,35 @@ function App() {
       await pendingUpdate.close().catch(() => undefined);
     }
     setPendingUpdate(nextUpdate);
+  }
+
+  function scheduleSecureAiApiKeySync(value: string) {
+    if (aiApiKeySaveTimer.current !== null) {
+      window.clearTimeout(aiApiKeySaveTimer.current);
+    }
+    aiApiKeySaveTimer.current = window.setTimeout(() => {
+      aiApiKeySaveTimer.current = null;
+      void persistSecureAiApiKey(value);
+    }, 500);
+  }
+
+  async function persistSecureAiApiKey(value: string) {
+    const apiKey = value.trim();
+    try {
+      if (!apiKey || isAiKeyReference(apiKey)) {
+        await invoke("clear_secure_ai_api_key");
+        setSettings((current) => ({ ...current, aiApiKeySaved: false }));
+        return;
+      }
+
+      await invoke("set_secure_ai_api_key", { apiKey });
+      setSettings((current) => {
+        if (current.aiApiKey.trim() !== apiKey) return current;
+        return { ...current, aiApiKeySaved: true };
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
   }
 
   if (!settings.onboardingDone) {

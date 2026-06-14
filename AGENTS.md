@@ -45,5 +45,5 @@ cargo test
 
 - Do not reintroduce Python runtime dependencies on `main`.
 - Keep local filesystem and Git operations in Rust commands.
-- Keep API keys out of persisted config; read them from environment variables.
+- Keep API keys out of plain persisted config; use OS-backed secure storage or environment variables.
 - Prefer product-grade local desktop UX over a browser-only web app.

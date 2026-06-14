@@ -62,6 +62,7 @@ export type AppSettings = {
   aiBaseUrl: string;
   aiModel: string;
   aiApiKey: string;
+  aiApiKeySaved: boolean;
   refinementInstruction: string;
   dailySystemPrompt: string;
   monthlySystemPrompt: string;
@@ -71,6 +72,7 @@ export type AppSettings = {
 export type LoadedSettingsState = {
   settings: AppSettings;
   recoveredLegacyApiKey: boolean;
+  recoveredCorruptedSettings: boolean;
 };
 
 export const STORAGE_KEY = "gitpulse-settings";
@@ -101,6 +103,7 @@ export const defaultSettings: AppSettings = {
   aiBaseUrl: "https://api.openai.com/v1",
   aiModel: "",
   aiApiKey: "",
+  aiApiKeySaved: false,
   refinementInstruction: "",
   dailySystemPrompt: DEFAULT_DAILY_SYSTEM_PROMPT,
   monthlySystemPrompt: DEFAULT_MONTHLY_SYSTEM_PROMPT,
@@ -109,24 +112,52 @@ export const defaultSettings: AppSettings = {
 
 export function loadSettingsState(): LoadedSettingsState {
   const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
   if (!saved) {
     return {
-      settings: defaultSettings,
+      settings: { ...defaultSettings },
       recoveredLegacyApiKey: false,
+      recoveredCorruptedSettings: false,
     };
   }
 
-  const rawSettings = JSON.parse(saved) as Partial<AppSettings> & {
+  let rawSettings: Partial<AppSettings> & {
     aiKeyEnv?: string;
     startDate?: string;
     endDate?: string;
     rootDir?: string;
   };
+  try {
+    rawSettings = JSON.parse(saved);
+  } catch {
+    localStorage.removeItem(STORAGE_KEY);
+    return {
+      settings: { ...defaultSettings },
+      recoveredLegacyApiKey: false,
+      recoveredCorruptedSettings: true,
+    };
+  }
+  if (!rawSettings || typeof rawSettings !== "object" || Array.isArray(rawSettings)) {
+    localStorage.removeItem(STORAGE_KEY);
+    return {
+      settings: { ...defaultSettings },
+      recoveredLegacyApiKey: false,
+      recoveredCorruptedSettings: true,
+    };
+  }
+
   const persistedSettings = { ...rawSettings };
   delete persistedSettings.startDate;
   delete persistedSettings.endDate;
   delete persistedSettings.rootDir;
   const parsed = { ...defaultSettings, ...persistedSettings } as AppSettings;
+  parsed.rootDirs = Array.isArray(parsed.rootDirs) ? parsed.rootDirs.filter(isNonEmptyString) : [];
+  parsed.disabledRepos = Array.isArray(parsed.disabledRepos) ? parsed.disabledRepos.filter(isNonEmptyString) : [];
+  parsed.aiApiKey = typeof parsed.aiApiKey === "string" ? parsed.aiApiKey : "";
+  parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
+  parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
+  parsed.themeMode = normalizeThemeMode(parsed.themeMode);
+  parsed.aiTemperature = Number.isFinite(parsed.aiTemperature) ? parsed.aiTemperature : defaultSettings.aiTemperature;
   // 旧版本只持久化单个 rootDir 字符串，迁移为 rootDirs 数组，避免老用户工作区配置失效。
   if (parsed.rootDirs.length === 0 && rawSettings.rootDir?.trim()) {
     parsed.rootDirs = [rawSettings.rootDir.trim()];
@@ -145,12 +176,32 @@ export function loadSettingsState(): LoadedSettingsState {
         aiApiKey: legacyAiKeyEnv,
       },
       recoveredLegacyApiKey: true,
+      recoveredCorruptedSettings: false,
+    };
+  }
+  if (!aiApiKey && legacyAiKeyEnv && looksLikeEnvVarName(legacyAiKeyEnv)) {
+    return {
+      settings: {
+        ...parsed,
+        aiApiKey: legacyAiKeyEnv,
+      },
+      recoveredLegacyApiKey: true,
+      recoveredCorruptedSettings: false,
     };
   }
 
   return {
     settings: parsed,
     recoveredLegacyApiKey: false,
+    recoveredCorruptedSettings: false,
+  };
+}
+
+export function settingsForPersistence(settings: AppSettings): AppSettings {
+  const aiApiKey = settings.aiApiKey.trim();
+  return {
+    ...settings,
+    aiApiKey: isAiKeyReference(aiApiKey) ? aiApiKey : "",
   };
 }
 
@@ -374,4 +425,26 @@ export function getToday() {
 
 function looksLikeEnvVarName(value: string) {
   return ENV_VAR_NAME_PATTERN.test(value);
+}
+
+export function isAiKeyReference(value: string) {
+  return looksLikeEnvVarName(value) || value.startsWith("env:");
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function normalizeAiProvider(value: unknown): AppSettings["aiProvider"] {
+  if (value === "openai-compatible" || value === "anthropic-native" || value === "codex-oauth") {
+    return value;
+  }
+  return defaultSettings.aiProvider;
+}
+
+function normalizeThemeMode(value: unknown): ThemeMode {
+  if (value === "system" || value === "light" || value === "dark") {
+    return value;
+  }
+  return defaultSettings.themeMode;
 }

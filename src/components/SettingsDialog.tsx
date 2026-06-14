@@ -470,7 +470,12 @@ export function SettingsDialog({
                     <Field label="Base URL">
                       <input value={settings.aiBaseUrl} onChange={(event) => updateAiConnectionSetting("aiBaseUrl", event.target.value)} />
                     </Field>
-                    <Field label="API Key">
+                    <Field
+                      label="API Key"
+                      hint={settings.aiApiKeySaved
+                        ? "已保存到系统凭据库，下次打开会自动填入；清空输入框会删除已保存密钥。"
+                        : "输入后会自动保存到系统凭据库；也可填写 OPENAI_API_KEY 或 env:OPENAI_API_KEY 这类环境变量引用。"}
+                    >
                       <div className="secret-input">
                         <input
                           type={showAiApiKey ? "text" : "password"}

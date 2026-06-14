@@ -120,11 +120,37 @@ fn validate_model_list_config(config: &AiConfig) -> Result<(), String> {
 }
 
 fn read_api_key(config: &AiConfig) -> Result<String, String> {
-    let direct_api_key = config.api_key.trim();
-    if !direct_api_key.is_empty() {
-        return Ok(direct_api_key.to_string());
+    let value = config.api_key.trim();
+    if value.is_empty() {
+        return Err("未提供 API Key".to_string());
     }
-    Err("未提供 API Key".to_string())
+    if let Some(name) = value.strip_prefix("env:") {
+        return read_api_key_from_env(name.trim());
+    }
+    if looks_like_env_var_name(value) {
+        return read_api_key_from_env(value);
+    }
+    Ok(value.to_string())
+}
+
+fn read_api_key_from_env(name: &str) -> Result<String, String> {
+    if !looks_like_env_var_name(name) {
+        return Err("环境变量名格式不正确".to_string());
+    }
+    std::env::var(name)
+        .map(|value| value.trim().to_string())
+        .ok()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("环境变量 {name} 未设置或为空"))
+}
+
+fn looks_like_env_var_name(value: &str) -> bool {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) if first == '_' || first.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
 }
 
 fn enhance_with_openai_compatible(
@@ -355,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn read_api_key_prefers_direct_api_key() {
+    fn read_api_key_accepts_direct_api_key() {
         let config = AiConfig {
             enabled: true,
             provider: "openai-compatible".to_string(),
@@ -367,6 +393,40 @@ mod tests {
         };
 
         assert_eq!(read_api_key(&config).unwrap(), "test-direct-api-key");
+    }
+
+    #[test]
+    fn read_api_key_accepts_env_var_reference() {
+        std::env::set_var("GITPULSE_TEST_AI_KEY", "test-env-api-key");
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: "GITPULSE_TEST_AI_KEY".to_string(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        assert_eq!(read_api_key(&config).unwrap(), "test-env-api-key");
+        std::env::remove_var("GITPULSE_TEST_AI_KEY");
+    }
+
+    #[test]
+    fn read_api_key_accepts_prefixed_env_var_reference() {
+        std::env::set_var("GITPULSE_TEST_AI_KEY_PREFIXED", "test-env-api-key-prefixed");
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: "env:GITPULSE_TEST_AI_KEY_PREFIXED".to_string(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        assert_eq!(read_api_key(&config).unwrap(), "test-env-api-key-prefixed");
+        std::env::remove_var("GITPULSE_TEST_AI_KEY_PREFIXED");
     }
 
     #[test]

@@ -3,11 +3,13 @@ mod codex_oauth;
 mod git_ops;
 mod models;
 mod report;
+mod secure_store;
 
 use crate::models::{
     AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
     MonthlyReportOptions, MonthlyReportResult, RepoInfo,
 };
+use std::collections::HashSet;
 use tauri::async_runtime;
 
 #[tauri::command]
@@ -43,6 +45,27 @@ async fn list_ai_models(config: AiConfig) -> Result<Vec<AiModelInfo>, String> {
     async_runtime::spawn_blocking(move || ai::list_models(&config))
         .await
         .map_err(|err| format!("获取模型列表任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn get_secure_ai_api_key() -> Result<Option<String>, String> {
+    async_runtime::spawn_blocking(secure_store::get_ai_api_key)
+        .await
+        .map_err(|err| format!("读取 API Key 任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn set_secure_ai_api_key(api_key: String) -> Result<(), String> {
+    async_runtime::spawn_blocking(move || secure_store::set_ai_api_key(&api_key))
+        .await
+        .map_err(|err| format!("保存 API Key 任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn clear_secure_ai_api_key() -> Result<(), String> {
+    async_runtime::spawn_blocking(secure_store::clear_ai_api_key)
+        .await
+        .map_err(|err| format!("清除 API Key 任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -210,6 +233,9 @@ pub fn run() {
             extract_commits,
             generate_monthly_report,
             list_ai_models,
+            get_secure_ai_api_key,
+            set_secure_ai_api_key,
+            clear_secure_ai_api_key,
             save_text_file,
             read_mapping_xlsx,
             write_mapping_template_xlsx,
@@ -244,8 +270,22 @@ fn collect_commits(
             Err(err) => warnings.push(format!("{}：{}", repo.name, err)),
         }
     }
+    normalize_commits(&mut commits);
 
     Ok((repos, commits, warnings))
+}
+
+fn normalize_commits(commits: &mut Vec<crate::models::CommitRecord>) {
+    commits.sort_by(|left, right| {
+        right
+            .date
+            .cmp(&left.date)
+            .then_with(|| left.repo_path.cmp(&right.repo_path))
+            .then_with(|| left.hash.cmp(&right.hash))
+    });
+
+    let mut seen = HashSet::new();
+    commits.retain(|commit| seen.insert((commit.repo_path.clone(), commit.hash.clone())));
 }
 
 fn monthly_extract_options(
@@ -346,4 +386,42 @@ fn count_projects(
         })
         .collect::<std::collections::HashSet<_>>()
         .len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::CommitRecord;
+
+    #[test]
+    fn normalize_commits_sorts_newest_first_and_deduplicates_per_repo() {
+        let mut commits = vec![
+            commit("repo-a", "same", "2026-06-01 10:00:00 +0800"),
+            commit("repo-a", "old", "2026-05-30 10:00:00 +0800"),
+            commit("repo-a", "same", "2026-06-01 10:00:00 +0800"),
+            commit("repo-b", "new", "2026-06-02 10:00:00 +0800"),
+        ];
+
+        normalize_commits(&mut commits);
+
+        assert_eq!(
+            commits
+                .iter()
+                .map(|item| (item.repo_path.as_str(), item.hash.as_str()))
+                .collect::<Vec<_>>(),
+            vec![("repo-b", "new"), ("repo-a", "same"), ("repo-a", "old")]
+        );
+    }
+
+    fn commit(repo_path: &str, hash: &str, date: &str) -> CommitRecord {
+        CommitRecord {
+            repo_path: repo_path.to_string(),
+            project_name: repo_path.to_string(),
+            branch_name: "main".to_string(),
+            hash: hash.to_string(),
+            author: "tester".to_string(),
+            date: date.to_string(),
+            message: "feat: demo".to_string(),
+        }
+    }
 }

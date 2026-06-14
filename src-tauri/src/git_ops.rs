@@ -16,12 +16,18 @@ pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
         let mut found = Vec::new();
         visit_dir(&root, &mut found).map_err(|err| err.to_string())?;
         for repo in found {
-            // 多个根目录可能重叠或经软链指向同一仓库，按绝对路径去重。
+            // 多个根目录可能重叠或经软链指向同一仓库，按规整后的路径去重。
             if seen.insert(repo.path.clone()) {
                 repos.push(repo);
             }
         }
     }
+    repos.sort_by(|left, right| {
+        left.name
+            .to_lowercase()
+            .cmp(&right.name.to_lowercase())
+            .then_with(|| left.path.cmp(&right.path))
+    });
     Ok(repos)
 }
 
@@ -53,7 +59,7 @@ pub fn get_git_commits(
 }
 
 fn visit_dir(dir: &Path, repos: &mut Vec<RepoInfo>) -> std::io::Result<()> {
-    if dir.join(".git").is_dir() {
+    if is_git_repo_dir(dir) {
         repos.push(build_repo_info(dir));
         return Ok(());
     }
@@ -69,15 +75,21 @@ fn visit_dir(dir: &Path, repos: &mut Vec<RepoInfo>) -> std::io::Result<()> {
 }
 
 fn build_repo_info(dir: &Path) -> RepoInfo {
+    let path = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
     RepoInfo {
-        path: dir.to_string_lossy().to_string(),
-        name: dir
+        path: path.to_string_lossy().to_string(),
+        name: path
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string(),
-        branch: current_branch(dir),
+        branch: current_branch(&path),
     }
+}
+
+fn is_git_repo_dir(dir: &Path) -> bool {
+    let marker = dir.join(".git");
+    marker.is_dir() || marker.is_file()
 }
 
 fn should_visit_dir(path: &Path) -> bool {
@@ -173,4 +185,52 @@ fn run_git_config(key: &str) -> String {
         .filter(|output| output.status.success())
         .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_string())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn find_git_repos_detects_worktree_git_file() {
+        let root = temp_root("worktree-git-file");
+        let repo = root.join("repo");
+        fs::create_dir_all(&repo).unwrap();
+        fs::write(repo.join(".git"), "gitdir: ../.git/worktrees/repo\n").unwrap();
+
+        let repos = find_git_repos(&[root.to_string_lossy().to_string()]).unwrap();
+
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].name, "repo");
+        assert_eq!(repos[0].branch, "unknown");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn find_git_repos_deduplicates_overlapping_roots() {
+        let root = temp_root("dedupe-overlap");
+        let repo = root.join("repo");
+        fs::create_dir_all(repo.join(".git")).unwrap();
+
+        let repos = find_git_repos(&[
+            root.to_string_lossy().to_string(),
+            repo.to_string_lossy().to_string(),
+        ])
+        .unwrap();
+
+        assert_eq!(repos.len(), 1);
+        assert_eq!(repos[0].name, "repo");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn temp_root(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("gitpulse-{label}-{}-{nanos}", std::process::id()))
+    }
 }

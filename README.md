@@ -109,10 +109,10 @@ npm run tauri build      # 产物位于 src-tauri/target/release/bundle/
 
 - **协议**：`OpenAI Compatible` 或 `Anthropic Native`
 - **Base URL**：例如 `https://api.openai.com/v1` 或 `https://api.anthropic.com/v1`
-- **API Key**：对应服务的密钥，默认隐藏，可点按钮切换可见
+- **API Key**：输入一次后自动保存到系统凭据库；也可填写 `OPENAI_API_KEY` / `env:OPENAI_API_KEY` 这类环境变量引用
 - **模型**：可手动填写，或点「获取模型」从服务返回列表中选择
 
-> API Key 仅保存在本机。如果 AI 调用失败，应用会**自动回退到本地月报模板**，不影响出报告。
+> 真实 API Key 不会写入普通设置文件，而是交给系统凭据库保存。清空输入框会删除已保存密钥。如果 AI 调用失败，应用会**自动回退到本地月报模板**，不影响出报告。
 
 ## 🛠️ 技术栈
 

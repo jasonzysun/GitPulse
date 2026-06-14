@@ -30,7 +30,7 @@ npm run tauri build
 
 - Keep local Git and filesystem access in Rust commands.
 - Keep the React frontend focused on state, layout, preview, and interactions.
-- Do not persist real API keys. AI integrations should read keys from environment variables.
+- Do not persist real API keys in plain app settings. AI integrations may persist direct keys only through OS-backed secure storage; plain settings should store only safe references such as `OPENAI_API_KEY` or `env:OPENAI_API_KEY`.
 - Preserve the project mapping format: `project(branch) -> DisplayName-` and `project(*) -> DisplayName-`.
 - Keep generated files and local reports out of version control.
 
