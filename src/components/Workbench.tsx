@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Clipboard,
+  FileText,
   FileDown,
   GitBranch,
   Loader2,
@@ -15,7 +16,14 @@ import {
   UserRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { resolveRepoDisplayName, type DateRange, type PreviewMode, type RepoInfo } from "../model";
+import {
+  REPORT_TEMPLATE_PROFILES,
+  resolveRepoDisplayName,
+  type DateRange,
+  type PreviewMode,
+  type RepoInfo,
+  type ReportTemplateProfile,
+} from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { MonthReportDialog } from "./MonthReportDialog";
@@ -41,10 +49,12 @@ type Props = {
   customRange: DateRange;
   aiEnabled: boolean;
   aiConfigured: boolean;
+  reportTemplateProfile: ReportTemplateProfile;
   onExtract: () => void;
   onGenerateWeekly: () => void;
   onGenerateCustom: (range: DateRange) => void;
   onGenerateMonthly: (month: string) => void;
+  onReportTemplateChange: (profile: ReportTemplateProfile) => void;
   onPolish: (extraInstruction?: string) => void;
   onCopy: () => void;
   onExport: () => void;
@@ -227,10 +237,27 @@ export function Workbench(props: Props) {
               </div>
             </div>
             <div className="canvas-actionbar">
-              <button className="preview-generate-button" type="button" onClick={handleGenerate} disabled={props.isBusy}>
-                {generateButtonIcon}
-                {generateButtonLabel}
-              </button>
+              <div className="canvas-primary-actions">
+                <button className="preview-generate-button" type="button" onClick={handleGenerate} disabled={props.isBusy}>
+                  {generateButtonIcon}
+                  {generateButtonLabel}
+                </button>
+                <label className="template-picker" title="选择报告输出模板">
+                  <FileText size={14} />
+                  <span>模板</span>
+                  <select
+                    value={props.reportTemplateProfile}
+                    onChange={(event) => props.onReportTemplateChange(event.target.value as ReportTemplateProfile)}
+                    disabled={props.isBusy}
+                  >
+                    {REPORT_TEMPLATE_PROFILES.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label} · {profile.detail}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
               <div className="canvas-actions-group">
                 {props.previewText && (
                   <div className="polish-split">

@@ -408,7 +408,7 @@ export function SettingsDialog({
                   <Field label="Git 作者">
                     <input value={settings.author} onChange={(event) => updateSetting("author", event.target.value)} />
                   </Field>
-                  <p className="mapping-hint">日报默认使用今天；月报固定取上个自然月。其他日期范围请在首页切换到「自定义」。</p>
+                  <p className="mapping-hint">日报默认使用今天；周报取本周；月报可在首页选择月份。其他日期范围请切换到「自定义」。</p>
                 </section>
 
                 <section className="settings-section">
