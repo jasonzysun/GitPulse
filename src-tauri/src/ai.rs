@@ -125,7 +125,13 @@ fn read_api_key(config: &AiConfig) -> Result<String, String> {
         return Err("未提供 API Key".to_string());
     }
     if let Some(name) = value.strip_prefix("env:") {
-        return read_api_key_from_env(name.trim());
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(
+                "API Key 环境变量引用缺少变量名，请填写 env:OPENAI_API_KEY 这类格式。".to_string(),
+            );
+        }
+        return read_api_key_from_env(name);
     }
     if looks_like_env_var_name(value) {
         return read_api_key_from_env(value);
@@ -135,13 +141,19 @@ fn read_api_key(config: &AiConfig) -> Result<String, String> {
 
 fn read_api_key_from_env(name: &str) -> Result<String, String> {
     if !looks_like_env_var_name(name) {
-        return Err("环境变量名格式不正确".to_string());
+        return Err(format!(
+            "环境变量名格式不正确：{name}。请使用 OPENAI_API_KEY 或 env:OPENAI_API_KEY 这类格式。"
+        ));
     }
     std::env::var(name)
         .map(|value| value.trim().to_string())
         .ok()
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| format!("环境变量 {name} 未设置或为空"))
+        .ok_or_else(|| {
+            format!(
+                "环境变量 {name} 未设置或为空。请在系统环境变量中配置它，或在设置里直接填写 API Key。"
+            )
+        })
 }
 
 fn looks_like_env_var_name(value: &str) -> bool {
@@ -442,5 +454,42 @@ mod tests {
         };
 
         assert_eq!(read_api_key(&config).unwrap_err(), "未提供 API Key");
+    }
+
+    #[test]
+    fn read_api_key_explains_missing_prefixed_env_var_name() {
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: "env:".to_string(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        let message = read_api_key(&config).unwrap_err();
+
+        assert!(message.contains("缺少变量名"));
+        assert!(message.contains("env:OPENAI_API_KEY"));
+    }
+
+    #[test]
+    fn read_api_key_explains_missing_env_var() {
+        std::env::remove_var("GITPULSE_TEST_MISSING_AI_KEY");
+        let config = AiConfig {
+            enabled: true,
+            provider: "openai-compatible".to_string(),
+            base_url: "https://api.openai.com/v1".to_string(),
+            model: "gpt-4.1-mini".to_string(),
+            api_key: "GITPULSE_TEST_MISSING_AI_KEY".to_string(),
+            temperature: 0.2,
+            timeout_seconds: 60,
+        };
+
+        let message = read_api_key(&config).unwrap_err();
+
+        assert!(message.contains("GITPULSE_TEST_MISSING_AI_KEY"));
+        assert!(message.contains("直接填写 API Key"));
     }
 }

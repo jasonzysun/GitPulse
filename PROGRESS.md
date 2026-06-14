@@ -23,6 +23,7 @@ GitPulse is already usable as a local-first desktop report generator. The next s
 - [x] Improve Git repository detection for worktree-style `.git` files.
 - [x] Normalize collected commits with stable ordering and duplicate removal.
 - [x] Add targeted Rust tests for the new behavior.
+- [x] Add user-facing diagnostics for missing Git, invalid output directories, and missing environment variables.
 
 ## Verification
 
@@ -34,7 +35,6 @@ GitPulse is already usable as a local-first desktop report generator. The next s
 
 - Add a production-tested Tauri CSP instead of `csp: null`.
 - Decide whether ChatGPT Codex OAuth tokens should move from plain config JSON to OS-backed secure storage.
-- Add user-facing diagnostics for missing Git, invalid output directories, and missing environment variables.
 
 ## Next Backlog
 

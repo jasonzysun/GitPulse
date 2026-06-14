@@ -367,11 +367,11 @@ export function validateExtractSettings(settings: AppSettings, dateRange?: DateR
 }
 
 export function validateWorkspaceSettings(settings: AppSettings) {
-  if (settings.rootDirs.length === 0) throw new Error("请选择至少一个仓库根目录");
+  if (settings.rootDirs.filter((dir) => dir.trim()).length === 0) throw new Error("请选择至少一个仓库根目录");
 }
 
 export function validateOutputSettings(settings: AppSettings) {
-  if (settings.outputEnabled && !settings.outputDir) throw new Error("请在设置中选择输出目录");
+  if (settings.outputEnabled && !settings.outputDir.trim()) throw new Error("已启用自动保存，请在设置中选择输出目录");
 }
 
 export function validateAiSettings(settings: AppSettings) {
@@ -379,7 +379,9 @@ export function validateAiSettings(settings: AppSettings) {
   if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
   if (settings.aiProvider === "codex-oauth") return;
   if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
-  if (!settings.aiApiKey.trim()) throw new Error("启用 AI 润色时请输入 API Key");
+  const aiApiKey = settings.aiApiKey.trim();
+  if (!aiApiKey) throw new Error("启用 AI 润色时请输入 API Key");
+  validateAiKeyReference(aiApiKey);
 }
 
 export function validateDateRange(startDate: string, endDate: string) {
@@ -429,6 +431,17 @@ function looksLikeEnvVarName(value: string) {
 
 export function isAiKeyReference(value: string) {
   return looksLikeEnvVarName(value) || value.startsWith("env:");
+}
+
+function validateAiKeyReference(value: string) {
+  if (!value.startsWith("env:")) return;
+  const name = value.slice(4).trim();
+  if (!name) {
+    throw new Error("API Key 环境变量引用缺少变量名，请填写 env:OPENAI_API_KEY 这类格式");
+  }
+  if (!looksLikeEnvVarName(name)) {
+    throw new Error("API Key 环境变量名格式不正确，请使用 env:OPENAI_API_KEY 这类格式");
+  }
 }
 
 function isNonEmptyString(value: unknown): value is string {

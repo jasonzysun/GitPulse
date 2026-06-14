@@ -1,10 +1,12 @@
 use crate::models::{CommitRecord, GitIdentity, RepoInfo};
 use std::collections::HashSet;
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
+    ensure_git_available()?;
     let mut repos = Vec::new();
     let mut seen = HashSet::new();
     for root_dir in root_dirs {
@@ -51,6 +53,7 @@ pub fn get_git_commits(
     author: &str,
     extract_all_branches: bool,
 ) -> Result<Vec<CommitRecord>, String> {
+    ensure_git_available()?;
     let repo_path = PathBuf::from(&repo.path);
     let args = build_log_args(start_date, end_date, author, extract_all_branches);
     let borrowed_args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -163,18 +166,50 @@ fn git_command() -> Command {
     command
 }
 
+fn ensure_git_available() -> Result<(), String> {
+    git_command()
+        .arg("--version")
+        .output()
+        .map_err(format_git_launch_error)
+        .and_then(|output| {
+            if output.status.success() {
+                Ok(())
+            } else {
+                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                Err(if detail.is_empty() {
+                    "Git 命令不可用，请确认已安装 Git 并能在终端执行 git --version。".to_string()
+                } else {
+                    detail
+                })
+            }
+        })
+}
+
 fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {
     let output = git_command()
         .args(args)
         .current_dir(repo_path)
         .output()
-        .map_err(|err| format!("执行 git 失败：{}", err))?;
+        .map_err(format_git_launch_error)?;
 
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Err(if detail.is_empty() {
+            format!("Git 命令执行失败：git {}", args.join(" "))
+        } else {
+            detail
+        })
     }
+}
+
+fn format_git_launch_error(error: io::Error) -> String {
+    if error.kind() == io::ErrorKind::NotFound {
+        return "未找到 Git 命令，请先安装 Git 并确认 git 已加入 PATH。安装后重新打开 GitPulse。"
+            .to_string();
+    }
+    format!("启动 Git 命令失败：{error}")
 }
 
 fn run_git_config(key: &str) -> String {
@@ -224,6 +259,14 @@ mod tests {
         assert_eq!(repos[0].name, "repo");
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn format_git_launch_error_explains_missing_git() {
+        let message = format_git_launch_error(io::Error::from(io::ErrorKind::NotFound));
+
+        assert!(message.contains("未找到 Git 命令"));
+        assert!(message.contains("PATH"));
     }
 
     fn temp_root(label: &str) -> PathBuf {

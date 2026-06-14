@@ -85,13 +85,32 @@ pub fn save_report_file(
     file_name: &str,
     content: &str,
 ) -> Result<String, String> {
-    let dir = PathBuf::from(output_dir);
+    let trimmed_dir = output_dir.trim();
+    if trimmed_dir.is_empty() {
+        return Err("请先在设置中选择输出目录".to_string());
+    }
+
+    let dir = PathBuf::from(trimmed_dir);
+    if !dir.exists() {
+        return Err(format!(
+            "输出目录不存在或当前无法访问：{}。请在设置中重新选择可用目录。",
+            trimmed_dir
+        ));
+    }
     if !dir.is_dir() {
-        return Err(format!("输出目录不存在：{}", output_dir));
+        return Err(format!(
+            "输出路径不是文件夹：{}。请在设置中选择一个文件夹作为输出目录。",
+            trimmed_dir
+        ));
     }
 
     let output_file = dir.join(file_name);
-    fs::write(&output_file, content).map_err(|err| err.to_string())?;
+    fs::write(&output_file, content).map_err(|err| {
+        format!(
+            "写入报告失败：{}。请确认输出目录有写入权限：{}",
+            err, trimmed_dir
+        )
+    })?;
     Ok(output_file.to_string_lossy().to_string())
 }
 
@@ -322,5 +341,30 @@ mod tests {
             ("2025-12-01".into(), "2025-12-31".into(), "2025-12".into()),
             range
         );
+    }
+
+    #[test]
+    fn save_report_file_rejects_missing_output_dir_with_actionable_message() {
+        let missing = std::env::temp_dir().join("gitpulse-missing-output-dir-for-test");
+        let _ = fs::remove_dir_all(&missing);
+
+        let message =
+            save_report_file(&missing.to_string_lossy(), "report.md", "content").unwrap_err();
+
+        assert!(message.contains("输出目录不存在"));
+        assert!(message.contains("重新选择"));
+    }
+
+    #[test]
+    fn save_report_file_rejects_file_as_output_dir() {
+        let path =
+            std::env::temp_dir().join(format!("gitpulse-output-file-{}", std::process::id()));
+        fs::write(&path, "not a dir").unwrap();
+
+        let message =
+            save_report_file(&path.to_string_lossy(), "report.md", "content").unwrap_err();
+
+        assert!(message.contains("不是文件夹"));
+        let _ = fs::remove_file(path);
     }
 }
