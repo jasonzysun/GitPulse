@@ -14,7 +14,6 @@ import {
   type ExtractResult,
   type GitIdentity,
   type LoadedSettingsState,
-  type MonthlyReportResult,
   type PeriodReportResult,
   type PreviewMode,
   type RepoInfo,
@@ -22,9 +21,11 @@ import {
   type MappingScope,
   STORAGE_KEY,
   buildExtractOptions,
-  buildMonthlyOptions,
   buildPeriodReportOptions,
+  formatMonthLabel,
   getCurrentWeekRange,
+  getMonthRange,
+  getPreviousMonthInput,
   getTodayRange,
   getWeekLabel,
   isAiKeyReference,
@@ -33,7 +34,6 @@ import {
   settingsForPersistence,
   upsertRepoMapping,
   validateExtractSettings,
-  validateMonthlySettings,
   validateOutputSettings,
   validatePeriodReportSettings,
   validateRequiredSettings,
@@ -64,6 +64,7 @@ function App() {
   const [weeklyRange, setWeeklyRange] = useState<DateRange>(getCurrentWeekRange);
   const [weeklyLabel, setWeeklyLabel] = useState(getWeekLabel);
   const [monthlyReport, setMonthlyReport] = useState("");
+  const [monthlyMonth, setMonthlyMonth] = useState(getPreviousMonthInput);
   const [monthlyLabel, setMonthlyLabel] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
   const [status, setStatus] = useState(
@@ -90,6 +91,7 @@ function App() {
   const aiApiKeySaveTimer = useRef<number | null>(null);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
+  const monthlyRange = useMemo(() => getMonthRange(monthlyMonth), [monthlyMonth]);
   const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText;
   const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
   const aiConfigured =
@@ -292,19 +294,22 @@ function App() {
     }, () => validatePeriodReportSettings(settings, range));
   }
 
-  async function generateMonthlyReport() {
-    await runTask("正在生成上月月报", async () => {
-      const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
-        options: buildMonthlyOptions(settings, projectNames, false),
+  async function generateMonthlyReport(monthValue = monthlyMonth) {
+    await runTask("正在生成月报", async () => {
+      const range = getMonthRange(monthValue);
+      const label = formatMonthLabel(monthValue);
+      const result = await invoke<PeriodReportResult>("generate_period_report", {
+        options: buildPeriodReportOptions(settings, projectNames, "monthly", range, label, false),
       });
+      setMonthlyMonth(result.periodLabel);
       setMonthlyReport(result.reportText);
-      setMonthlyLabel(result.monthLabel);
+      setMonthlyLabel(result.periodLabel);
       setWarnings(result.warnings);
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
       setActivePreview("monthly");
-      setStatus(result.outputFile ? `${result.monthLabel} 月报已生成` : `${result.monthLabel} 月报已生成，未写入文件`);
-    }, () => validateMonthlySettings(settings));
+      setStatus(result.outputFile ? `${result.periodLabel} 月报已生成` : `${result.periodLabel} 月报已生成，未写入文件`);
+    }, () => validatePeriodReportSettings(settings, getMonthRange(monthValue)));
   }
 
   async function polishReport(extraInstruction = "") {
@@ -320,11 +325,12 @@ function App() {
         setLastOutputFile(result.outputFile);
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else if (activePreview === "monthly") {
-        const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
-          options: buildMonthlyOptions(settings, projectNames, true, extraInstruction),
+        const result = await invoke<PeriodReportResult>("generate_period_report", {
+          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, monthlyLabel || monthlyMonth, true, extraInstruction),
         });
+        setMonthlyMonth(result.periodLabel);
         setMonthlyReport(result.reportText);
-        setMonthlyLabel(result.monthLabel);
+        setMonthlyLabel(result.periodLabel);
         setWarnings(result.warnings);
         setLastOutputFile(result.outputFile);
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
@@ -341,7 +347,11 @@ function App() {
         setWarnings(result.warnings);
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       }
-    }, () => validateExtractSettings(settings));
+    }, () => {
+      if (activePreview === "weekly") return validatePeriodReportSettings(settings, weeklyRange);
+      if (activePreview === "monthly") return validatePeriodReportSettings(settings, monthlyRange);
+      return validateExtractSettings(settings, activePreview === "custom" ? customRange : getTodayRange());
+    });
   }
 
   async function copyPreview() {
@@ -564,6 +574,8 @@ function App() {
         dailyDate={getTodayRange().startDate}
         weeklyRange={weeklyRange}
         weeklyLabel={weeklyLabel}
+        monthlyMonth={monthlyMonth}
+        monthlyRange={monthlyRange}
         customRange={customRange}
         aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}

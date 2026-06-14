@@ -483,6 +483,34 @@ export function getWeekLabel(date = new Date()) {
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
+export function getPreviousMonthInput(date = new Date()) {
+  return formatMonthInput(new Date(date.getFullYear(), date.getMonth() - 1, 1));
+}
+
+export function getMonthRange(monthValue: string): DateRange {
+  const parts = parseMonthInput(monthValue);
+  const start = new Date(parts.year, parts.month - 1, 1);
+  const end = new Date(parts.year, parts.month, 0);
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(end),
+  };
+}
+
+export function formatMonthLabel(monthValue: string) {
+  const parts = parseMonthInput(monthValue);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
+}
+
+export function isValidMonthInput(monthValue: string) {
+  try {
+    parseMonthInput(monthValue);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getToday() {
   return formatDateInput(new Date());
 }
@@ -545,6 +573,21 @@ function formatDateInput(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatMonthInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function parseMonthInput(monthValue: string) {
+  const match = /^(\d{4})-(\d{2})$/.exec(monthValue);
+  if (!match) throw new Error("请选择有效的报告月份");
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) throw new Error("请选择有效的报告月份");
+  return { year, month };
 }
 
 function getIsoWeekParts(date: Date) {

@@ -18,6 +18,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { resolveRepoDisplayName, type DateRange, type PreviewMode, type RepoInfo } from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { MonthReportDialog } from "./MonthReportDialog";
 
 type Props = {
   repos: RepoInfo[];
@@ -35,13 +36,15 @@ type Props = {
   dailyDate: string;
   weeklyRange: DateRange;
   weeklyLabel: string;
+  monthlyMonth: string;
+  monthlyRange: DateRange;
   customRange: DateRange;
   aiEnabled: boolean;
   aiConfigured: boolean;
   onExtract: () => void;
   onGenerateWeekly: () => void;
   onGenerateCustom: (range: DateRange) => void;
-  onGenerateMonthly: () => void;
+  onGenerateMonthly: (month: string) => void;
   onPolish: (extraInstruction?: string) => void;
   onCopy: () => void;
   onExport: () => void;
@@ -58,6 +61,7 @@ export function Workbench(props: Props) {
   const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [monthDialogOpen, setMonthDialogOpen] = useState(false);
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
 
@@ -101,9 +105,23 @@ export function Workbench(props: Props) {
     props.onGenerateCustom(range);
   }
 
+  function generateMonthly(month: string) {
+    setMonthDialogOpen(false);
+    props.onPreviewChange("monthly");
+    props.onGenerateMonthly(month);
+  }
+
+  function handleDateChipClick() {
+    if (props.activePreview === "monthly") {
+      setMonthDialogOpen(true);
+      return;
+    }
+    setCustomDialogOpen(true);
+  }
+
   function handleGenerate() {
     if (props.activePreview === "monthly") {
-      props.onGenerateMonthly();
+      props.onGenerateMonthly(props.monthlyMonth);
     } else if (props.activePreview === "weekly") {
       props.onGenerateWeekly();
     } else if (props.activePreview === "custom") {
@@ -133,7 +151,7 @@ export function Workbench(props: Props) {
     : props.activePreview === "weekly"
       ? `${props.weeklyLabel} · ${props.weeklyRange.startDate} ~ ${props.weeklyRange.endDate}`
       : props.activePreview === "monthly"
-        ? "上月月报"
+        ? `${props.monthlyMonth} · ${props.monthlyRange.startDate} ~ ${props.monthlyRange.endDate}`
         : `今日日报 · ${props.dailyDate}`;
   const enabledRepoCount = props.repos.filter((repo) => !props.disabledRepos.includes(repo.path)).length;
   const repoMeta = enabledRepoCount === props.repos.length
@@ -153,7 +171,7 @@ export function Workbench(props: Props) {
         <div className="hero-copy">
           <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 周报取本周 · 月报取上月 · 自定义可选周期</p>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 周报取本周 · 月报可选月份 · 自定义可选周期</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">
@@ -167,7 +185,7 @@ export function Workbench(props: Props) {
             </button>
           </div>
           <div className="context-chips" aria-label="当前工作区上下文">
-            <button type="button" className="context-chip" onClick={() => setCustomDialogOpen(true)} title="选择自定义报告周期">
+            <button type="button" className="context-chip" onClick={handleDateChipClick} title={props.activePreview === "monthly" ? "选择月报月份" : "选择自定义报告周期"}>
               <CalendarDays size={13} />
               {dateChipLabel}
             </button>
@@ -360,6 +378,13 @@ export function Workbench(props: Props) {
         isBusy={props.isBusy}
         onClose={() => setCustomDialogOpen(false)}
         onConfirm={generateCustom}
+      />
+      <MonthReportDialog
+        open={monthDialogOpen}
+        initialMonth={props.monthlyMonth}
+        isBusy={props.isBusy}
+        onClose={() => setMonthDialogOpen(false)}
+        onConfirm={generateMonthly}
       />
     </section>
   );
