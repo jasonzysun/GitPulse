@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-P0 reliability and trust hardening.
+P1 report usefulness.
 
-GitPulse is already usable as a local-first desktop report generator. The next step is to make the core workflow safer, more predictable, and easier to evolve before adding larger report types.
+GitPulse is already usable as a local-first desktop report generator. P0 reliability work remains tracked, while the active product work now focuses on making generated reports more directly useful for weekly, monthly, and review workflows.
 
 ## Completed Before This Phase
 
@@ -36,11 +36,14 @@ GitPulse is already usable as a local-first desktop report generator. The next s
 - Add a production-tested Tauri CSP instead of `csp: null`.
 - Decide whether ChatGPT Codex OAuth tokens should move from plain config JSON to OS-backed secure storage.
 
+## Completed In P1
+
+- [x] Add weekly report generation with project grouping, AI polishing, export, and progress tracking.
+
 ## Next Backlog
 
 ### P1 Report Usefulness
 
-- Add weekly report generation.
 - Add arbitrary month selection for monthly reports.
 - Add report template profiles for daily, weekly, performance review, and concise status update formats.
 - Preserve optional evidence details: repository, branch, date, hash, and original commit message.

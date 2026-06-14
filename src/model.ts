@@ -20,7 +20,21 @@ export type MonthlyReportResult = {
   commitCount: number;
 };
 
-export type PreviewMode = "summary" | "custom" | "monthly";
+export type PeriodReportKind = "weekly" | "monthly";
+
+export type PeriodReportResult = {
+  reportText: string;
+  outputFile: string;
+  warnings: string[];
+  startDate: string;
+  endDate: string;
+  periodLabel: string;
+  reportKind: PeriodReportKind;
+  projectCount: number;
+  commitCount: number;
+};
+
+export type PreviewMode = "summary" | "weekly" | "custom" | "monthly";
 
 export type DateRange = {
   startDate: string;
@@ -152,7 +166,9 @@ export function loadSettingsState(): LoadedSettingsState {
   delete persistedSettings.rootDir;
   const parsed = { ...defaultSettings, ...persistedSettings } as AppSettings;
   parsed.rootDirs = Array.isArray(parsed.rootDirs) ? parsed.rootDirs.filter(isNonEmptyString) : [];
-  parsed.disabledRepos = Array.isArray(parsed.disabledRepos) ? parsed.disabledRepos.filter(isNonEmptyString) : [];
+  parsed.disabledRepos = Array.isArray(parsed.disabledRepos)
+    ? parsed.disabledRepos.filter(isNonEmptyString).map(stripWindowsVerbatimPrefix)
+    : [];
   parsed.aiApiKey = typeof parsed.aiApiKey === "string" ? parsed.aiApiKey : "";
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
@@ -346,6 +362,33 @@ export function buildMonthlyOptions(
   };
 }
 
+export function buildPeriodReportOptions(
+  settings: AppSettings,
+  projectNames: Record<string, string>,
+  kind: PeriodReportKind,
+  range: DateRange,
+  periodLabel: string,
+  aiEnabled: boolean,
+  extraInstruction = "",
+) {
+  return {
+    rootDirs: settings.rootDirs,
+    outputDir: settings.outputDir,
+    outputEnabled: settings.outputEnabled,
+    author: settings.author,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    periodLabel,
+    reportKind: kind,
+    extractAllBranches: settings.extractAllBranches,
+    disabledRepos: settings.disabledRepos,
+    projectNames,
+    refinementInstruction: mergeInstructions(settings.refinementInstruction, extraInstruction),
+    systemPrompt: kind === "monthly" ? settings.monthlySystemPrompt : "",
+    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
+  };
+}
+
 export function validateRequiredSettings(settings: AppSettings) {
   validateExtractSettings(settings);
   validateOutputSettings(settings);
@@ -354,6 +397,14 @@ export function validateRequiredSettings(settings: AppSettings) {
 export function validateMonthlySettings(settings: AppSettings) {
   validateWorkspaceSettings(settings);
   if (!settings.author) throw new Error("请输入 Git 作者");
+  validateOutputSettings(settings);
+  validateAiSettings(settings);
+}
+
+export function validatePeriodReportSettings(settings: AppSettings, range: DateRange) {
+  validateWorkspaceSettings(settings);
+  if (!settings.author) throw new Error("请输入 Git 作者");
+  validateDateRange(range.startDate, range.endDate);
   validateOutputSettings(settings);
   validateAiSettings(settings);
 }
@@ -417,12 +468,23 @@ export function getTodayRange(): DateRange {
   return { startDate: today, endDate: today };
 }
 
+export function getCurrentWeekRange(): DateRange {
+  const today = new Date();
+  const day = today.getDay() || 7;
+  const start = addDays(today, 1 - day);
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(today),
+  };
+}
+
+export function getWeekLabel(date = new Date()) {
+  const { year, week } = getIsoWeekParts(date);
+  return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
 export function getToday() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return formatDateInput(new Date());
 }
 
 function looksLikeEnvVarName(value: string) {
@@ -460,4 +522,36 @@ function normalizeThemeMode(value: unknown): ThemeMode {
     return value;
   }
   return defaultSettings.themeMode;
+}
+
+function stripWindowsVerbatimPrefix(path: string) {
+  if (path.startsWith("\\\\?\\UNC\\")) {
+    return `\\\\${path.slice("\\\\?\\UNC\\".length)}`;
+  }
+  if (path.startsWith("\\\\?\\")) {
+    return path.slice("\\\\?\\".length);
+  }
+  return path;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getIsoWeekParts(date: Date) {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return { year: target.getUTCFullYear(), week };
 }

@@ -80,7 +80,7 @@ fn visit_dir(dir: &Path, repos: &mut Vec<RepoInfo>) -> std::io::Result<()> {
 fn build_repo_info(dir: &Path) -> RepoInfo {
     let path = fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
     RepoInfo {
-        path: path.to_string_lossy().to_string(),
+        path: display_path(&path),
         name: path
             .file_name()
             .unwrap_or_default()
@@ -88,6 +88,20 @@ fn build_repo_info(dir: &Path) -> RepoInfo {
             .to_string(),
         branch: current_branch(&path),
     }
+}
+
+fn display_path(path: &Path) -> String {
+    strip_windows_verbatim_prefix(&path.to_string_lossy())
+}
+
+fn strip_windows_verbatim_prefix(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix("\\\\?\\UNC\\") {
+        return format!("\\\\{rest}");
+    }
+    if let Some(rest) = path.strip_prefix("\\\\?\\") {
+        return rest.to_string();
+    }
+    path.to_string()
 }
 
 fn is_git_repo_dir(dir: &Path) -> bool {
@@ -267,6 +281,27 @@ mod tests {
 
         assert!(message.contains("未找到 Git 命令"));
         assert!(message.contains("PATH"));
+    }
+
+    #[test]
+    fn strip_windows_verbatim_prefix_from_drive_path() {
+        let path = strip_windows_verbatim_prefix("\\\\?\\C:\\workspace\\repo");
+
+        assert_eq!(path, "C:\\workspace\\repo");
+    }
+
+    #[test]
+    fn strip_windows_verbatim_prefix_from_unc_path() {
+        let path = strip_windows_verbatim_prefix("\\\\?\\UNC\\server\\share\\repo");
+
+        assert_eq!(path, "\\\\server\\share\\repo");
+    }
+
+    #[test]
+    fn strip_windows_verbatim_prefix_keeps_regular_path() {
+        let path = strip_windows_verbatim_prefix("C:\\workspace\\repo");
+
+        assert_eq!(path, "C:\\workspace\\repo");
     }
 
     fn temp_root(label: &str) -> PathBuf {

@@ -1,4 +1,6 @@
-use crate::models::{CommitRecord, ExtractResult, MonthlyReportResult, RepoInfo};
+use crate::models::{
+    CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo,
+};
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
@@ -80,6 +82,32 @@ pub fn render_monthly_report(
     lines.join("\n")
 }
 
+pub fn render_weekly_report(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    week_label: &str,
+) -> String {
+    let groups = group_commits_by_project(commits, project_names);
+    let mut lines = render_weekly_header(
+        groups.len(),
+        commits.len(),
+        start_date,
+        end_date,
+        author,
+        week_label,
+    );
+    lines.extend(render_weekly_focus(&groups));
+    lines.extend(render_actual_completion(&groups));
+    lines.extend(render_weekly_next_steps(&groups));
+    lines.push(
+        "> 说明：本周报基于 Git 提交记录生成，建议结合测试、上线和业务反馈补充结果。".to_string(),
+    );
+    lines.join("\n")
+}
+
 pub fn save_report_file(
     output_dir: &str,
     file_name: &str,
@@ -129,6 +157,28 @@ pub fn build_monthly_result(
         start_date: dates.0,
         end_date: dates.1,
         month_label: dates.2,
+        project_count,
+        commit_count,
+    }
+}
+
+pub fn build_period_result(
+    report_text: String,
+    output_file: String,
+    warnings: Vec<String>,
+    dates: (String, String, String),
+    report_kind: String,
+    project_count: usize,
+    commit_count: usize,
+) -> PeriodReportResult {
+    PeriodReportResult {
+        report_text,
+        output_file,
+        warnings,
+        start_date: dates.0,
+        end_date: dates.1,
+        period_label: dates.2,
+        report_kind,
         project_count,
         commit_count,
     }
@@ -252,6 +302,32 @@ fn render_monthly_header(
     ]
 }
 
+fn render_weekly_header(
+    project_count: usize,
+    commit_count: usize,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    week_label: &str,
+) -> Vec<String> {
+    vec![
+        format!("# {}工作周报", format_week_title(week_label)),
+        "".to_string(),
+        format!("- 统计周期：{} 至 {}", start_date, end_date),
+        format!(
+            "- 作者：{}",
+            if author.is_empty() {
+                "未指定"
+            } else {
+                author
+            }
+        ),
+        format!("- 项目数量：{}", project_count),
+        format!("- 提交事项：{}", commit_count),
+        "".to_string(),
+    ]
+}
+
 fn render_project_progress(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     let mut lines = vec!["## 一、项目进度".to_string(), "".to_string()];
     if groups.is_empty() {
@@ -274,6 +350,29 @@ fn render_project_progress(groups: &BTreeMap<String, Vec<String>>) -> Vec<String
     lines
 }
 
+fn render_weekly_focus(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let mut lines = vec!["## 一、本周重点".to_string(), "".to_string()];
+    if groups.is_empty() {
+        lines.push("- 本周未检索到可用于生成周报的提交记录。".to_string());
+        lines.push("".to_string());
+        return lines;
+    }
+    for (project, items) in groups {
+        lines.push(format!("### {}", project));
+        lines.push(format!(
+            "- 本周共完成 {} 项可追踪事项，重点包括：{}。",
+            unique_items(items).len(),
+            join_focus_items(items)
+        ));
+        lines.push(
+            "- 当前状态：相关事项已有提交记录，可继续结合验证、联调或上线反馈确认结果。"
+                .to_string(),
+        );
+        lines.push("".to_string());
+    }
+    lines
+}
+
 fn render_actual_completion(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     let mut lines = vec!["## 二、实际完成情况".to_string(), "".to_string()];
     for (project, items) in groups {
@@ -283,6 +382,24 @@ fn render_actual_completion(groups: &BTreeMap<String, Vec<String>>) -> Vec<Strin
         }
         lines.push("".to_string());
     }
+    lines
+}
+
+fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let mut lines = vec!["## 三、下周关注".to_string(), "".to_string()];
+    if groups.is_empty() {
+        lines.push("- 暂无基于提交记录推断的下周关注事项。".to_string());
+        lines.push("".to_string());
+        return lines;
+    }
+    for (project, items) in groups {
+        lines.push(format!(
+            "- {}：建议围绕 {} 继续补充验证、发布或复盘记录。",
+            project,
+            join_focus_items(items)
+        ));
+    }
+    lines.push("".to_string());
     lines
 }
 
@@ -328,6 +445,13 @@ fn format_month_title(month_label: &str) -> String {
     format!("{}年{}月", parts[0], parts[1].trim_start_matches('0'))
 }
 
+fn format_week_title(week_label: &str) -> String {
+    if let Some((year, week)) = week_label.split_once("-W") {
+        return format!("{}年第{}周", year, week.trim_start_matches('0'));
+    }
+    week_label.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,5 +490,39 @@ mod tests {
 
         assert!(message.contains("不是文件夹"));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn render_weekly_report_uses_project_mapping_and_week_title() {
+        let commits = vec![commit("repo-a", "main", "feat: 添加周报功能")];
+        let mut project_names = HashMap::new();
+        project_names.insert("repo-a(*)".to_string(), "研发平台-".to_string());
+
+        let report = render_weekly_report(
+            &commits,
+            &project_names,
+            "2026-06-08",
+            "2026-06-14",
+            "tester",
+            "2026-W24",
+        );
+
+        assert!(report.contains("# 2026年第24周工作周报"));
+        assert!(report.contains("### 研发平台"));
+        assert!(report.contains("- 提交事项：1"));
+        assert!(report.contains("添加周报功能"));
+        assert!(report.contains("## 三、下周关注"));
+    }
+
+    fn commit(project_name: &str, branch_name: &str, message: &str) -> CommitRecord {
+        CommitRecord {
+            repo_path: project_name.to_string(),
+            project_name: project_name.to_string(),
+            branch_name: branch_name.to_string(),
+            hash: "abc123".to_string(),
+            author: "tester".to_string(),
+            date: "2026-06-10 10:00:00 +0800".to_string(),
+            message: message.to_string(),
+        }
     }
 }

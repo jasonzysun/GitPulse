@@ -33,10 +33,13 @@ type Props = {
   commitCount: number;
   author: string;
   dailyDate: string;
+  weeklyRange: DateRange;
+  weeklyLabel: string;
   customRange: DateRange;
   aiEnabled: boolean;
   aiConfigured: boolean;
   onExtract: () => void;
+  onGenerateWeekly: () => void;
   onGenerateCustom: (range: DateRange) => void;
   onGenerateMonthly: () => void;
   onPolish: (extraInstruction?: string) => void;
@@ -101,6 +104,8 @@ export function Workbench(props: Props) {
   function handleGenerate() {
     if (props.activePreview === "monthly") {
       props.onGenerateMonthly();
+    } else if (props.activePreview === "weekly") {
+      props.onGenerateWeekly();
     } else if (props.activePreview === "custom") {
       setCustomDialogOpen(true);
     } else {
@@ -108,14 +113,28 @@ export function Workbench(props: Props) {
     }
   }
 
-  const previewEmptyText = props.activePreview === "monthly" ? "暂无月报内容。" : props.activePreview === "custom" ? "请选择时间段生成自定义报告。" : "暂无日报内容。";
-  const generateButtonLabel = props.activePreview === "monthly" ? "生成月报" : props.activePreview === "custom" ? "生成自定义报告" : "生成日报";
-  const generateButtonIcon = props.activePreview === "monthly" ? <FileDown size={15} /> : props.activePreview === "custom" ? <CalendarDays size={15} /> : <GitBranch size={15} />;
+  const previewEmptyText = props.activePreview === "monthly"
+    ? "暂无月报内容。"
+    : props.activePreview === "weekly"
+      ? "暂无周报内容。"
+      : props.activePreview === "custom"
+        ? "请选择时间段生成自定义报告。"
+        : "暂无日报内容。";
+  const generateButtonLabel = props.activePreview === "monthly"
+    ? "生成月报"
+    : props.activePreview === "weekly"
+      ? "生成周报"
+      : props.activePreview === "custom"
+        ? "生成自定义报告"
+        : "生成日报";
+  const generateButtonIcon = props.activePreview === "monthly" ? <FileDown size={15} /> : props.activePreview === "weekly" || props.activePreview === "custom" ? <CalendarDays size={15} /> : <GitBranch size={15} />;
   const dateChipLabel = props.activePreview === "custom"
     ? `${props.customRange.startDate} ~ ${props.customRange.endDate}`
-    : props.activePreview === "monthly"
-      ? "上月月报"
-      : `今日日报 · ${props.dailyDate}`;
+    : props.activePreview === "weekly"
+      ? `${props.weeklyLabel} · ${props.weeklyRange.startDate} ~ ${props.weeklyRange.endDate}`
+      : props.activePreview === "monthly"
+        ? "上月月报"
+        : `今日日报 · ${props.dailyDate}`;
   const enabledRepoCount = props.repos.filter((repo) => !props.disabledRepos.includes(repo.path)).length;
   const repoMeta = enabledRepoCount === props.repos.length
     ? `${props.repos.length} repos`
@@ -134,7 +153,7 @@ export function Workbench(props: Props) {
         <div className="hero-copy">
           <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 月报取上月 · 自定义可选周期</p>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 周报取本周 · 月报取上月 · 自定义可选周期</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">
@@ -174,6 +193,10 @@ export function Workbench(props: Props) {
                 <button type="button" aria-pressed={props.activePreview === "summary"} className={props.activePreview === "summary" ? "active" : ""} onClick={() => handlePreviewChange("summary")}>
                   <span>Daily</span>
                   日报
+                </button>
+                <button type="button" aria-pressed={props.activePreview === "weekly"} className={props.activePreview === "weekly" ? "active" : ""} onClick={() => handlePreviewChange("weekly")}>
+                  <span>Weekly</span>
+                  周报
                 </button>
                 <button type="button" aria-pressed={props.activePreview === "monthly"} className={props.activePreview === "monthly" ? "active" : ""} onClick={() => handlePreviewChange("monthly")}>
                   <span>Monthly</span>

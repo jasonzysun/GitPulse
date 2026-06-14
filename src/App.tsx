@@ -15,6 +15,7 @@ import {
   type GitIdentity,
   type LoadedSettingsState,
   type MonthlyReportResult,
+  type PeriodReportResult,
   type PreviewMode,
   type RepoInfo,
   type UpdateSummary,
@@ -22,7 +23,10 @@ import {
   STORAGE_KEY,
   buildExtractOptions,
   buildMonthlyOptions,
+  buildPeriodReportOptions,
+  getCurrentWeekRange,
   getTodayRange,
+  getWeekLabel,
   isAiKeyReference,
   loadSettingsState,
   parseProjectNames,
@@ -31,6 +35,7 @@ import {
   validateExtractSettings,
   validateMonthlySettings,
   validateOutputSettings,
+  validatePeriodReportSettings,
   validateRequiredSettings,
   validateWorkspaceSettings,
 } from "./model";
@@ -55,6 +60,9 @@ function App() {
   const [summaryText, setSummaryText] = useState("");
   const [customReport, setCustomReport] = useState("");
   const [customRange, setCustomRange] = useState<DateRange>(getTodayRange);
+  const [weeklyReport, setWeeklyReport] = useState("");
+  const [weeklyRange, setWeeklyRange] = useState<DateRange>(getCurrentWeekRange);
+  const [weeklyLabel, setWeeklyLabel] = useState(getWeekLabel);
   const [monthlyReport, setMonthlyReport] = useState("");
   const [monthlyLabel, setMonthlyLabel] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
@@ -82,7 +90,7 @@ function App() {
   const aiApiKeySaveTimer = useRef<number | null>(null);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
-  const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "custom" ? customReport : summaryText;
+  const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText;
   const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
   const aiConfigured =
     settings.aiProvider === "codex-oauth"
@@ -266,6 +274,24 @@ function App() {
     }, () => validateExtractSettings(settings, range));
   }
 
+  async function generateWeeklyReport() {
+    const range = getCurrentWeekRange();
+    const label = getWeekLabel();
+    await runTask("正在生成本周周报", async () => {
+      const result = await invoke<PeriodReportResult>("generate_period_report", {
+        options: buildPeriodReportOptions(settings, projectNames, "weekly", range, label, false),
+      });
+      setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
+      setWeeklyLabel(result.periodLabel);
+      setWeeklyReport(result.reportText);
+      setWarnings(result.warnings);
+      setLastOutputFile(result.outputFile);
+      setCommitCount(result.commitCount);
+      setActivePreview("weekly");
+      setStatus(result.outputFile ? `${result.periodLabel} 周报已生成` : `${result.periodLabel} 周报已生成，未写入文件`);
+    }, () => validatePeriodReportSettings(settings, range));
+  }
+
   async function generateMonthlyReport() {
     await runTask("正在生成上月月报", async () => {
       const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
@@ -283,7 +309,17 @@ function App() {
 
   async function polishReport(extraInstruction = "") {
     await runTask("AI 正在润色", async () => {
-      if (activePreview === "monthly") {
+      if (activePreview === "weekly") {
+        const result = await invoke<PeriodReportResult>("generate_period_report", {
+          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyLabel, true, extraInstruction),
+        });
+        setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
+        setWeeklyLabel(result.periodLabel);
+        setWeeklyReport(result.reportText);
+        setWarnings(result.warnings);
+        setLastOutputFile(result.outputFile);
+        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
+      } else if (activePreview === "monthly") {
         const result = await invoke<MonthlyReportResult>("generate_monthly_report", {
           options: buildMonthlyOptions(settings, projectNames, true, extraInstruction),
         });
@@ -325,6 +361,8 @@ function App() {
     let fileName: string;
     if (activePreview === "monthly") {
       fileName = `monthly_report_${monthlyLabel}.md`;
+    } else if (activePreview === "weekly") {
+      fileName = `weekly_report_${weeklyLabel}.md`;
     } else {
       const range = activePreview === "custom" ? customRange : getTodayRange();
       fileName = `git_commits_${range.startDate}_to_${range.endDate}.md`;
@@ -519,15 +557,18 @@ function App() {
         warnings={warnings}
         isBusy={isBusy}
         lastOutputFile={lastOutputFile}
-        summaryText={activePreview === "custom" ? customReport : summaryText}
+        summaryText={activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText}
         repoCount={repos.length}
         commitCount={commitCount}
         author={settings.author}
         dailyDate={getTodayRange().startDate}
+        weeklyRange={weeklyRange}
+        weeklyLabel={weeklyLabel}
         customRange={customRange}
         aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}
         onExtract={extractCommits}
+        onGenerateWeekly={generateWeeklyReport}
         onGenerateCustom={generateCustomReport}
         onGenerateMonthly={generateMonthlyReport}
         onPolish={polishReport}

@@ -107,3 +107,36 @@ pub struct MonthlyReportResult {
     pub project_count: usize,
     pub commit_count: usize,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeriodReportOptions {
+    pub root_dirs: Vec<String>,
+    pub output_dir: String,
+    pub output_enabled: bool,
+    pub author: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub period_label: String,
+    pub report_kind: String,
+    pub disabled_repos: Vec<String>,
+    pub extract_all_branches: bool,
+    pub project_names: HashMap<String, String>,
+    pub refinement_instruction: String,
+    pub system_prompt: String,
+    pub ai: AiConfig,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeriodReportResult {
+    pub report_text: String,
+    pub output_file: String,
+    pub warnings: Vec<String>,
+    pub start_date: String,
+    pub end_date: String,
+    pub period_label: String,
+    pub report_kind: String,
+    pub project_count: usize,
+    pub commit_count: usize,
+}

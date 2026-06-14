@@ -7,7 +7,7 @@ mod secure_store;
 
 use crate::models::{
     AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
-    MonthlyReportOptions, MonthlyReportResult, RepoInfo,
+    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
 };
 use std::collections::HashSet;
 use tauri::async_runtime;
@@ -38,6 +38,15 @@ async fn generate_monthly_report(
     async_runtime::spawn_blocking(move || generate_monthly_report_sync(options))
         .await
         .map_err(|err| format!("生成月报任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn generate_period_report(
+    options: PeriodReportOptions,
+) -> Result<PeriodReportResult, String> {
+    async_runtime::spawn_blocking(move || generate_period_report_sync(options))
+        .await
+        .map_err(|err| format!("生成报告任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -123,6 +132,49 @@ fn generate_monthly_report_sync(
     ))
 }
 
+fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodReportResult, String> {
+    validate_period_options(&options)?;
+    let dates = (
+        options.start_date.clone(),
+        options.end_date.clone(),
+        options.period_label.clone(),
+    );
+    let extract_options = period_extract_options(&options);
+    let (_, commits, mut warnings) = collect_commits(&extract_options)?;
+    let mut report_text = match options.report_kind.as_str() {
+        "weekly" => report::render_weekly_report(
+            &commits,
+            &options.project_names,
+            &options.start_date,
+            &options.end_date,
+            &options.author,
+            &options.period_label,
+        ),
+        "monthly" => report::render_monthly_report(
+            &commits,
+            &options.project_names,
+            &options.start_date,
+            &options.end_date,
+            &options.author,
+            &options.period_label,
+        ),
+        _ => return Err(format!("未知报告类型：{}", options.report_kind)),
+    };
+
+    report_text = apply_ai_to_period_report(report_text, &options, &dates, &mut warnings);
+    let output_file = save_period_if_enabled(&options, &report_text)?;
+    let project_count = count_projects(&commits, &options.project_names);
+    Ok(report::build_period_result(
+        report_text,
+        output_file,
+        warnings,
+        dates,
+        options.report_kind,
+        project_count,
+        commits.len(),
+    ))
+}
+
 fn extract_commits_sync(options: ExtractOptions) -> Result<ExtractResult, String> {
     let (repos, commits, warnings) = collect_commits(&options)?;
     let mut result = report::build_extract_result(
@@ -146,6 +198,22 @@ fn save_monthly_if_enabled(
         return Ok(String::new());
     }
     let file_name = format!("monthly_report_{}.md", month_label);
+    report::save_report_file(&options.output_dir, &file_name, report_text)
+}
+
+fn save_period_if_enabled(
+    options: &PeriodReportOptions,
+    report_text: &str,
+) -> Result<String, String> {
+    if !options.output_enabled {
+        return Ok(String::new());
+    }
+    let prefix = match options.report_kind.as_str() {
+        "weekly" => "weekly_report",
+        "monthly" => "monthly_report",
+        _ => "period_report",
+    };
+    let file_name = format!("{}_{}.md", prefix, options.period_label);
     report::save_report_file(&options.output_dir, &file_name, report_text)
 }
 
@@ -232,6 +300,7 @@ pub fn run() {
             get_git_identity,
             extract_commits,
             generate_monthly_report,
+            generate_period_report,
             list_ai_models,
             get_secure_ai_api_key,
             set_secure_ai_api_key,
@@ -309,6 +378,23 @@ fn monthly_extract_options(
     }
 }
 
+fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
+    ExtractOptions {
+        root_dirs: options.root_dirs.clone(),
+        author: options.author.clone(),
+        start_date: options.start_date.clone(),
+        end_date: options.end_date.clone(),
+        disabled_repos: options.disabled_repos.clone(),
+        extract_all_branches: options.extract_all_branches,
+        detailed_output: false,
+        show_project_and_branch: true,
+        project_names: options.project_names.clone(),
+        refinement_instruction: options.refinement_instruction.clone(),
+        system_prompt: String::new(),
+        ai: options.ai.clone(),
+    }
+}
+
 fn apply_ai_to_extract_result(result: &mut ExtractResult, options: &ExtractOptions) {
     if !options.ai.enabled {
         return;
@@ -368,6 +454,56 @@ fn apply_ai_if_enabled(
         warnings.push(format!("AI 润色失败，已使用本地模板：{}", err));
         report_text
     })
+}
+
+fn apply_ai_to_period_report(
+    report_text: String,
+    options: &PeriodReportOptions,
+    dates: &(String, String, String),
+    warnings: &mut Vec<String>,
+) -> String {
+    if !options.ai.enabled {
+        return report_text;
+    }
+
+    let result = match options.report_kind.as_str() {
+        "weekly" => ai::enhance_weekly_report(
+            &report_text,
+            &dates.0,
+            &dates.1,
+            &options.author,
+            &options.refinement_instruction,
+            &options.system_prompt,
+            &options.ai,
+        ),
+        _ => ai::enhance_monthly_report(
+            &report_text,
+            &dates.0,
+            &dates.1,
+            &options.author,
+            &options.refinement_instruction,
+            &options.system_prompt,
+            &options.ai,
+        ),
+    };
+
+    result.unwrap_or_else(|err| {
+        warnings.push(format!("AI 润色失败，已使用本地模板：{}", err));
+        report_text
+    })
+}
+
+fn validate_period_options(options: &PeriodReportOptions) -> Result<(), String> {
+    if options.start_date.trim().is_empty() || options.end_date.trim().is_empty() {
+        return Err("请选择完整的报告周期".to_string());
+    }
+    if options.start_date.as_str() > options.end_date.as_str() {
+        return Err("报告开始日期不能晚于结束日期".to_string());
+    }
+    if options.period_label.trim().is_empty() {
+        return Err("报告周期标签不能为空".to_string());
+    }
+    Ok(())
 }
 
 fn count_projects(

@@ -27,6 +27,30 @@ pub fn enhance_monthly_report(
     )
 }
 
+pub fn enhance_weekly_report(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+    system_prompt: &str,
+    config: &AiConfig,
+) -> Result<String, String> {
+    let prompt = weekly_user_prompt(
+        base_report,
+        start_date,
+        end_date,
+        author,
+        refinement_instruction,
+    );
+    enhance_report(
+        base_report,
+        resolve_system_prompt(system_prompt, weekly_system_prompt()),
+        &prompt,
+        config,
+    )
+}
+
 pub fn enhance_daily_report(
     base_report: &str,
     start_date: &str,
@@ -290,6 +314,10 @@ fn monthly_system_prompt() -> &'static str {
     "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。"
 }
 
+fn weekly_system_prompt() -> &'static str {
+    "你是一个严谨的工作周报写作助手。请基于 Git 提交周报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：本周重点、实际完成情况、下周关注。每个模块尽量保留项目分组和可追溯事项。"
+}
+
 fn daily_system_prompt() -> &'static str {
     "你是一个严谨的工作日报写作助手。请基于 Git 提交记录润色为当天或指定周期的工作日报，不要虚构没有依据的业务结果、上线结论或百分比。最终输出保持为简洁纯文本或短列表，方便直接复制到工作汇报中。"
 }
@@ -308,6 +336,28 @@ fn monthly_user_prompt(
     };
     format!(
         "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的月报草稿润色为适合绩效考核提交的正式月报。要求语气客观、具体、不过度夸大；保留项目分组；实际完成情况必须贴合提交记录。\n\n{}",
+        start_date,
+        end_date,
+        if author.is_empty() { "未指定" } else { author },
+        instruction,
+        base_report
+    )
+}
+
+fn weekly_user_prompt(
+    base_report: &str,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    refinement_instruction: &str,
+) -> String {
+    let instruction = if refinement_instruction.trim().is_empty() {
+        "无"
+    } else {
+        refinement_instruction.trim()
+    };
+    format!(
+        "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的周报草稿润色为适合周工作汇报的正式周报。要求语气客观、具体、不过度夸大；保留项目分组；本周重点和完成情况必须贴合提交记录，下周关注只能基于已完成事项自然延伸。\n\n{}",
         start_date,
         end_date,
         if author.is_empty() { "未指定" } else { author },
