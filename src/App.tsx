@@ -579,12 +579,10 @@ function App() {
         customRange={customRange}
         aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}
-        reportTemplateProfile={settings.reportTemplateProfile}
         onExtract={extractCommits}
         onGenerateWeekly={generateWeeklyReport}
         onGenerateCustom={generateCustomReport}
         onGenerateMonthly={generateMonthlyReport}
-        onReportTemplateChange={(profile) => updateSetting("reportTemplateProfile", profile)}
         onPolish={polishReport}
         onCopy={copyPreview}
         onExport={saveReport}

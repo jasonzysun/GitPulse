@@ -61,18 +61,6 @@ export type ThemeMode = "system" | "light" | "dark";
 
 export type ReportTemplateProfile = "auto" | "daily" | "weekly" | "performance" | "concise";
 
-export const REPORT_TEMPLATE_PROFILES: {
-  id: ReportTemplateProfile;
-  label: string;
-  detail: string;
-}[] = [
-  { id: "auto", label: "自动", detail: "沿用当前报告类型" },
-  { id: "daily", label: "日报", detail: "事项清单" },
-  { id: "weekly", label: "周报", detail: "重点与下周关注" },
-  { id: "performance", label: "绩效", detail: "进度与完成情况" },
-  { id: "concise", label: "简短", detail: "状态更新" },
-];
-
 export type AppSettings = {
   onboardingDone: boolean;
   rootDirs: string[];
@@ -355,7 +343,7 @@ export function buildExtractOptions(
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
     projectNames,
-    refinementInstruction: buildReportRefinementInstruction(settings, "daily", extraInstruction),
+    refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "daily"),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
@@ -375,7 +363,7 @@ export function buildMonthlyOptions(
     extractAllBranches: settings.extractAllBranches,
     disabledRepos: settings.disabledRepos,
     projectNames,
-    refinementInstruction: buildReportRefinementInstruction(settings, "monthly", extraInstruction),
+    refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "monthly"),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
@@ -402,7 +390,7 @@ export function buildPeriodReportOptions(
     extractAllBranches: settings.extractAllBranches,
     disabledRepos: settings.disabledRepos,
     projectNames,
-    refinementInstruction: buildReportRefinementInstruction(settings, kind, extraInstruction),
+    refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
   };
@@ -483,50 +471,17 @@ function mergeInstructions(base: string, extra: string): string {
 }
 
 function buildReportSystemPrompt(settings: AppSettings, kind: "daily" | PeriodReportKind) {
-  const basePrompt =
+  return (
     kind === "monthly"
       ? settings.monthlySystemPrompt
       : kind === "weekly"
         ? DEFAULT_WEEKLY_SYSTEM_PROMPT
-        : settings.dailySystemPrompt;
-  return mergeInstructions(basePrompt, reportTemplateInstruction(settings.reportTemplateProfile, kind));
-}
-
-function buildReportRefinementInstruction(
-  settings: AppSettings,
-  kind: "daily" | PeriodReportKind,
-  extraInstruction: string,
-) {
-  return mergeInstructions(
-    mergeInstructions(settings.refinementInstruction, reportTemplateInstruction(settings.reportTemplateProfile, kind)),
-    extraInstruction,
+        : settings.dailySystemPrompt
   );
 }
 
-function reportTemplateInstruction(profile: ReportTemplateProfile, kind: "daily" | PeriodReportKind) {
-  const resolved = resolveReportTemplateProfile(profile, kind);
-  if (resolved === "auto") return "";
-
-  const prefix = "报告模板 Profile：";
-  if (resolved === "daily") {
-    return `${prefix}日报。输出为可直接提交的工作日报，优先按项目或事项分组，保留完成项、问题处理和必要备注；不要编造计划、进度百分比或业务结果。`;
-  }
-  if (resolved === "weekly") {
-    return `${prefix}周报。输出为 Markdown，使用「本周重点」「实际完成情况」「下周关注」三部分；每部分尽量按项目分组，下周关注只能基于已有提交自然延伸。`;
-  }
-  if (resolved === "performance") {
-    return `${prefix}绩效复盘。输出为 Markdown，使用「项目进度」「实际完成情况」「阶段总结」三部分；强调可追溯贡献、交付闭环和协作价值，不夸大未在 Git 中体现的成果。`;
-  }
-  return `${prefix}简短状态更新。输出 3 到 6 条短项目符号，语言精炼，优先保留最重要的完成项、修复项和风险项，不添加寒暄或长段解释。`;
-}
-
-function resolveReportTemplateProfile(
-  profile: ReportTemplateProfile,
-  kind: "daily" | PeriodReportKind,
-): ReportTemplateProfile {
-  if (profile !== "auto") return profile;
-  if (kind === "monthly") return "performance";
-  return kind;
+function buildReportRefinementInstruction(settings: AppSettings, extraInstruction: string) {
+  return mergeInstructions(settings.refinementInstruction, extraInstruction);
 }
 
 export function getTodayRange(): DateRange {

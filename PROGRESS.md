@@ -38,7 +38,7 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 
 - [x] Add weekly report generation with project grouping, AI polishing, export, and progress tracking.
 - [x] Add arbitrary month selection for monthly reports, including AI polishing and export through the period report flow.
-- [x] Add report template profiles for automatic, daily, weekly, performance review, and concise status update formats.
+- [x] Hide the report template profile selector and stop applying hidden profile instructions; style control now stays in AI polishing instructions.
 
 ## Next Backlog
 
