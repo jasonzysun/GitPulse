@@ -24,17 +24,15 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Normalize collected commits with stable ordering and duplicate removal.
 - [x] Add targeted Rust tests for the new behavior.
 - [x] Add user-facing diagnostics for missing Git, invalid output directories, and missing environment variables.
+- [x] Add a production Tauri CSP instead of disabling CSP.
+- [x] Move ChatGPT Codex OAuth login state to the OS credential store with legacy JSON migration.
 
 ## Verification
 
 - `npm run build`
 - `cd src-tauri && cargo test`
 - `cd src-tauri && cargo check`
-
-## Still Open In P0
-
-- Add a production-tested Tauri CSP instead of `csp: null`.
-- Decide whether ChatGPT Codex OAuth tokens should move from plain config JSON to OS-backed secure storage.
+- `npm run tauri:build:release` with updater signing environment
 
 ## Completed In P1
 

@@ -7,7 +7,7 @@
 //! ⚠️ 非官方路径：复用 codex client_id 并把请求伪装成 codex，可能违反 OpenAI ToS、
 //! 账号可能被限、随时可能失效。仅作为可选 provider，登录态独立存储、可一键登出。
 
-use crate::models::AiModelInfo;
+use crate::{models::AiModelInfo, secure_store};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use reqwest::blocking::{Client, Response};
 use serde::{Deserialize, Serialize};
@@ -46,24 +46,45 @@ struct StoredAuth {
     expires_at_ms: Option<i64>,
 }
 
-fn auth_file_path() -> Result<PathBuf, String> {
-    let dir = dirs::config_dir().ok_or("无法定位配置目录")?.join("GitPulse");
+fn legacy_auth_file_path() -> Result<PathBuf, String> {
+    let dir = dirs::config_dir()
+        .ok_or("无法定位配置目录")?
+        .join("GitPulse");
     Ok(dir.join("codex_oauth.json"))
 }
 
 fn load_auth() -> Option<StoredAuth> {
-    let path = auth_file_path().ok()?;
-    let content = fs::read_to_string(path).ok()?;
-    serde_json::from_str(&content).ok()
+    load_auth_result().ok().flatten()
+}
+
+fn load_auth_result() -> Result<Option<StoredAuth>, String> {
+    if let Some(content) = secure_store::get_codex_oauth_auth()? {
+        return parse_stored_auth(&content).map(Some);
+    }
+    migrate_legacy_auth()
+}
+
+fn parse_stored_auth(content: &str) -> Result<StoredAuth, String> {
+    serde_json::from_str(content).map_err(|err| format!("ChatGPT 登录态解析失败：{err}"))
+}
+
+fn migrate_legacy_auth() -> Result<Option<StoredAuth>, String> {
+    let path = legacy_auth_file_path()?;
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    let auth = parse_stored_auth(&content)?;
+    save_auth(&auth)?;
+    fs::remove_file(&path)
+        .map_err(|err| format!("ChatGPT 登录态已迁移到系统凭据库，但删除旧文件失败：{err}"))?;
+    Ok(Some(auth))
 }
 
 fn save_auth(auth: &StoredAuth) -> Result<(), String> {
-    let path = auth_file_path()?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
-    }
     let content = serde_json::to_string_pretty(auth).map_err(|err| err.to_string())?;
-    fs::write(&path, content).map_err(|err| err.to_string())
+    secure_store::set_codex_oauth_auth(&content)
 }
 
 // ── 对前端的返回类型 ─────────────────────────────────────────
@@ -267,9 +288,9 @@ fn refresh(refresh_token: &str) -> Result<TokenResponse, String> {
     resp.json().map_err(|err| err.to_string())
 }
 
-/// 取有效 access_token（必要时用 refresh_token 刷新并回写文件）。
+/// 取有效 access_token（必要时用 refresh_token 刷新并回写系统凭据库）。
 fn valid_access_token() -> Result<(String, Option<String>), String> {
-    let mut stored = load_auth().ok_or("尚未登录 ChatGPT")?;
+    let mut stored = load_auth_result()?.ok_or("尚未登录 ChatGPT")?;
 
     if let (Some(token), Some(expires_at)) = (&stored.access_token, stored.expires_at_ms) {
         if expires_at - now_ms() > REFRESH_BUFFER_MS {
@@ -304,7 +325,8 @@ pub fn status() -> AuthStatus {
 }
 
 pub fn logout() -> Result<(), String> {
-    if let Ok(path) = auth_file_path() {
+    secure_store::clear_codex_oauth_auth()?;
+    if let Ok(path) = legacy_auth_file_path() {
         if path.exists() {
             fs::remove_file(path).map_err(|err| err.to_string())?;
         }
@@ -398,7 +420,10 @@ pub fn enhance(system_prompt: &str, user_prompt: &str, model: &str) -> Result<St
     let status = resp.status();
     let text = resp.text().map_err(|err| err.to_string())?;
     if !status.is_success() {
-        return Err(format!("ChatGPT 润色失败 {status}：{}", truncate(&text, 300)));
+        return Err(format!(
+            "ChatGPT 润色失败 {status}：{}",
+            truncate(&text, 300)
+        ));
     }
     extract_response_text(&text)
 }
@@ -497,7 +522,10 @@ fn identity_from_tokens(tokens: &TokenResponse) -> (Option<String>, Option<Strin
     let mut account_id: Option<String> = None;
     let mut email: Option<String> = None;
 
-    let candidates = [tokens.id_token.as_deref(), Some(tokens.access_token.as_str())];
+    let candidates = [
+        tokens.id_token.as_deref(),
+        Some(tokens.access_token.as_str()),
+    ];
     for token in candidates.into_iter().flatten() {
         let Some(claims) = parse_jwt_claims(token) else {
             continue;
@@ -525,7 +553,10 @@ fn identity_from_tokens(tokens: &TokenResponse) -> (Option<String>, Option<Strin
                 });
         }
         if email.is_none() {
-            email = claims.get("email").and_then(Value::as_str).map(String::from);
+            email = claims
+                .get("email")
+                .and_then(Value::as_str)
+                .map(String::from);
         }
         if account_id.is_some() && email.is_some() {
             break;
@@ -569,7 +600,10 @@ mod tests {
                 { "content": [ { "type": "output_text", "text": "world" } ] }
             ]
         });
-        assert_eq!(output_text_from_json(&value).as_deref(), Some("hello world"));
+        assert_eq!(
+            output_text_from_json(&value).as_deref(),
+            Some("hello world")
+        );
     }
 
     #[test]
