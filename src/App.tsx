@@ -22,6 +22,7 @@ import {
   STORAGE_KEY,
   buildExtractOptions,
   buildPeriodReportOptions,
+  clearRepoIndexCache,
   formatMonthLabel,
   getCurrentWeekRange,
   getMonthRange,
@@ -29,8 +30,10 @@ import {
   getTodayRange,
   getWeekLabel,
   isAiKeyReference,
+  loadRepoIndexCache,
   loadSettingsState,
   parseProjectNames,
+  saveRepoIndexCache,
   settingsForPersistence,
   upsertRepoMapping,
   validateExtractSettings,
@@ -56,7 +59,7 @@ type CopyNotice = {
 function App() {
   const [loadedSettings] = useState<LoadedSettingsState>(loadSettingsState);
   const [settings, setSettings] = useState<AppSettings>(loadedSettings.settings);
-  const [repos, setRepos] = useState<RepoInfo[]>([]);
+  const [repos, setRepos] = useState<RepoInfo[]>(() => loadRepoIndexCache(loadedSettings.settings.rootDirs)?.repos ?? []);
   const [summaryText, setSummaryText] = useState("");
   const [customReport, setCustomReport] = useState("");
   const [customRange, setCustomRange] = useState<DateRange>(getTodayRange);
@@ -194,10 +197,24 @@ function App() {
   useEffect(() => {
     if (settings.rootDirs.length === 0) {
       setRepos([]);
+      clearRepoIndexCache();
+      return;
+    }
+
+    const repoCache = loadRepoIndexCache(settings.rootDirs);
+    if (repoCache) {
+      setRepos(repoCache.repos);
+      setStatus(`已载入 ${repoCache.repos.length} 个缓存仓库索引`);
+      return;
+    }
+
+    setRepos([]);
+    if (settings.onboardingDone) {
+      setStatus("工作目录已更新，请点击重新扫描仓库索引");
       return;
     }
     scanWorkspace();
-  }, [settings.rootDirs]);
+  }, [settings.rootDirs, settings.onboardingDone]);
 
   useEffect(() => {
     return () => {
@@ -241,7 +258,7 @@ function App() {
   async function scanWorkspace() {
     await runTask("正在扫描仓库", async () => {
       const result = await invoke<RepoInfo[]>("scan_repos", { rootDirs: settings.rootDirs });
-      setRepos(result);
+      updateRepoIndex(result);
       setStatus(`已发现 ${result.length} 个仓库`);
     }, () => validateWorkspaceSettings(settings));
   }
@@ -252,7 +269,6 @@ function App() {
       const result = await invoke<ExtractResult>("extract_commits", {
         options: buildExtractOptions(settings, projectNames, dailyRange, false),
       });
-      setRepos(result.repos);
       setSummaryText(result.detailedText || result.summaryText);
       setWarnings(result.warnings);
       setCommitCount(result.commits.length);
@@ -266,7 +282,6 @@ function App() {
       const result = await invoke<ExtractResult>("extract_commits", {
         options: buildExtractOptions(settings, projectNames, range, false),
       });
-      setRepos(result.repos);
       setCustomRange(range);
       setCustomReport(result.detailedText || result.summaryText);
       setWarnings(result.warnings);
@@ -495,6 +510,11 @@ function App() {
     });
   }
 
+  function updateRepoIndex(nextRepos: RepoInfo[]) {
+    setRepos(nextRepos);
+    saveRepoIndexCache(settings.rootDirs, nextRepos);
+  }
+
   function saveRepoMapping(scope: MappingScope, displayName: string) {
     if (!editingRepo) return;
     setSettings((current) => ({
@@ -590,6 +610,7 @@ function App() {
         disabledRepos={settings.disabledRepos}
         onToggleRepo={toggleRepo}
         onEditRepo={setEditingRepo}
+        onRefreshRepos={scanWorkspace}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />

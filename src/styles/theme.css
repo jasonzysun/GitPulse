@@ -57,9 +57,15 @@
 
 :root[data-theme="dark"] .path-input button,
 :root[data-theme="dark"] .mapping-import,
+:root[data-theme="dark"] .repo-refresh-button,
 :root[data-theme="dark"] .settings-card button {
   border-color: rgba(109, 168, 255, 0.28);
   background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .repo-refresh-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.42);
+  background: rgba(63, 140, 255, 0.28);
 }
 
 :root[data-theme="dark"] .settings-card,

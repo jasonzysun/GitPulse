@@ -9,6 +9,7 @@ import {
   Loader2,
   Maximize2,
   Minimize2,
+  RefreshCw,
   Settings2,
   Sparkles,
   TerminalSquare,
@@ -58,6 +59,7 @@ type Props = {
   projectNames: Record<string, string>;
   onToggleRepo: (path: string, enabled: boolean) => void;
   onEditRepo: (repo: RepoInfo) => void;
+  onRefreshRepos: () => void;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
@@ -333,7 +335,24 @@ export function Workbench(props: Props) {
         </section>
 
         <section className="repo-drawer">
-          <PanelTitle icon={<TerminalSquare size={17} />} title="仓库索引" meta={repoMeta} />
+          <PanelTitle
+            icon={<TerminalSquare size={17} />}
+            title="仓库索引"
+            meta={repoMeta}
+            action={(
+              <button
+                className="repo-refresh-button"
+                type="button"
+                onClick={props.onRefreshRepos}
+                disabled={props.isBusy}
+                aria-label="重新扫描仓库索引"
+                title="重新扫描仓库索引"
+              >
+                <RefreshCw size={14} />
+                重新扫描
+              </button>
+            )}
+          />
           <div className="repo-list">
             {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
             {props.repos.map((repo) => {
@@ -397,11 +416,14 @@ export function Workbench(props: Props) {
   );
 }
 
-function PanelTitle({ icon, title, meta }: { icon: ReactNode; title: string; meta: string }) {
+function PanelTitle({ icon, title, meta, action }: { icon: ReactNode; title: string; meta: string; action?: ReactNode }) {
   return (
     <div className="panel-title">
       <h3>{icon}{title}</h3>
-      <span>{meta}</span>
+      <div className="panel-title-actions">
+        <span>{meta}</span>
+        {action}
+      </div>
     </div>
   );
 }

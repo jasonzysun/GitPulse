@@ -229,6 +229,41 @@
   font-size: 11px;
 }
 
+.panel-title-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.repo-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid rgba(63, 140, 255, 0.24);
+  border-radius: var(--radius-sm);
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  font-size: 12px;
+  font-weight: 820;
+  transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease, opacity 0.14s ease;
+}
+
+.repo-refresh-button:hover:not(:disabled) {
+  border-color: rgba(63, 140, 255, 0.42);
+  background: #cce4ff;
+  transform: translateY(-1px);
+}
+
+.repo-refresh-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .repo-row {
   display: flex;
   align-items: center;

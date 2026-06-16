@@ -93,8 +93,15 @@ export type LoadedSettingsState = {
 };
 
 export const STORAGE_KEY = "gitpulse-settings";
+const REPO_INDEX_CACHE_KEY = "gitpulse-repo-index-cache";
 const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export type RepoIndexCache = {
+  rootDirs: string[];
+  repos: RepoInfo[];
+  scannedAt: string;
+};
 
 // 与 src-tauri/src/ai.rs 的内置默认系统提示词逐字一致。作为可编辑提示词的默认值与“恢复默认”目标；
 // 用户留空时后端会回退到同源的 Rust 默认，行为不变。
@@ -226,6 +233,43 @@ export function settingsForPersistence(settings: AppSettings): AppSettings {
     ...settings,
     aiApiKey: isAiKeyReference(aiApiKey) ? aiApiKey : "",
   };
+}
+
+export function loadRepoIndexCache(rootDirs: string[]): RepoIndexCache | null {
+  const saved = localStorage.getItem(REPO_INDEX_CACHE_KEY);
+  if (!saved) return null;
+
+  let rawCache: Partial<RepoIndexCache>;
+  try {
+    rawCache = JSON.parse(saved);
+  } catch {
+    localStorage.removeItem(REPO_INDEX_CACHE_KEY);
+    return null;
+  }
+
+  if (!rawCache || typeof rawCache !== "object" || Array.isArray(rawCache)) return null;
+  if (!Array.isArray(rawCache.rootDirs) || !samePathSet(rawCache.rootDirs, rootDirs)) return null;
+  if (!Array.isArray(rawCache.repos)) return null;
+
+  const repos = rawCache.repos.filter(isRepoInfo);
+  return {
+    rootDirs: rawCache.rootDirs.filter(isNonEmptyString).map(stripWindowsVerbatimPrefix),
+    repos,
+    scannedAt: typeof rawCache.scannedAt === "string" ? rawCache.scannedAt : "",
+  };
+}
+
+export function saveRepoIndexCache(rootDirs: string[], repos: RepoInfo[]) {
+  const cache: RepoIndexCache = {
+    rootDirs: rootDirs.filter(isNonEmptyString).map(stripWindowsVerbatimPrefix),
+    repos,
+    scannedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(REPO_INDEX_CACHE_KEY, JSON.stringify(cache));
+}
+
+export function clearRepoIndexCache() {
+  localStorage.removeItem(REPO_INDEX_CACHE_KEY);
 }
 
 export type MappingEntry = {
@@ -557,6 +601,23 @@ function validateAiKeyReference(value: string) {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isRepoInfo(value: unknown): value is RepoInfo {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const repo = value as Partial<RepoInfo>;
+  return isNonEmptyString(repo.path) && isNonEmptyString(repo.name) && typeof repo.branch === "string";
+}
+
+function samePathSet(left: unknown[], right: string[]) {
+  const normalize = (values: unknown[]) => values
+    .filter(isNonEmptyString)
+    .map((value) => stripWindowsVerbatimPrefix(value.trim()).toLowerCase())
+    .sort();
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  if (normalizedLeft.length !== normalizedRight.length) return false;
+  return normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function normalizeAiProvider(value: unknown): AppSettings["aiProvider"] {
