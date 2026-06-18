@@ -6,15 +6,16 @@ mod report;
 mod secure_store;
 
 use crate::models::{
-    AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
-    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
-    RepoScanProgress,
+    AiConfig, AiModelInfo, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
+    GitIdentity, MappingEntry, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
+    PeriodReportResult, RepoInfo, RepoScanProgress,
 };
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Arc,
+    mpsc, Arc, Mutex,
 };
+use std::thread;
 use tauri::async_runtime;
 use tauri::{AppHandle, Emitter, State};
 
@@ -69,28 +70,45 @@ fn get_git_identity() -> GitIdentity {
 }
 
 #[tauri::command]
-async fn extract_commits(options: ExtractOptions) -> Result<ExtractResult, String> {
-    async_runtime::spawn_blocking(move || extract_commits_sync(options))
-        .await
-        .map_err(|err| format!("提取提交任务中断：{}", err))?
+async fn extract_commits(app: AppHandle, options: ExtractOptions) -> Result<ExtractResult, String> {
+    let progress_app = app.clone();
+    async_runtime::spawn_blocking(move || {
+        extract_commits_sync(options, |progress| {
+            let _ = progress_app.emit("commit-extract-progress", progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("提取提交任务中断：{}", err))?
 }
 
 #[tauri::command]
 async fn generate_monthly_report(
+    app: AppHandle,
     options: MonthlyReportOptions,
 ) -> Result<MonthlyReportResult, String> {
-    async_runtime::spawn_blocking(move || generate_monthly_report_sync(options))
-        .await
-        .map_err(|err| format!("生成月报任务中断：{}", err))?
+    let progress_app = app.clone();
+    async_runtime::spawn_blocking(move || {
+        generate_monthly_report_sync(options, |progress| {
+            let _ = progress_app.emit("commit-extract-progress", progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("生成月报任务中断：{}", err))?
 }
 
 #[tauri::command]
 async fn generate_period_report(
+    app: AppHandle,
     options: PeriodReportOptions,
 ) -> Result<PeriodReportResult, String> {
-    async_runtime::spawn_blocking(move || generate_period_report_sync(options))
-        .await
-        .map_err(|err| format!("生成报告任务中断：{}", err))?
+    let progress_app = app.clone();
+    async_runtime::spawn_blocking(move || {
+        generate_period_report_sync(options, |progress| {
+            let _ = progress_app.emit("commit-extract-progress", progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("生成报告任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -148,12 +166,16 @@ fn codex_oauth_logout() -> Result<(), String> {
     codex_oauth::logout()
 }
 
-fn generate_monthly_report_sync(
+fn generate_monthly_report_sync<F>(
     options: MonthlyReportOptions,
-) -> Result<MonthlyReportResult, String> {
+    on_progress: F,
+) -> Result<MonthlyReportResult, String>
+where
+    F: FnMut(CommitExtractProgress),
+{
     let dates = report::previous_month_range();
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
-    let (_, commits, mut warnings) = collect_commits(&extract_options)?;
+    let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
     let mut report_text = report::render_monthly_report(
         &commits,
         &options.project_names,
@@ -177,7 +199,13 @@ fn generate_monthly_report_sync(
     ))
 }
 
-fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodReportResult, String> {
+fn generate_period_report_sync<F>(
+    options: PeriodReportOptions,
+    on_progress: F,
+) -> Result<PeriodReportResult, String>
+where
+    F: FnMut(CommitExtractProgress),
+{
     validate_period_options(&options)?;
     let dates = (
         options.start_date.clone(),
@@ -185,7 +213,7 @@ fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodRep
         options.period_label.clone(),
     );
     let extract_options = period_extract_options(&options);
-    let (_, commits, mut warnings) = collect_commits(&extract_options)?;
+    let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
     let mut report_text = match options.report_kind.as_str() {
         "weekly" => report::render_weekly_report(
             &commits,
@@ -222,8 +250,11 @@ fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodRep
     ))
 }
 
-fn extract_commits_sync(options: ExtractOptions) -> Result<ExtractResult, String> {
-    let (repos, commits, warnings) = collect_commits(&options)?;
+fn extract_commits_sync<F>(options: ExtractOptions, on_progress: F) -> Result<ExtractResult, String>
+where
+    F: FnMut(CommitExtractProgress),
+{
+    let (repos, commits, warnings) = collect_commits(&options, on_progress)?;
     let mut result = report::build_extract_result(
         repos,
         commits,
@@ -367,39 +398,276 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn collect_commits(
+fn collect_commits<F>(
     options: &ExtractOptions,
-) -> Result<(Vec<RepoInfo>, Vec<crate::models::CommitRecord>, Vec<String>), String> {
-    let repos = git_ops::find_git_repos(&options.root_dirs)?;
-    let mut commits = Vec::new();
-    let mut warnings = Vec::new();
+    on_progress: F,
+) -> Result<(Vec<RepoInfo>, Vec<CommitRecord>, Vec<String>), String>
+where
+    F: FnMut(CommitExtractProgress),
+{
+    let mut on_progress = on_progress;
+    let repos = resolve_report_repos(options)?;
+    let disabled_repos: HashSet<&str> = options.disabled_repos.iter().map(String::as_str).collect();
+    let enabled_repos: Vec<RepoInfo> = repos
+        .iter()
+        .filter(|repo| !disabled_repos.contains(repo.path.as_str()))
+        .cloned()
+        .collect();
+    let concurrency = commit_extract_parallelism(enabled_repos.len());
 
-    for repo in &repos {
-        if options.disabled_repos.contains(&repo.path) {
-            continue;
-        }
-        match git_ops::get_git_commits(
-            repo,
-            &git_ops::GitCommitQuery {
-                start_date: &options.start_date,
-                end_date: &options.end_date,
-                author: &options.author,
-                extract_all_branches: options.extract_all_branches,
-                exclude_merge_commits: options.exclude_merge_commits,
-                exclude_revert_commits: options.exclude_revert_commits,
-                exclude_bot_commits: options.exclude_bot_commits,
-            },
-        ) {
-            Ok(mut records) => commits.append(&mut records),
-            Err(err) => warnings.push(format!("{}：{}", repo.name, err)),
-        }
-    }
+    emit_commit_progress(
+        &mut on_progress,
+        CommitExtractProgress {
+            total_repos: enabled_repos.len(),
+            completed_repos: 0,
+            current_repo: String::new(),
+            commit_count: 0,
+            warning_count: 0,
+            concurrency,
+            done: enabled_repos.is_empty(),
+        },
+    );
+
+    let (mut commits, warnings) = collect_enabled_repo_commits_parallel(
+        &enabled_repos,
+        options,
+        concurrency,
+        &mut on_progress,
+    )?;
     normalize_commits(&mut commits);
+
+    emit_commit_progress(
+        &mut on_progress,
+        CommitExtractProgress {
+            total_repos: enabled_repos.len(),
+            completed_repos: enabled_repos.len(),
+            current_repo: String::new(),
+            commit_count: commits.len(),
+            warning_count: warnings.len(),
+            concurrency,
+            done: true,
+        },
+    );
 
     Ok((repos, commits, warnings))
 }
 
-fn normalize_commits(commits: &mut Vec<crate::models::CommitRecord>) {
+fn resolve_report_repos(options: &ExtractOptions) -> Result<Vec<RepoInfo>, String> {
+    if options.indexed_repos.is_empty() {
+        return git_ops::find_git_repos(&options.root_dirs);
+    }
+
+    let mut seen = HashSet::new();
+    let mut repos = Vec::new();
+    for repo in &options.indexed_repos {
+        if repo.path.trim().is_empty() || repo.name.trim().is_empty() {
+            continue;
+        }
+        if seen.insert(repo.path.clone()) {
+            repos.push(repo.clone());
+        }
+    }
+    repos.sort_by(|left, right| {
+        left.name
+            .to_lowercase()
+            .cmp(&right.name.to_lowercase())
+            .then_with(|| left.path.cmp(&right.path))
+    });
+    Ok(repos)
+}
+
+fn collect_enabled_repo_commits_parallel<F>(
+    repos: &[RepoInfo],
+    options: &ExtractOptions,
+    concurrency: usize,
+    on_progress: &mut F,
+) -> Result<(Vec<CommitRecord>, Vec<String>), String>
+where
+    F: FnMut(CommitExtractProgress),
+{
+    if repos.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    let (receiver, handles) = spawn_commit_workers(repos, options, concurrency);
+    let results = gather_commit_results(receiver, repos.len(), concurrency, on_progress);
+    wait_commit_workers(handles)?;
+    merge_commit_results(results)
+}
+
+fn spawn_commit_workers(
+    repos: &[RepoInfo],
+    options: &ExtractOptions,
+    concurrency: usize,
+) -> (
+    mpsc::Receiver<CommitExtractionResult>,
+    Vec<thread::JoinHandle<()>>,
+) {
+    let jobs = Arc::new(Mutex::new(VecDeque::from(
+        repos
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(index, repo)| CommitExtractionJob { index, repo })
+            .collect::<Vec<_>>(),
+    )));
+    let query = CommitQuerySettings::from(options);
+    let (sender, receiver) = mpsc::channel();
+    let mut handles = Vec::new();
+    for _ in 0..concurrency {
+        let jobs = Arc::clone(&jobs);
+        let sender = sender.clone();
+        let query = query.clone();
+        handles.push(thread::spawn(move || loop {
+            let job = {
+                let mut jobs = jobs.lock().expect("commit extraction job queue poisoned");
+                jobs.pop_front()
+            };
+            let Some(job) = job else {
+                break;
+            };
+            let git_query = git_ops::GitCommitQuery {
+                start_date: &query.start_date,
+                end_date: &query.end_date,
+                author: &query.author,
+                extract_all_branches: query.extract_all_branches,
+                exclude_merge_commits: query.exclude_merge_commits,
+                exclude_revert_commits: query.exclude_revert_commits,
+                exclude_bot_commits: query.exclude_bot_commits,
+            };
+            let records = git_ops::get_git_commits(&job.repo, &git_query);
+            if sender
+                .send(CommitExtractionResult {
+                    index: job.index,
+                    repo_name: job.repo.name,
+                    records,
+                })
+                .is_err()
+            {
+                break;
+            }
+        }));
+    }
+    drop(sender);
+    (receiver, handles)
+}
+
+fn gather_commit_results<F>(
+    receiver: mpsc::Receiver<CommitExtractionResult>,
+    repo_count: usize,
+    concurrency: usize,
+    on_progress: &mut F,
+) -> Vec<Option<CommitExtractionResult>>
+where
+    F: FnMut(CommitExtractProgress),
+{
+    let mut completed_repos = 0;
+    let mut commit_count = 0;
+    let mut warning_count = 0;
+    let mut results: Vec<Option<CommitExtractionResult>> = (0..repo_count).map(|_| None).collect();
+    for result in receiver {
+        completed_repos += 1;
+        match &result.records {
+            Ok(records) => commit_count += records.len(),
+            Err(_) => warning_count += 1,
+        }
+        emit_commit_progress(
+            on_progress,
+            CommitExtractProgress {
+                total_repos: repo_count,
+                completed_repos,
+                current_repo: result.repo_name.clone(),
+                commit_count,
+                warning_count,
+                concurrency,
+                done: false,
+            },
+        );
+        let index = result.index;
+        results[index] = Some(result);
+    }
+    results
+}
+
+fn wait_commit_workers(handles: Vec<thread::JoinHandle<()>>) -> Result<(), String> {
+    for handle in handles {
+        handle
+            .join()
+            .map_err(|_| "提取提交的工作线程异常退出".to_string())?;
+    }
+    Ok(())
+}
+
+fn merge_commit_results(
+    results: Vec<Option<CommitExtractionResult>>,
+) -> Result<(Vec<CommitRecord>, Vec<String>), String> {
+    let mut commits = Vec::new();
+    let mut warnings = Vec::new();
+    for result in results {
+        let result = result.ok_or_else(|| "提取提交任务未完整返回".to_string())?;
+        match result.records {
+            Ok(mut records) => commits.append(&mut records),
+            Err(err) => warnings.push(format!("{}：{}", result.repo_name, err)),
+        }
+    }
+
+    Ok((commits, warnings))
+}
+
+fn emit_commit_progress<F>(on_progress: &mut F, progress: CommitExtractProgress)
+where
+    F: FnMut(CommitExtractProgress),
+{
+    on_progress(progress);
+}
+
+fn commit_extract_parallelism(repo_count: usize) -> usize {
+    if repo_count <= 1 {
+        return repo_count;
+    }
+    let cpu_count = thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4);
+    cpu_count.clamp(2, 8).min(repo_count)
+}
+
+#[derive(Clone)]
+struct CommitQuerySettings {
+    start_date: String,
+    end_date: String,
+    author: String,
+    extract_all_branches: bool,
+    exclude_merge_commits: bool,
+    exclude_revert_commits: bool,
+    exclude_bot_commits: bool,
+}
+
+impl From<&ExtractOptions> for CommitQuerySettings {
+    fn from(options: &ExtractOptions) -> Self {
+        Self {
+            start_date: options.start_date.clone(),
+            end_date: options.end_date.clone(),
+            author: options.author.clone(),
+            extract_all_branches: options.extract_all_branches,
+            exclude_merge_commits: options.exclude_merge_commits,
+            exclude_revert_commits: options.exclude_revert_commits,
+            exclude_bot_commits: options.exclude_bot_commits,
+        }
+    }
+}
+
+struct CommitExtractionJob {
+    index: usize,
+    repo: RepoInfo,
+}
+
+struct CommitExtractionResult {
+    index: usize,
+    repo_name: String,
+    records: Result<Vec<CommitRecord>, String>,
+}
+
+fn normalize_commits(commits: &mut Vec<CommitRecord>) {
     commits.sort_by(|left, right| {
         right
             .date
@@ -419,6 +687,7 @@ fn monthly_extract_options(
 ) -> ExtractOptions {
     ExtractOptions {
         root_dirs: options.root_dirs.clone(),
+        indexed_repos: options.indexed_repos.clone(),
         author: options.author.clone(),
         start_date: start.to_string(),
         end_date: end.to_string(),
@@ -440,6 +709,7 @@ fn monthly_extract_options(
 fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
     ExtractOptions {
         root_dirs: options.root_dirs.clone(),
+        indexed_repos: options.indexed_repos.clone(),
         author: options.author.clone(),
         start_date: options.start_date.clone(),
         end_date: options.end_date.clone(),
@@ -612,6 +882,55 @@ mod tests {
         );
     }
 
+    #[test]
+    fn commit_extract_parallelism_is_bounded_by_repo_count_and_cap() {
+        assert_eq!(commit_extract_parallelism(0), 0);
+        assert_eq!(commit_extract_parallelism(1), 1);
+        assert!(commit_extract_parallelism(2) <= 2);
+        assert!(commit_extract_parallelism(32) <= 8);
+    }
+
+    #[test]
+    fn resolve_report_repos_prefers_indexed_repos_and_deduplicates_paths() {
+        let options = ExtractOptions {
+            root_dirs: vec!["missing-root".to_string()],
+            indexed_repos: vec![
+                repo("zeta", "C:\\repo\\zeta"),
+                repo("alpha", "C:\\repo\\alpha"),
+                repo("zeta-copy", "C:\\repo\\zeta"),
+            ],
+            author: "tester".to_string(),
+            start_date: "2026-06-01".to_string(),
+            end_date: "2026-06-01".to_string(),
+            disabled_repos: Vec::new(),
+            extract_all_branches: false,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+            detailed_output: false,
+            show_project_and_branch: true,
+            show_evidence_details: false,
+            project_names: Default::default(),
+            refinement_instruction: String::new(),
+            system_prompt: String::new(),
+            ai: AiConfig {
+                enabled: false,
+                provider: "openai-compatible".to_string(),
+                base_url: String::new(),
+                model: String::new(),
+                api_key: String::new(),
+                temperature: 0.2,
+                timeout_seconds: 60,
+            },
+        };
+
+        let repos = resolve_report_repos(&options).unwrap();
+
+        assert_eq!(repos.len(), 2);
+        assert_eq!(repos[0].name, "alpha");
+        assert_eq!(repos[1].name, "zeta");
+    }
+
     fn commit(repo_path: &str, hash: &str, date: &str) -> CommitRecord {
         CommitRecord {
             repo_path: repo_path.to_string(),
@@ -622,6 +941,14 @@ mod tests {
             author_email: "tester@example.com".to_string(),
             date: date.to_string(),
             message: "feat: demo".to_string(),
+        }
+    }
+
+    fn repo(name: &str, path: &str) -> RepoInfo {
+        RepoInfo {
+            path: path.to_string(),
+            name: name.to_string(),
+            branch: "main".to_string(),
         }
     }
 }

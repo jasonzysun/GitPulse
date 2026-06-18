@@ -11,6 +11,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
 import {
   type AppSettings,
+  type CommitExtractProgress,
   type DateRange,
   type ExtractResult,
   type GitIdentity,
@@ -84,6 +85,7 @@ function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [isRepoScanning, setIsRepoScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<RepoScanProgress | null>(null);
+  const [extractProgress, setExtractProgress] = useState<CommitExtractProgress | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
@@ -191,6 +193,21 @@ function App() {
       }
       if (payload.done) return;
       setStatus(`正在扫描仓库：已检查 ${payload.scannedDirs} 个目录，发现 ${payload.foundRepos} 个仓库`);
+    })
+      .then((cleanup) => {
+        unlisten = cleanup;
+      })
+      .catch(() => undefined);
+
+    return () => unlisten?.();
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<CommitExtractProgress>("commit-extract-progress", ({ payload }) => {
+      setExtractProgress(payload);
+      if (payload.done) return;
+      setStatus(formatExtractProgress(payload));
     })
       .then((cleanup) => {
         unlisten = cleanup;
@@ -317,10 +334,11 @@ function App() {
   }
 
   async function extractCommits() {
+    setExtractProgress(null);
     await runTask("正在提取提交记录", async () => {
       const dailyRange = getTodayRange();
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames, dailyRange, false),
+        options: buildExtractOptions(settings, projectNames, dailyRange, false, "", repos),
       });
       setSummaryText(result.detailedText || result.summaryText);
       setWarnings(result.warnings);
@@ -331,9 +349,10 @@ function App() {
   }
 
   async function generateCustomReport(range: DateRange) {
+    setExtractProgress(null);
     await runTask("正在生成自定义报告", async () => {
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames, range, false),
+        options: buildExtractOptions(settings, projectNames, range, false, "", repos),
       });
       setCustomRange(range);
       setCustomReport(result.detailedText || result.summaryText);
@@ -347,9 +366,10 @@ function App() {
   async function generateWeeklyReport() {
     const range = getCurrentWeekRange();
     const label = getWeekLabel();
+    setExtractProgress(null);
     await runTask("正在生成本周周报", async () => {
       const result = await invoke<PeriodReportResult>("generate_period_report", {
-        options: buildPeriodReportOptions(settings, projectNames, "weekly", range, label, false),
+        options: buildPeriodReportOptions(settings, projectNames, "weekly", range, label, false, "", repos),
       });
       setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
       setWeeklyLabel(result.periodLabel);
@@ -363,11 +383,12 @@ function App() {
   }
 
   async function generateMonthlyReport(monthValue = monthlyMonth) {
+    setExtractProgress(null);
     await runTask("正在生成月报", async () => {
       const range = getMonthRange(monthValue);
       const label = formatMonthLabel(monthValue);
       const result = await invoke<PeriodReportResult>("generate_period_report", {
-        options: buildPeriodReportOptions(settings, projectNames, "monthly", range, label, false),
+        options: buildPeriodReportOptions(settings, projectNames, "monthly", range, label, false, "", repos),
       });
       setMonthlyMonth(result.periodLabel);
       setMonthlyReport(result.reportText);
@@ -381,10 +402,11 @@ function App() {
   }
 
   async function polishReport(extraInstruction = "") {
+    setExtractProgress(null);
     await runTask("AI 正在润色", async () => {
       if (activePreview === "weekly") {
         const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyLabel, true, extraInstruction),
+          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyLabel, true, extraInstruction, repos),
         });
         setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
         setWeeklyLabel(result.periodLabel);
@@ -394,7 +416,7 @@ function App() {
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else if (activePreview === "monthly") {
         const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, monthlyLabel || monthlyMonth, true, extraInstruction),
+          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, monthlyLabel || monthlyMonth, true, extraInstruction, repos),
         });
         setMonthlyMonth(result.periodLabel);
         setMonthlyReport(result.reportText);
@@ -405,7 +427,7 @@ function App() {
       } else {
         const range = activePreview === "custom" ? customRange : getTodayRange();
         const result = await invoke<ExtractResult>("extract_commits", {
-          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction),
+          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction, repos),
         });
         if (activePreview === "custom") {
           setCustomReport(result.detailedText || result.summaryText);
@@ -641,6 +663,7 @@ function App() {
         isBusy={isBusy}
         isRepoScanning={isRepoScanning}
         scanProgress={scanProgress}
+        extractProgress={extractProgress}
         lastOutputFile={lastOutputFile}
         summaryText={activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText}
         repoCount={repos.length}
@@ -700,6 +723,13 @@ function App() {
 
 function hasAiWarning(warnings: string[]) {
   return warnings.some((warning) => warning.includes("AI 润色失败"));
+}
+
+function formatExtractProgress(progress: CommitExtractProgress) {
+  const total = progress.totalRepos;
+  if (total === 0) return "没有启用的仓库可提取";
+  const current = progress.currentRepo ? ` · 刚完成 ${progress.currentRepo}` : "";
+  return `正在提取提交：${progress.completedRepos}/${total} 仓库 · ${progress.concurrency} 并发 · ${progress.commitCount} 条提交${current}`;
 }
 
 function formatUpdaterError(error: unknown) {

@@ -13,6 +13,16 @@ export type RepoScanProgress = {
   cancelled: boolean;
 };
 
+export type CommitExtractProgress = {
+  totalRepos: number;
+  completedRepos: number;
+  currentRepo: string;
+  commitCount: number;
+  warningCount: number;
+  concurrency: number;
+  done: boolean;
+};
+
 export type ExtractResult = {
   repos: RepoInfo[];
   summaryText: string;
@@ -398,10 +408,12 @@ export function buildExtractOptions(
   dateRange: DateRange | undefined,
   aiEnabled: boolean,
   extraInstruction = "",
+  indexedRepos: RepoInfo[] = [],
 ) {
   const range = dateRange ?? getTodayRange();
   return {
     rootDirs: settings.rootDirs,
+    indexedRepos,
     author: settings.author,
     startDate: range.startDate,
     endDate: range.endDate,
@@ -425,9 +437,11 @@ export function buildMonthlyOptions(
   projectNames: Record<string, string>,
   aiEnabled: boolean,
   extraInstruction = "",
+  indexedRepos: RepoInfo[] = [],
 ) {
   return {
     rootDirs: settings.rootDirs,
+    indexedRepos,
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
     author: settings.author,
@@ -452,9 +466,11 @@ export function buildPeriodReportOptions(
   periodLabel: string,
   aiEnabled: boolean,
   extraInstruction = "",
+  indexedRepos: RepoInfo[] = [],
 ) {
   return {
     rootDirs: settings.rootDirs,
+    indexedRepos,
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
     author: settings.author,

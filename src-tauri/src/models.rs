@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepoInfo {
     pub path: String,
@@ -18,6 +18,18 @@ pub struct RepoScanProgress {
     pub found_repos: usize,
     pub done: bool,
     pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitExtractProgress {
+    pub total_repos: usize,
+    pub completed_repos: usize,
+    pub current_repo: String,
+    pub commit_count: usize,
+    pub warning_count: usize,
+    pub concurrency: usize,
+    pub done: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -51,6 +63,8 @@ pub struct CommitRecord {
 #[serde(rename_all = "camelCase")]
 pub struct ExtractOptions {
     pub root_dirs: Vec<String>,
+    #[serde(default)]
+    pub indexed_repos: Vec<RepoInfo>,
     pub author: String,
     pub start_date: String,
     pub end_date: String,
@@ -100,6 +114,8 @@ pub struct AiModelInfo {
 #[serde(rename_all = "camelCase")]
 pub struct MonthlyReportOptions {
     pub root_dirs: Vec<String>,
+    #[serde(default)]
+    pub indexed_repos: Vec<RepoInfo>,
     pub output_dir: String,
     pub output_enabled: bool,
     pub author: String,
@@ -132,6 +148,8 @@ pub struct MonthlyReportResult {
 #[serde(rename_all = "camelCase")]
 pub struct PeriodReportOptions {
     pub root_dirs: Vec<String>,
+    #[serde(default)]
+    pub indexed_repos: Vec<RepoInfo>,
     pub output_dir: String,
     pub output_enabled: bool,
     pub author: String,

@@ -47,6 +47,7 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Improve branch attribution when extracting all branches by using Git source refs.
 - [x] Add configurable merge commit, revert commit, and bot author filters.
 - [x] Add repository scan progress and cancellation.
+- [x] Reuse the indexed repository list during report generation and extract commits with bounded parallel workers.
 
 ## Next Backlog
 

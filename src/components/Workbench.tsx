@@ -19,6 +19,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import {
   resolveRepoDisplayName,
+  type CommitExtractProgress,
   type DateRange,
   type PreviewMode,
   type RepoInfo,
@@ -38,6 +39,7 @@ type Props = {
   isBusy: boolean;
   isRepoScanning: boolean;
   scanProgress: RepoScanProgress | null;
+  extractProgress: CommitExtractProgress | null;
   lastOutputFile: string;
   summaryText: string;
   repoCount: number;
@@ -172,6 +174,9 @@ export function Workbench(props: Props) {
   const scanProgressText = props.scanProgress
     ? `已检查 ${props.scanProgress.scannedDirs} 个目录 · 发现 ${props.scanProgress.foundRepos} 个仓库`
     : "";
+  const extractProgressText = props.extractProgress && !props.extractProgress.done
+    ? `${props.extractProgress.completedRepos}/${props.extractProgress.totalRepos} 仓库 · ${props.extractProgress.concurrency} 并发 · ${props.extractProgress.commitCount} 条提交`
+    : props.status;
 
   return (
     <section className="workbench">
@@ -326,7 +331,7 @@ export function Workbench(props: Props) {
           {props.isBusy ? (
             <div className="preview-loading">
               <Loader2 className="spin" size={32} />
-              <p>正在处理...</p>
+              <p>{extractProgressText}</p>
             </div>
           ) : (
             <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
