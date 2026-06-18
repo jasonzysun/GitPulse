@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Clipboard,
   FileDown,
+  FileText,
   GitBranch,
   History,
   Loader2,
@@ -25,6 +26,7 @@ import {
   type CommitExtractProgress,
   type DateRange,
   type PreviewMode,
+  type ReportExportFormat,
   type ReportHistoryEntry,
   type RepoInfo,
   type RepoScanProgress,
@@ -67,7 +69,7 @@ type Props = {
   onGenerateMonthly: (month: string) => void;
   onPolish: (extraInstruction?: string) => void;
   onCopy: () => void;
-  onExport: () => void;
+  onExport: (format: ReportExportFormat) => void;
   onOpenHistory: (entry: ReportHistoryEntry) => void;
   onCopyHistory: (entry: ReportHistoryEntry) => void;
   onRegenerateHistory: (entry: ReportHistoryEntry) => void;
@@ -88,6 +90,7 @@ export function Workbench(props: Props) {
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
 
   useEffect(() => {
@@ -104,17 +107,18 @@ export function Workbench(props: Props) {
   }, [isPreviewExpanded]);
 
   useEffect(() => {
-    if (!polishMenuOpen) return;
+    if (!polishMenuOpen && !exportMenuOpen) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setPolishMenuOpen(false);
+        setExportMenuOpen(false);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [polishMenuOpen]);
+  }, [polishMenuOpen, exportMenuOpen]);
 
   function handlePreviewChange(preview: PreviewMode) {
     props.onPreviewChange(preview);
@@ -136,6 +140,11 @@ export function Workbench(props: Props) {
     } else {
       props.onExtract();
     }
+  }
+
+  function handleExport(format: ReportExportFormat) {
+    setExportMenuOpen(false);
+    props.onExport(format);
   }
 
   const previewEmptyText = props.activePreview === "monthly"
@@ -306,10 +315,41 @@ export function Workbench(props: Props) {
                   </div>
                 )}
                 {(props.previewText && props.canExport) && (
-                  <button className="preview-save-button" type="button" onClick={props.onExport} disabled={props.isBusy} title="导出为文件">
-                    <FileDown size={15} />
-                    导出
-                  </button>
+                  <div className="export-split">
+                    <button className="preview-save-button" type="button" onClick={() => handleExport("markdown")} disabled={props.isBusy} title="导出为 Markdown">
+                      <FileDown size={15} />
+                      导出
+                    </button>
+                    <button
+                      className="export-split-toggle"
+                      type="button"
+                      onClick={() => setExportMenuOpen((current) => !current)}
+                      disabled={props.isBusy}
+                      aria-expanded={exportMenuOpen}
+                      aria-label="选择导出格式"
+                      title="选择导出格式"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    {exportMenuOpen && (
+                      <div className="export-popover" role="menu" aria-label="导出格式">
+                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("markdown")}>
+                          <FileText size={15} />
+                          <span>
+                            <strong>Markdown</strong>
+                            <em>.md · 适合复制和继续编辑</em>
+                          </span>
+                        </button>
+                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("docx")}>
+                          <FileText size={15} />
+                          <span>
+                            <strong>Word 文档</strong>
+                            <em>.docx · 适合提交和归档</em>
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
                   <Clipboard size={15} />

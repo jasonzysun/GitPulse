@@ -1,5 +1,6 @@
-use crate::models::{
-    CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo,
+use crate::{
+    docx,
+    models::{CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo},
 };
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
@@ -129,6 +130,41 @@ pub fn save_report_file(
     file_name: &str,
     content: &str,
 ) -> Result<String, String> {
+    let output_file = resolve_output_file(output_dir, file_name)?;
+    fs::write(&output_file, content).map_err(|err| {
+        format!(
+            "写入报告失败：{}。请确认输出目录有写入权限：{}",
+            err,
+            output_dir.trim()
+        )
+    })?;
+    Ok(output_file.to_string_lossy().to_string())
+}
+
+pub fn save_report_document(
+    output_dir: &str,
+    base_name: &str,
+    content: &str,
+    format: &str,
+) -> Result<String, String> {
+    let normalized = normalize_export_format(format)?;
+    let file_name = format!("{}.{}", strip_known_report_extension(base_name), normalized);
+    if normalized == "md" {
+        return save_report_file(output_dir, &file_name, content);
+    }
+
+    let output_file = resolve_output_file(output_dir, &file_name)?;
+    fs::write(&output_file, docx::markdown_to_docx(content)).map_err(|err| {
+        format!(
+            "写入 Word 报告失败：{}。请确认输出目录有写入权限：{}",
+            err,
+            output_dir.trim()
+        )
+    })?;
+    Ok(output_file.to_string_lossy().to_string())
+}
+
+fn resolve_output_file(output_dir: &str, file_name: &str) -> Result<PathBuf, String> {
     let trimmed_dir = output_dir.trim();
     if trimmed_dir.is_empty() {
         return Err("请先在设置中选择输出目录".to_string());
@@ -148,14 +184,32 @@ pub fn save_report_file(
         ));
     }
 
-    let output_file = dir.join(file_name);
-    fs::write(&output_file, content).map_err(|err| {
-        format!(
-            "写入报告失败：{}。请确认输出目录有写入权限：{}",
-            err, trimmed_dir
-        )
-    })?;
-    Ok(output_file.to_string_lossy().to_string())
+    let trimmed_name = file_name.trim();
+    if trimmed_name.is_empty() {
+        return Err("报告文件名不能为空".to_string());
+    }
+
+    Ok(dir.join(trimmed_name))
+}
+
+fn normalize_export_format(format: &str) -> Result<&'static str, String> {
+    match format.trim().to_ascii_lowercase().as_str() {
+        "markdown" | "md" => Ok("md"),
+        "docx" | "word" => Ok("docx"),
+        other => Err(format!("暂不支持的导出格式：{}", other)),
+    }
+}
+
+fn strip_known_report_extension(base_name: &str) -> String {
+    let trimmed = base_name.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.ends_with(".docx") {
+        trimmed[..trimmed.len() - 5].to_string()
+    } else if lower.ends_with(".md") {
+        trimmed[..trimmed.len() - 3].to_string()
+    } else {
+        trimmed.to_string()
+    }
 }
 
 pub fn build_monthly_result(
@@ -579,6 +633,42 @@ mod tests {
 
         assert!(message.contains("不是文件夹"));
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn save_report_document_writes_docx_package() {
+        let dir = std::env::temp_dir().join(format!("gitpulse-docx-export-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+
+        let path = save_report_document(
+            &dir.to_string_lossy(),
+            "weekly_report_2026-W25",
+            "# 周报\n\n- 完成 `DOCX` 导出",
+            "docx",
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+
+        assert!(path.ends_with("weekly_report_2026-W25.docx"));
+        assert_eq!(&bytes[0..2], b"PK");
+        assert!(text.contains("word/document.xml"));
+        assert!(text.contains("DOCX"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn save_report_document_preserves_markdown_export() {
+        let dir = std::env::temp_dir().join(format!("gitpulse-md-export-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+
+        let path = save_report_document(&dir.to_string_lossy(), "daily.md", "content", "markdown")
+            .unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+
+        assert!(path.ends_with("daily.md"));
+        assert_eq!("content", content);
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

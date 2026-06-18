@@ -54,12 +54,13 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 ## Completed In P3
 
 - [x] Increase the default desktop window height and compact short-window report history so the report preview remains usable.
+- [x] Add manual Word document export alongside Markdown export for generated reports.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
-- Add export formats beyond Markdown, such as PDF or Word.
+- Add PDF export after the Word export path has been exercised in real reports.
 - Add clearer diagnostics for broken repositories, missing Git, invalid output directories, and missing AI credentials.
 - Add lightweight end-to-end smoke checks for the Tauri command flow.
 

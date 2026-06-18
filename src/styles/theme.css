@@ -419,6 +419,32 @@
   background: rgba(20, 31, 48, 0.78);
 }
 
+:root[data-theme="dark"] .export-split-toggle {
+  border-color: rgba(109, 168, 255, 0.26);
+  color: #d9eaff;
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .export-split-toggle:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.42);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .export-popover {
+  border-color: rgba(52, 74, 103, 0.96);
+  background: rgba(12, 22, 36, 0.98);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
+}
+
+:root[data-theme="dark"] .export-option {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .export-option:hover {
+  border-color: rgba(109, 168, 255, 0.28);
+  background: rgba(63, 140, 255, 0.16);
+}
+
 :root[data-theme="dark"] .preview-expand-button {
   border-color: rgba(109, 168, 255, 0.26);
   color: #d9eaff;

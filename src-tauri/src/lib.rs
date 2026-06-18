@@ -1,9 +1,11 @@
 mod ai;
 mod codex_oauth;
+mod docx;
 mod git_ops;
 mod models;
 mod report;
 mod secure_store;
+mod zip_store;
 
 use crate::models::{
     AiConfig, AiModelInfo, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
@@ -306,6 +308,16 @@ fn save_text_file(
 }
 
 #[tauri::command]
+fn save_report_file(
+    output_dir: String,
+    base_name: String,
+    format: String,
+    content: String,
+) -> Result<String, String> {
+    report::save_report_document(&output_dir, &base_name, &content, &format)
+}
+
+#[tauri::command]
 fn read_mapping_xlsx(path: String) -> Result<Vec<MappingEntry>, String> {
     use calamine::{open_workbook, Reader, Xlsx};
 
@@ -387,6 +399,7 @@ pub fn run() {
             set_secure_ai_api_key,
             clear_secure_ai_api_key,
             save_text_file,
+            save_report_file,
             read_mapping_xlsx,
             write_mapping_template_xlsx,
             codex_oauth_start_device_flow,

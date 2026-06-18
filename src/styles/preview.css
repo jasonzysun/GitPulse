@@ -381,6 +381,98 @@
   opacity: 0.5;
 }
 
+.export-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+.export-split .preview-save-button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.export-split-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 7px;
+  border: 1px solid rgba(63, 140, 255, 0.26);
+  border-left: 0;
+  border-top-right-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  color: var(--primary-dark);
+  background: rgba(255, 255, 255, 0.92);
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.export-split-toggle:hover:not(:disabled) {
+  border-color: rgba(63, 140, 255, 0.42);
+  background: var(--primary-soft);
+}
+
+.export-split-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.export-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 6px;
+  width: 232px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: 0 14px 32px rgba(24, 35, 52, 0.18);
+}
+
+.export-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 7px 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.export-option:hover {
+  border-color: rgba(63, 140, 255, 0.22);
+  background: rgba(237, 246, 255, 0.72);
+}
+
+.export-option span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.export-option strong {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.export-option em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .preview-loading {
   display: flex;
   flex-direction: column;
@@ -904,6 +996,7 @@
   .preview-save-button,
   .preview-polish-button,
   .polish-split-toggle,
+  .export-split-toggle,
   .ai-toggle-compact {
     min-height: 34px;
   }

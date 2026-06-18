@@ -17,6 +17,7 @@ import {
   type GitIdentity,
   type LoadedSettingsState,
   type PeriodReportResult,
+  type ReportExportFormat,
   type PreviewMode,
   type ReportHistoryEntry,
   type RepoInfo,
@@ -545,26 +546,27 @@ function App() {
     }
   }
 
-  async function saveReport() {
+  async function saveReport(format: ReportExportFormat = "markdown") {
     if (!previewText || !settings.outputEnabled) return;
-    let fileName: string;
+    let baseName: string;
     if (activePreview === "monthly") {
-      fileName = `monthly_report_${monthlyLabel}.md`;
+      baseName = `monthly_report_${monthlyLabel || formatMonthLabel(monthlyMonth)}`;
     } else if (activePreview === "weekly") {
-      fileName = `weekly_report_${weeklyWeek}.md`;
+      baseName = `weekly_report_${weeklyWeek}`;
     } else {
       const range = activePreview === "custom" ? customRange : dailyRange;
-      fileName = `git_commits_${range.startDate}_to_${range.endDate}.md`;
+      baseName = `git_commits_${range.startDate}_to_${range.endDate}`;
     }
     await runTask("正在导出报告", async () => {
-      const outputFile = await invoke<string>("save_text_file", {
+      const outputFile = await invoke<string>("save_report_file", {
         outputDir: settings.outputDir,
-        fileName,
+        baseName,
+        format,
         content: previewText,
       });
       setLastOutputFile(outputFile);
       updateActiveHistory({ outputFile });
-      setStatus("报告已导出");
+      setStatus(`报告已导出为 ${formatReportExportLabel(format)}`);
     }, () => validateOutputSettings(settings));
   }
 
@@ -892,6 +894,10 @@ function formatHistoryTitle(mode: PreviewMode, periodLabel: string, range: DateR
   if (mode === "weekly") return `周报 · ${periodLabel}`;
   if (mode === "custom") return `自定义 · ${range.startDate} ~ ${range.endDate}`;
   return `日报 · ${range.startDate}`;
+}
+
+function formatReportExportLabel(format: ReportExportFormat) {
+  return format === "docx" ? "Word 文档" : "Markdown";
 }
 
 function formatExtractProgress(progress: CommitExtractProgress) {
