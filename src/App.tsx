@@ -897,7 +897,9 @@ function formatHistoryTitle(mode: PreviewMode, periodLabel: string, range: DateR
 }
 
 function formatReportExportLabel(format: ReportExportFormat) {
-  return format === "docx" ? "Word 文档" : "Markdown";
+  if (format === "docx") return "Word 文档";
+  if (format === "pdf") return "PDF";
+  return "Markdown";
 }
 
 function formatExtractProgress(progress: CommitExtractProgress) {

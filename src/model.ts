@@ -55,7 +55,7 @@ export type PeriodReportResult = {
 
 export type PreviewMode = "summary" | "weekly" | "custom" | "monthly";
 
-export type ReportExportFormat = "markdown" | "docx";
+export type ReportExportFormat = "markdown" | "docx" | "pdf";
 
 export type DateRange = {
   startDate: string;

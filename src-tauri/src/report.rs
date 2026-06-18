@@ -1,6 +1,7 @@
 use crate::{
     docx,
     models::{CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo},
+    pdf,
 };
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
@@ -149,14 +150,22 @@ pub fn save_report_document(
 ) -> Result<String, String> {
     let normalized = normalize_export_format(format)?;
     let file_name = format!("{}.{}", strip_known_report_extension(base_name), normalized);
-    if normalized == "md" {
-        return save_report_file(output_dir, &file_name, content);
-    }
-
     let output_file = resolve_output_file(output_dir, &file_name)?;
-    fs::write(&output_file, docx::markdown_to_docx(content)).map_err(|err| {
+    let bytes = match normalized {
+        "md" => return save_report_file(output_dir, &file_name, content),
+        "docx" => docx::markdown_to_docx(content),
+        "pdf" => pdf::markdown_to_pdf(content)?,
+        _ => unreachable!("export format is normalized before writing"),
+    };
+    fs::write(&output_file, bytes).map_err(|err| {
+        let label = match normalized {
+            "docx" => "Word",
+            "pdf" => "PDF",
+            _ => "报告",
+        };
         format!(
-            "写入 Word 报告失败：{}。请确认输出目录有写入权限：{}",
+            "写入 {} 报告失败：{}。请确认输出目录有写入权限：{}",
+            label,
             err,
             output_dir.trim()
         )
@@ -196,6 +205,7 @@ fn normalize_export_format(format: &str) -> Result<&'static str, String> {
     match format.trim().to_ascii_lowercase().as_str() {
         "markdown" | "md" => Ok("md"),
         "docx" | "word" => Ok("docx"),
+        "pdf" => Ok("pdf"),
         other => Err(format!("暂不支持的导出格式：{}", other)),
     }
 }
@@ -205,6 +215,8 @@ fn strip_known_report_extension(base_name: &str) -> String {
     let lower = trimmed.to_ascii_lowercase();
     if lower.ends_with(".docx") {
         trimmed[..trimmed.len() - 5].to_string()
+    } else if lower.ends_with(".pdf") {
+        trimmed[..trimmed.len() - 4].to_string()
     } else if lower.ends_with(".md") {
         trimmed[..trimmed.len() - 3].to_string()
     } else {
@@ -668,6 +680,25 @@ mod tests {
 
         assert!(path.ends_with("daily.md"));
         assert_eq!("content", content);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn save_report_document_writes_pdf_file() {
+        let dir = std::env::temp_dir().join(format!("gitpulse-pdf-export-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+
+        let path = save_report_document(
+            &dir.to_string_lossy(),
+            "weekly_report_2026-W25.md",
+            "# Weekly Report\n\n- Export PDF",
+            "pdf",
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+
+        assert!(path.ends_with("weekly_report_2026-W25.pdf"));
+        assert!(bytes.starts_with(b"%PDF"));
         let _ = fs::remove_dir_all(dir);
     }
 

@@ -3,6 +3,7 @@ mod codex_oauth;
 mod docx;
 mod git_ops;
 mod models;
+mod pdf;
 mod report;
 mod secure_store;
 mod zip_store;

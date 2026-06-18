@@ -347,6 +347,13 @@ export function Workbench(props: Props) {
                             <em>.docx · 适合提交和归档</em>
                           </span>
                         </button>
+                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("pdf")}>
+                          <FileText size={15} />
+                          <span>
+                            <strong>PDF</strong>
+                            <em>.pdf · 适合发送和留档</em>
+                          </span>
+                        </button>
                       </div>
                     )}
                   </div>
