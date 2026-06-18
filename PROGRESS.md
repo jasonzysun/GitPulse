@@ -49,12 +49,16 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add repository scan progress and cancellation.
 - [x] Reuse the indexed repository list during report generation and extract commits with bounded parallel workers.
 - [x] Move report period selection into the report action bar with daily date, weekly week, monthly month, and custom range controls.
+- [x] Add local report history with reopen, copy, regenerate, export-path tracking, and AI-polished markers.
+
+## Completed In P3
+
+- [x] Increase the default desktop window height and compact short-window report history so the report preview remains usable.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
-- Add report history and reopen/export previous reports.
 - Add export formats beyond Markdown, such as PDF or Word.
 - Add clearer diagnostics for broken repositories, missing Git, invalid output directories, and missing AI credentials.
 - Add lightweight end-to-end smoke checks for the Tauri command flow.

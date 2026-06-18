@@ -60,6 +60,20 @@ export type DateRange = {
   endDate: string;
 };
 
+export type ReportHistoryEntry = {
+  id: string;
+  mode: PreviewMode;
+  title: string;
+  range: DateRange;
+  periodLabel: string;
+  generatedAt: string;
+  repoCount: number;
+  commitCount: number;
+  aiEnhanced: boolean;
+  outputFile: string;
+  reportText: string;
+};
+
 export type UpdateSummary = {
   currentVersion: string;
   version: string;
@@ -117,6 +131,8 @@ export type LoadedSettingsState = {
 
 export const STORAGE_KEY = "gitpulse-settings";
 const REPO_INDEX_CACHE_KEY = "gitpulse-repo-index-cache";
+const REPORT_HISTORY_KEY = "gitpulse-report-history";
+const REPORT_HISTORY_LIMIT = 30;
 const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const EVIDENCE_PRESERVATION_INSTRUCTION =
@@ -303,6 +319,57 @@ export function saveRepoIndexCache(rootDirs: string[], repos: RepoInfo[]) {
 
 export function clearRepoIndexCache() {
   localStorage.removeItem(REPO_INDEX_CACHE_KEY);
+}
+
+export function loadReportHistory(): ReportHistoryEntry[] {
+  const saved = localStorage.getItem(REPORT_HISTORY_KEY);
+  if (!saved) return [];
+
+  let rawHistory: unknown;
+  try {
+    rawHistory = JSON.parse(saved);
+  } catch {
+    localStorage.removeItem(REPORT_HISTORY_KEY);
+    return [];
+  }
+
+  if (!Array.isArray(rawHistory)) return [];
+  return rawHistory.filter(isReportHistoryEntry).slice(0, REPORT_HISTORY_LIMIT);
+}
+
+export function saveReportHistory(entries: ReportHistoryEntry[]): ReportHistoryEntry[] {
+  let nextEntries = entries.filter(isReportHistoryEntry).slice(0, REPORT_HISTORY_LIMIT);
+  while (nextEntries.length > 0) {
+    try {
+      localStorage.setItem(REPORT_HISTORY_KEY, JSON.stringify(nextEntries));
+      return nextEntries;
+    } catch {
+      nextEntries = nextEntries.slice(0, Math.max(0, Math.floor(nextEntries.length / 2)));
+    }
+  }
+  localStorage.removeItem(REPORT_HISTORY_KEY);
+  return [];
+}
+
+export function rememberReportHistoryEntry(
+  entries: ReportHistoryEntry[],
+  entry: ReportHistoryEntry,
+): ReportHistoryEntry[] {
+  return saveReportHistory([entry, ...entries.filter((item) => item.id !== entry.id)]);
+}
+
+export function updateReportHistoryEntry(
+  entries: ReportHistoryEntry[],
+  id: string,
+  patch: Partial<Pick<ReportHistoryEntry, "outputFile" | "reportText" | "commitCount" | "generatedAt">>,
+): ReportHistoryEntry[] {
+  if (!id) return entries;
+  const nextEntries = entries.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry));
+  return saveReportHistory(nextEntries);
+}
+
+export function clearReportHistory() {
+  localStorage.removeItem(REPORT_HISTORY_KEY);
 }
 
 export type MappingEntry = {
@@ -670,6 +737,34 @@ function isRepoInfo(value: unknown): value is RepoInfo {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const repo = value as Partial<RepoInfo>;
   return isNonEmptyString(repo.path) && isNonEmptyString(repo.name) && typeof repo.branch === "string";
+}
+
+function isReportHistoryEntry(value: unknown): value is ReportHistoryEntry {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as Partial<ReportHistoryEntry>;
+  return (
+    isNonEmptyString(entry.id)
+    && isPreviewMode(entry.mode)
+    && isNonEmptyString(entry.title)
+    && isDateRange(entry.range)
+    && typeof entry.periodLabel === "string"
+    && isNonEmptyString(entry.generatedAt)
+    && Number.isFinite(entry.repoCount)
+    && Number.isFinite(entry.commitCount)
+    && typeof entry.aiEnhanced === "boolean"
+    && typeof entry.outputFile === "string"
+    && typeof entry.reportText === "string"
+  );
+}
+
+function isPreviewMode(value: unknown): value is PreviewMode {
+  return value === "summary" || value === "weekly" || value === "custom" || value === "monthly";
+}
+
+function isDateRange(value: unknown): value is DateRange {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const range = value as Partial<DateRange>;
+  return typeof range.startDate === "string" && typeof range.endDate === "string";
 }
 
 function samePathSet(left: unknown[], right: string[]) {

@@ -6,13 +6,16 @@ import {
   Clipboard,
   FileDown,
   GitBranch,
+  History,
   Loader2,
   Maximize2,
   Minimize2,
   RefreshCw,
+  RotateCcw,
   Settings2,
   Sparkles,
   TerminalSquare,
+  Trash2,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -22,6 +25,7 @@ import {
   type CommitExtractProgress,
   type DateRange,
   type PreviewMode,
+  type ReportHistoryEntry,
   type RepoInfo,
   type RepoScanProgress,
 } from "../model";
@@ -41,6 +45,8 @@ type Props = {
   extractProgress: CommitExtractProgress | null;
   lastOutputFile: string;
   summaryText: string;
+  reportHistory: ReportHistoryEntry[];
+  activeHistoryId: string;
   repoCount: number;
   commitCount: number;
   author: string;
@@ -62,6 +68,10 @@ type Props = {
   onPolish: (extraInstruction?: string) => void;
   onCopy: () => void;
   onExport: () => void;
+  onOpenHistory: (entry: ReportHistoryEntry) => void;
+  onCopyHistory: (entry: ReportHistoryEntry) => void;
+  onRegenerateHistory: (entry: ReportHistoryEntry) => void;
+  onClearHistory: () => void;
   canExport: boolean;
   disabledRepos: string[];
   projectNames: Record<string, string>;
@@ -314,23 +324,36 @@ export function Workbench(props: Props) {
               {props.copyNotice.message}
             </div>
           )}
-          {props.isBusy ? (
-            <div className="preview-loading">
-              <Loader2 className="spin" size={32} />
-              <p>{extractProgressText}</p>
-            </div>
-          ) : (
-            <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
+          <div className="preview-shell">
+            {props.isBusy ? (
+              <div className="preview-loading">
+                <Loader2 className="spin" size={32} />
+                <p>{extractProgressText}</p>
+              </div>
+            ) : (
+              <MarkdownPreview markdown={props.previewText} emptyText={previewEmptyText} />
+            )}
+            <button
+              className="preview-expand-button"
+              type="button"
+              onClick={() => setIsPreviewExpanded((current) => !current)}
+              aria-label={isPreviewExpanded ? "退出预览全屏" : "全屏查看预览"}
+              title={isPreviewExpanded ? "退出全屏" : "全屏查看"}
+            >
+              {isPreviewExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+            </button>
+          </div>
+          {!isPreviewExpanded && (
+            <ReportHistoryPanel
+              entries={props.reportHistory}
+              activeHistoryId={props.activeHistoryId}
+              isBusy={props.isBusy}
+              onOpen={props.onOpenHistory}
+              onCopy={props.onCopyHistory}
+              onRegenerate={props.onRegenerateHistory}
+              onClear={props.onClearHistory}
+            />
           )}
-          <button
-            className="preview-expand-button"
-            type="button"
-            onClick={() => setIsPreviewExpanded((current) => !current)}
-            aria-label={isPreviewExpanded ? "退出预览全屏" : "全屏查看预览"}
-            title={isPreviewExpanded ? "退出全屏" : "全屏查看"}
-          >
-            {isPreviewExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-          </button>
         </section>
 
         <section className="repo-drawer">
@@ -421,6 +444,82 @@ export function Workbench(props: Props) {
   );
 }
 
+function ReportHistoryPanel({
+  entries,
+  activeHistoryId,
+  isBusy,
+  onOpen,
+  onCopy,
+  onRegenerate,
+  onClear,
+}: {
+  entries: ReportHistoryEntry[];
+  activeHistoryId: string;
+  isBusy: boolean;
+  onOpen: (entry: ReportHistoryEntry) => void;
+  onCopy: (entry: ReportHistoryEntry) => void;
+  onRegenerate: (entry: ReportHistoryEntry) => void;
+  onClear: () => void;
+}) {
+  return (
+    <section className="report-history-panel" aria-label="最近生成的报告">
+      <PanelTitle
+        icon={<History size={17} />}
+        title="最近报告"
+        meta={entries.length > 0 ? `${entries.length} 条` : "生成后自动记录"}
+        action={(
+          <button className="history-clear-button" type="button" onClick={onClear} disabled={entries.length === 0 || isBusy}>
+            <Trash2 size={13} />
+            清空
+          </button>
+        )}
+      />
+      {entries.length === 0 ? (
+        <p className="history-empty">生成报告后会在这里保留最近记录，可重新打开、复制或按同一周期重新生成。</p>
+      ) : (
+        <div className="history-list">
+          {entries.map((entry) => {
+            const active = entry.id === activeHistoryId;
+            return (
+              <article className={`history-row ${active ? "active" : ""}`} key={entry.id}>
+                <button
+                  className="history-open-button"
+                  type="button"
+                  onClick={() => onOpen(entry)}
+                  aria-pressed={active}
+                  title="打开这份历史报告"
+                >
+                  <span className="history-kind">{getHistoryKindLabel(entry.mode)}</span>
+                  <span className="history-mainline">
+                    <strong>{entry.title}</strong>
+                    {entry.aiEnhanced && <em className="history-badge ai">AI</em>}
+                    {entry.outputFile && <em className="history-badge exported">已导出</em>}
+                  </span>
+                  <span className="history-subline">{formatHistoryTime(entry.generatedAt)} · {formatHistoryRange(entry)}</span>
+                </button>
+                <div className="history-stats" aria-label="历史报告统计">
+                  <span>{entry.repoCount} 仓库</span>
+                  <span>{entry.commitCount} 提交</span>
+                </div>
+                <div className="history-actions">
+                  <button type="button" onClick={() => onCopy(entry)} title="复制历史报告">
+                    <Clipboard size={13} />
+                    复制
+                  </button>
+                  <button type="button" onClick={() => onRegenerate(entry)} disabled={isBusy} title="按该周期重新生成">
+                    <RotateCcw size={13} />
+                    重跑
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ReportPeriodControl({
   activePreview,
   dailyDate,
@@ -504,6 +603,28 @@ function ReportPeriodControl({
       )}
     </div>
   );
+}
+
+function getHistoryKindLabel(mode: PreviewMode) {
+  if (mode === "monthly") return "月报";
+  if (mode === "weekly") return "周报";
+  if (mode === "custom") return "自定义";
+  return "日报";
+}
+
+function formatHistoryRange(entry: ReportHistoryEntry) {
+  if (entry.mode === "summary") return entry.range.startDate;
+  return `${entry.range.startDate} ~ ${entry.range.endDate}`;
+}
+
+function formatHistoryTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${month}-${day} ${hour}:${minute}`;
 }
 
 function PanelTitle({ icon, title, meta, action }: { icon: ReactNode; title: string; meta: string; action?: ReactNode }) {

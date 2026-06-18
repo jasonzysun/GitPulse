@@ -230,7 +230,8 @@
 
 .report-canvas {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .repo-list {
@@ -255,6 +256,61 @@
 .event-log p {
   margin: 0;
   word-break: break-all;
+}
+
+@media (max-height: 820px) and (min-width: 721px) {
+  .app-root {
+    padding: 10px;
+  }
+
+  .workbench {
+    height: calc(100vh - 20px);
+    gap: 8px;
+  }
+
+  .hero-band {
+    min-height: 74px;
+    padding: 12px 14px;
+  }
+
+  .hero-brand {
+    height: 34px;
+    max-width: 142px;
+    margin-bottom: 4px;
+  }
+
+  .hero-copy h2 {
+    margin-top: 2px;
+    font-size: 22px;
+    line-height: 26px;
+  }
+
+  .hero-subcopy {
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 17px;
+  }
+
+  .hero-aside {
+    gap: 6px;
+  }
+
+  .repo-drawer,
+  .report-canvas {
+    padding: 10px;
+  }
+
+  .report-canvas {
+    gap: 8px;
+  }
+
+  .repo-drawer {
+    row-gap: 8px;
+  }
+
+  .event-log {
+    padding: 8px 10px;
+  }
 }
 
 @media (max-width: 1040px) {

@@ -367,6 +367,58 @@
   background: rgba(12, 22, 36, 0.96);
 }
 
+:root[data-theme="dark"] .report-history-panel {
+  border-top-color: var(--canvas-line);
+}
+
+:root[data-theme="dark"] .history-clear-button,
+:root[data-theme="dark"] .history-actions button {
+  border-color: rgba(109, 168, 255, 0.24);
+  color: var(--primary-dark);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .history-clear-button:hover:not(:disabled),
+:root[data-theme="dark"] .history-actions button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.4);
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .history-empty {
+  border-color: rgba(120, 144, 170, 0.28);
+  background: rgba(20, 31, 48, 0.46);
+}
+
+:root[data-theme="dark"] .history-row {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(12, 22, 36, 0.66);
+}
+
+:root[data-theme="dark"] .history-row:hover {
+  border-color: rgba(109, 168, 255, 0.3);
+  background: rgba(20, 31, 48, 0.82);
+}
+
+:root[data-theme="dark"] .history-row.active {
+  border-color: rgba(109, 168, 255, 0.46);
+  background: rgba(63, 140, 255, 0.16);
+}
+
+:root[data-theme="dark"] .history-badge.ai {
+  color: #9ee8c7;
+  background: rgba(28, 109, 76, 0.24);
+}
+
+:root[data-theme="dark"] .history-badge.exported {
+  color: #d9eaff;
+  background: rgba(63, 140, 255, 0.2);
+}
+
+:root[data-theme="dark"] .history-stats span {
+  color: var(--ink-soft);
+  background: rgba(20, 31, 48, 0.78);
+}
+
 :root[data-theme="dark"] .preview-expand-button {
   border-color: rgba(109, 168, 255, 0.26);
   color: #d9eaff;
