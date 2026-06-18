@@ -629,6 +629,7 @@ mod tests {
             branch_name: branch_name.to_string(),
             hash: "abc123def".to_string(),
             author: "tester".to_string(),
+            author_email: "tester@example.com".to_string(),
             date: "2026-06-10 10:00:00 +0800".to_string(),
             message: message.to_string(),
         }

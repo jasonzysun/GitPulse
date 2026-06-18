@@ -5,6 +5,16 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub struct GitCommitQuery<'a> {
+    pub start_date: &'a str,
+    pub end_date: &'a str,
+    pub author: &'a str,
+    pub extract_all_branches: bool,
+    pub exclude_merge_commits: bool,
+    pub exclude_revert_commits: bool,
+    pub exclude_bot_commits: bool,
+}
+
 pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
     ensure_git_available()?;
     let mut repos = Vec::new();
@@ -48,17 +58,14 @@ pub fn current_branch(repo_path: &Path) -> String {
 
 pub fn get_git_commits(
     repo: &RepoInfo,
-    start_date: &str,
-    end_date: &str,
-    author: &str,
-    extract_all_branches: bool,
+    query: &GitCommitQuery,
 ) -> Result<Vec<CommitRecord>, String> {
     ensure_git_available()?;
     let repo_path = PathBuf::from(&repo.path);
-    let args = build_log_args(start_date, end_date, author, extract_all_branches);
+    let args = build_log_args(query);
     let borrowed_args: Vec<&str> = args.iter().map(String::as_str).collect();
     let output = run_git(&repo_path, &borrowed_args)?;
-    Ok(parse_git_log_output(repo, &output))
+    Ok(parse_git_log_output(repo, &output, query))
 }
 
 fn visit_dir(dir: &Path, repos: &mut Vec<RepoInfo>) -> std::io::Result<()> {
@@ -117,53 +124,123 @@ fn should_visit_dir(path: &Path) -> bool {
     )
 }
 
-fn build_log_args(
-    start_date: &str,
-    end_date: &str,
-    author: &str,
-    extract_all_branches: bool,
-) -> Vec<String> {
+fn build_log_args(query: &GitCommitQuery) -> Vec<String> {
     let mut args = vec!["log".to_string()];
-    if extract_all_branches {
+    if query.extract_all_branches {
         args.push("--all".to_string());
+        args.push("--source".to_string());
+    }
+    if query.exclude_merge_commits {
+        args.push("--no-merges".to_string());
     }
     args.extend([
-        format!("--since={} 00:00:00", start_date),
-        format!("--until={} 23:59:59", end_date),
-        format!("--author={}", author),
-        "--pretty=format:%x1e%H%x1f%an%x1f%ad%x1f%B".to_string(),
+        format!("--since={} 00:00:00", query.start_date),
+        format!("--until={} 23:59:59", query.end_date),
+        format!("--author={}", query.author),
+        "--pretty=format:%x1e%H%x1f%P%x1f%S%x1f%an%x1f%ae%x1f%ad%x1f%B".to_string(),
         "--date=iso".to_string(),
     ]);
     args
 }
 
-fn parse_git_log_output(repo: &RepoInfo, output: &str) -> Vec<CommitRecord> {
+fn parse_git_log_output(
+    repo: &RepoInfo,
+    output: &str,
+    query: &GitCommitQuery,
+) -> Vec<CommitRecord> {
     output
         .split('\x1e')
-        .filter_map(|record| parse_commit_record(repo, record))
+        .filter_map(|record| parse_commit_record(repo, record, query))
         .collect()
 }
 
-fn parse_commit_record(repo: &RepoInfo, record: &str) -> Option<CommitRecord> {
+fn parse_commit_record(
+    repo: &RepoInfo,
+    record: &str,
+    query: &GitCommitQuery,
+) -> Option<CommitRecord> {
     let record = record.trim();
     if record.is_empty() {
         return None;
     }
 
-    let parts: Vec<&str> = record.splitn(4, '\x1f').collect();
-    if parts.len() != 4 {
+    let parts: Vec<&str> = record.splitn(7, '\x1f').collect();
+    if parts.len() != 7 {
+        return None;
+    }
+    let parent_count = parts[1].split_whitespace().count();
+    let message = parts[6].trim();
+    let author = parts[3].trim();
+    let author_email = parts[4].trim();
+
+    if query.exclude_merge_commits && parent_count > 1 {
+        return None;
+    }
+    if query.exclude_revert_commits && is_revert_commit(message) {
+        return None;
+    }
+    if query.exclude_bot_commits && is_bot_author(author, author_email) {
         return None;
     }
 
     Some(CommitRecord {
         repo_path: repo.path.clone(),
         project_name: repo.name.clone(),
-        branch_name: repo.branch.clone(),
+        branch_name: branch_name_from_source(repo, parts[2], query.extract_all_branches),
         hash: parts[0].trim().to_string(),
-        author: parts[1].trim().to_string(),
-        date: parts[2].trim().to_string(),
-        message: parts[3].trim().to_string(),
+        author: author.to_string(),
+        author_email: author_email.to_string(),
+        date: parts[5].trim().to_string(),
+        message: message.to_string(),
     })
+}
+
+fn branch_name_from_source(repo: &RepoInfo, source: &str, extract_all_branches: bool) -> String {
+    if !extract_all_branches {
+        return repo.branch.clone();
+    }
+    normalize_source_ref(source).unwrap_or_else(|| repo.branch.clone())
+}
+
+fn normalize_source_ref(source: &str) -> Option<String> {
+    let trimmed = source.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let without_prefix = trimmed
+        .strip_prefix("refs/heads/")
+        .or_else(|| trimmed.strip_prefix("refs/remotes/"))
+        .unwrap_or(trimmed);
+    let without_remote = without_prefix
+        .strip_prefix("origin/")
+        .unwrap_or(without_prefix);
+    if without_remote == "HEAD" || without_remote.ends_with("/HEAD") {
+        return None;
+    }
+    Some(without_remote.to_string())
+}
+
+fn is_revert_commit(message: &str) -> bool {
+    let subject = message.lines().next().unwrap_or_default().trim();
+    let subject_lower = subject.to_lowercase();
+    subject_lower == "revert"
+        || subject_lower.starts_with("revert ")
+        || subject_lower.starts_with("revert:")
+        || subject_lower.starts_with("revert(")
+        || message.contains("This reverts commit")
+}
+
+fn is_bot_author(name: &str, email: &str) -> bool {
+    let name = name.trim().to_lowercase();
+    let email = email.trim().to_lowercase();
+    name.contains("[bot]")
+        || email.contains("[bot]")
+        || name == "github-actions"
+        || name == "dependabot"
+        || name.ends_with(" bot")
+        || email.starts_with("dependabot")
+        || email.starts_with("github-actions")
+        || email.contains("bot@")
 }
 
 /// 创建 git 子进程命令。Windows 上设置 CREATE_NO_WINDOW，避免生产包（GUI 子系统、无控制台）
@@ -304,11 +381,142 @@ mod tests {
         assert_eq!(path, "C:\\workspace\\repo");
     }
 
+    #[test]
+    fn parse_git_log_output_filters_merge_revert_and_bot_commits() {
+        let repo = repo_info();
+        let query = query(true, true, true, true);
+        let output = [
+            log_record(
+                "normal",
+                "parent",
+                "refs/heads/main",
+                "tester",
+                "tester@example.com",
+                "feat: keep",
+            ),
+            log_record(
+                "merge",
+                "parent-a parent-b",
+                "refs/heads/main",
+                "tester",
+                "tester@example.com",
+                "Merge branch 'feature'",
+            ),
+            log_record(
+                "revert",
+                "parent",
+                "refs/heads/main",
+                "tester",
+                "tester@example.com",
+                "Revert \"feat: old change\"",
+            ),
+            log_record(
+                "bot",
+                "parent",
+                "refs/heads/main",
+                "dependabot[bot]",
+                "49699333+dependabot[bot]@users.noreply.github.com",
+                "chore: bump dependency",
+            ),
+        ]
+        .join("");
+
+        let commits = parse_git_log_output(&repo, &output, &query);
+
+        assert_eq!(commits.len(), 1);
+        assert_eq!(commits[0].hash, "normal");
+    }
+
+    #[test]
+    fn parse_git_log_output_uses_source_ref_for_all_branch_attribution() {
+        let repo = repo_info();
+        let query = query(true, false, false, false);
+        let output = log_record(
+            "abc123",
+            "parent",
+            "refs/remotes/origin/feature/report",
+            "tester",
+            "tester@example.com",
+            "feat: report",
+        );
+
+        let commits = parse_git_log_output(&repo, &output, &query);
+
+        assert_eq!(commits[0].branch_name, "feature/report");
+    }
+
+    #[test]
+    fn parse_git_log_output_keeps_current_branch_without_all_branches() {
+        let repo = repo_info();
+        let query = query(false, false, false, false);
+        let output = log_record(
+            "abc123",
+            "parent",
+            "refs/heads/feature/report",
+            "tester",
+            "tester@example.com",
+            "feat: report",
+        );
+
+        let commits = parse_git_log_output(&repo, &output, &query);
+
+        assert_eq!(commits[0].branch_name, "main");
+    }
+
+    #[test]
+    fn build_log_args_uses_source_and_no_merges_for_all_branch_filters() {
+        let query = query(true, true, false, false);
+
+        let args = build_log_args(&query);
+
+        assert!(args.contains(&"--all".to_string()));
+        assert!(args.contains(&"--source".to_string()));
+        assert!(args.contains(&"--no-merges".to_string()));
+    }
+
     fn temp_root(label: &str) -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("gitpulse-{label}-{}-{nanos}", std::process::id()))
+    }
+
+    fn repo_info() -> RepoInfo {
+        RepoInfo {
+            path: "repo-a".to_string(),
+            name: "repo-a".to_string(),
+            branch: "main".to_string(),
+        }
+    }
+
+    fn query(
+        extract_all_branches: bool,
+        exclude_merge_commits: bool,
+        exclude_revert_commits: bool,
+        exclude_bot_commits: bool,
+    ) -> GitCommitQuery<'static> {
+        GitCommitQuery {
+            start_date: "2026-06-01",
+            end_date: "2026-06-30",
+            author: "tester",
+            extract_all_branches,
+            exclude_merge_commits,
+            exclude_revert_commits,
+            exclude_bot_commits,
+        }
+    }
+
+    fn log_record(
+        hash: &str,
+        parents: &str,
+        source: &str,
+        author: &str,
+        email: &str,
+        message: &str,
+    ) -> String {
+        format!(
+            "\x1e{hash}\x1f{parents}\x1f{source}\x1f{author}\x1f{email}\x1f2026-06-10 10:00:00 +0800\x1f{message}"
+        )
     }
 }

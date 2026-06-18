@@ -70,6 +70,9 @@ export type AppSettings = {
   author: string;
   disabledRepos: string[];
   extractAllBranches: boolean;
+  excludeMergeCommits: boolean;
+  excludeRevertCommits: boolean;
+  excludeBotCommits: boolean;
   detailedOutput: boolean;
   showProjectAndBranch: boolean;
   showEvidenceDetails: boolean;
@@ -124,6 +127,9 @@ export const defaultSettings: AppSettings = {
   author: "",
   disabledRepos: [],
   extractAllBranches: false,
+  excludeMergeCommits: true,
+  excludeRevertCommits: true,
+  excludeBotCommits: true,
   detailedOutput: false,
   showProjectAndBranch: true,
   showEvidenceDetails: false,
@@ -191,6 +197,9 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
   parsed.reportTemplateProfile = normalizeReportTemplateProfile(parsed.reportTemplateProfile);
+  parsed.excludeMergeCommits = parsed.excludeMergeCommits !== false;
+  parsed.excludeRevertCommits = parsed.excludeRevertCommits !== false;
+  parsed.excludeBotCommits = parsed.excludeBotCommits !== false;
   parsed.showEvidenceDetails = Boolean(parsed.showEvidenceDetails);
   parsed.aiTemperature = Number.isFinite(parsed.aiTemperature) ? parsed.aiTemperature : defaultSettings.aiTemperature;
   // 旧版本只持久化单个 rootDir 字符串，迁移为 rootDirs 数组，避免老用户工作区配置失效。
@@ -389,6 +398,9 @@ export function buildExtractOptions(
     endDate: range.endDate,
     disabledRepos: settings.disabledRepos,
     extractAllBranches: settings.extractAllBranches,
+    excludeMergeCommits: settings.excludeMergeCommits,
+    excludeRevertCommits: settings.excludeRevertCommits,
+    excludeBotCommits: settings.excludeBotCommits,
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
     showEvidenceDetails: settings.showEvidenceDetails,
@@ -411,6 +423,9 @@ export function buildMonthlyOptions(
     outputEnabled: settings.outputEnabled,
     author: settings.author,
     extractAllBranches: settings.extractAllBranches,
+    excludeMergeCommits: settings.excludeMergeCommits,
+    excludeRevertCommits: settings.excludeRevertCommits,
+    excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
@@ -439,6 +454,9 @@ export function buildPeriodReportOptions(
     periodLabel,
     reportKind: kind,
     extractAllBranches: settings.extractAllBranches,
+    excludeMergeCommits: settings.excludeMergeCommits,
+    excludeRevertCommits: settings.excludeRevertCommits,
+    excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,

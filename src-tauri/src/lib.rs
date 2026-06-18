@@ -334,10 +334,15 @@ fn collect_commits(
         }
         match git_ops::get_git_commits(
             repo,
-            &options.start_date,
-            &options.end_date,
-            &options.author,
-            options.extract_all_branches,
+            &git_ops::GitCommitQuery {
+                start_date: &options.start_date,
+                end_date: &options.end_date,
+                author: &options.author,
+                extract_all_branches: options.extract_all_branches,
+                exclude_merge_commits: options.exclude_merge_commits,
+                exclude_revert_commits: options.exclude_revert_commits,
+                exclude_bot_commits: options.exclude_bot_commits,
+            },
         ) {
             Ok(mut records) => commits.append(&mut records),
             Err(err) => warnings.push(format!("{}：{}", repo.name, err)),
@@ -373,6 +378,9 @@ fn monthly_extract_options(
         end_date: end.to_string(),
         disabled_repos: options.disabled_repos.clone(),
         extract_all_branches: options.extract_all_branches,
+        exclude_merge_commits: options.exclude_merge_commits,
+        exclude_revert_commits: options.exclude_revert_commits,
+        exclude_bot_commits: options.exclude_bot_commits,
         detailed_output: false,
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
@@ -391,6 +399,9 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         end_date: options.end_date.clone(),
         disabled_repos: options.disabled_repos.clone(),
         extract_all_branches: options.extract_all_branches,
+        exclude_merge_commits: options.exclude_merge_commits,
+        exclude_revert_commits: options.exclude_revert_commits,
+        exclude_bot_commits: options.exclude_bot_commits,
         detailed_output: false,
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
@@ -562,6 +573,7 @@ mod tests {
             branch_name: "main".to_string(),
             hash: hash.to_string(),
             author: "tester".to_string(),
+            author_email: "tester@example.com".to_string(),
             date: date.to_string(),
             message: "feat: demo".to_string(),
         }
