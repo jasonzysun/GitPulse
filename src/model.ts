@@ -72,6 +72,7 @@ export type AppSettings = {
   extractAllBranches: boolean;
   detailedOutput: boolean;
   showProjectAndBranch: boolean;
+  showEvidenceDetails: boolean;
   projectNamesText: string;
   aiEnabled: boolean;
   aiProvider: "openai-compatible" | "anthropic-native" | "codex-oauth";
@@ -96,6 +97,8 @@ export const STORAGE_KEY = "gitpulse-settings";
 const REPO_INDEX_CACHE_KEY = "gitpulse-repo-index-cache";
 const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const EVIDENCE_PRESERVATION_INSTRUCTION =
+  "已启用提交证据详情。请保留每条事项下方的「来源」引用块，不要改写仓库、分支、日期、commit hash 或原始提交信息。";
 
 export type RepoIndexCache = {
   rootDirs: string[];
@@ -123,6 +126,7 @@ export const defaultSettings: AppSettings = {
   extractAllBranches: false,
   detailedOutput: false,
   showProjectAndBranch: true,
+  showEvidenceDetails: false,
   projectNamesText: "",
   aiEnabled: false,
   aiProvider: "openai-compatible",
@@ -187,6 +191,7 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
   parsed.reportTemplateProfile = normalizeReportTemplateProfile(parsed.reportTemplateProfile);
+  parsed.showEvidenceDetails = Boolean(parsed.showEvidenceDetails);
   parsed.aiTemperature = Number.isFinite(parsed.aiTemperature) ? parsed.aiTemperature : defaultSettings.aiTemperature;
   // 旧版本只持久化单个 rootDir 字符串，迁移为 rootDirs 数组，避免老用户工作区配置失效。
   if (parsed.rootDirs.length === 0 && rawSettings.rootDir?.trim()) {
@@ -386,6 +391,7 @@ export function buildExtractOptions(
     extractAllBranches: settings.extractAllBranches,
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
+    showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "daily"),
@@ -406,6 +412,7 @@ export function buildMonthlyOptions(
     author: settings.author,
     extractAllBranches: settings.extractAllBranches,
     disabledRepos: settings.disabledRepos,
+    showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "monthly"),
@@ -433,6 +440,7 @@ export function buildPeriodReportOptions(
     reportKind: kind,
     extractAllBranches: settings.extractAllBranches,
     disabledRepos: settings.disabledRepos,
+    showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
@@ -525,7 +533,8 @@ function buildReportSystemPrompt(settings: AppSettings, kind: "daily" | PeriodRe
 }
 
 function buildReportRefinementInstruction(settings: AppSettings, extraInstruction: string) {
-  return mergeInstructions(settings.refinementInstruction, extraInstruction);
+  const evidenceInstruction = settings.showEvidenceDetails ? EVIDENCE_PRESERVATION_INSTRUCTION : "";
+  return mergeInstructions(mergeInstructions(settings.refinementInstruction, evidenceInstruction), extraInstruction);
 }
 
 export function getTodayRange(): DateRange {

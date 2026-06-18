@@ -39,19 +39,16 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add weekly report generation with project grouping, AI polishing, export, and progress tracking.
 - [x] Add arbitrary month selection for monthly reports, including AI polishing and export through the period report flow.
 - [x] Hide the report template profile selector and stop applying hidden profile instructions; style control now stays in AI polishing instructions.
+- [x] Add optional evidence details for report items, including repository, branch, date, hash, and original commit message.
+- [x] Cache repository indexes between runs and add manual rescanning.
 
 ## Next Backlog
-
-### P1 Report Usefulness
-
-- Preserve optional evidence details: repository, branch, date, hash, and original commit message.
 
 ### P2 Git Accuracy
 
 - Improve branch attribution when extracting all branches.
 - Add merge commit, revert commit, and bot author filters.
 - Add repository scan progress and cancellation.
-- Cache repository index between runs and invalidate it when roots change.
 
 ### P3 Product Experience
 

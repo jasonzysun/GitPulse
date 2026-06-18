@@ -29,10 +29,16 @@ pub fn build_extract_result(
     warnings: Vec<String>,
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    show_evidence_details: bool,
     detailed_output: bool,
 ) -> ExtractResult {
     ExtractResult {
-        summary_text: render_summary_text(&commits, project_names, show_project_and_branch),
+        summary_text: render_summary_text(
+            &commits,
+            project_names,
+            show_project_and_branch,
+            show_evidence_details,
+        ),
         detailed_text: if detailed_output {
             render_detailed_text(&commits)
         } else {
@@ -48,10 +54,18 @@ pub fn render_summary_text(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    show_evidence_details: bool,
 ) -> String {
     commits
         .iter()
-        .map(|commit| render_summary_line(commit, project_names, show_project_and_branch))
+        .map(|commit| {
+            render_summary_line(
+                commit,
+                project_names,
+                show_project_and_branch,
+                show_evidence_details,
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -63,6 +77,7 @@ pub fn render_monthly_report(
     end_date: &str,
     author: &str,
     month_label: &str,
+    show_evidence_details: bool,
 ) -> String {
     let groups = group_commits_by_project(commits, project_names);
     let mut lines = render_monthly_header(
@@ -74,7 +89,7 @@ pub fn render_monthly_report(
         month_label,
     );
     lines.extend(render_project_progress(&groups));
-    lines.extend(render_actual_completion(&groups));
+    lines.extend(render_actual_completion(&groups, show_evidence_details));
     lines.extend(render_monthly_summary(&groups));
     lines.push(
         "> 说明：本报告基于 Git 提交记录生成，业务指标和验收结论建议结合绩效口径补充。".to_string(),
@@ -89,6 +104,7 @@ pub fn render_weekly_report(
     end_date: &str,
     author: &str,
     week_label: &str,
+    show_evidence_details: bool,
 ) -> String {
     let groups = group_commits_by_project(commits, project_names);
     let mut lines = render_weekly_header(
@@ -100,7 +116,7 @@ pub fn render_weekly_report(
         week_label,
     );
     lines.extend(render_weekly_focus(&groups));
-    lines.extend(render_actual_completion(&groups));
+    lines.extend(render_actual_completion(&groups, show_evidence_details));
     lines.extend(render_weekly_next_steps(&groups));
     lines.push(
         "> 说明：本周报基于 Git 提交记录生成，建议结合测试、上线和业务反馈补充结果。".to_string(),
@@ -201,20 +217,32 @@ fn render_detailed_text(commits: &[CommitRecord]) -> String {
 /// 用户无需手动维护，同时兼容历史上已手动加了 "-" 的映射。
 const TRAILING_CONNECTORS: [char; 8] = ['-', '_', '：', ':', '；', ';', '、', ' '];
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProjectCommitItem {
+    title: String,
+    evidence: String,
+}
+
 fn render_summary_line(
     commit: &CommitRecord,
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    show_evidence_details: bool,
 ) -> String {
     let prefix = display_prefix(&resolve_project_name(project_names, commit));
     let message = clean_commit_message(&commit.message);
-    if show_project_and_branch {
+    let line = if show_project_and_branch {
         format!(
             "{}({}) - {}{}",
             commit.project_name, commit.branch_name, prefix, message
         )
     } else {
         format!("{}{}", prefix, message)
+    };
+    if show_evidence_details {
+        format!("{}\n{}", line, format_evidence_block(commit))
+    } else {
+        line
     }
 }
 
@@ -254,16 +282,57 @@ fn resolve_project_name(project_names: &HashMap<String, String>, commit: &Commit
 fn group_commits_by_project(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
-) -> BTreeMap<String, Vec<String>> {
+) -> BTreeMap<String, Vec<ProjectCommitItem>> {
     let mut groups = BTreeMap::new();
     for commit in commits {
         let name = monthly_project_name(project_names, commit);
         groups
             .entry(name)
             .or_insert_with(Vec::new)
-            .push(clean_commit_message(&commit.message));
+            .push(ProjectCommitItem {
+                title: clean_commit_message(&commit.message),
+                evidence: format_evidence_text(commit),
+            });
     }
     groups
+}
+
+fn format_evidence_text(commit: &CommitRecord) -> String {
+    format!(
+        "来源：`{}` / `{}` / `{}` / `{}`\n原始：`{}`",
+        inline_code_text(&commit.project_name),
+        inline_code_text(&commit.branch_name),
+        inline_code_text(&short_date(&commit.date)),
+        inline_code_text(&short_hash(&commit.hash)),
+        inline_code_text(&compact_message(&commit.message))
+    )
+}
+
+fn format_evidence_block(commit: &CommitRecord) -> String {
+    format_evidence_text(commit)
+        .lines()
+        .map(|line| format!("  > {}", line))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn short_date(date: &str) -> String {
+    date.split_whitespace().next().unwrap_or(date).to_string()
+}
+
+fn short_hash(hash: &str) -> String {
+    hash.chars().take(7).collect()
+}
+
+fn compact_message(message: &str) -> String {
+    Regex::new(r"\s+")
+        .unwrap()
+        .replace_all(message.trim(), " ")
+        .to_string()
+}
+
+fn inline_code_text(value: &str) -> String {
+    value.replace('`', "'")
 }
 
 fn monthly_project_name(project_names: &HashMap<String, String>, commit: &CommitRecord) -> String {
@@ -328,7 +397,7 @@ fn render_weekly_header(
     ]
 }
 
-fn render_project_progress(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+fn render_project_progress(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
     let mut lines = vec!["## 一、项目进度".to_string(), "".to_string()];
     if groups.is_empty() {
         lines.push("- 本月未检索到可用于生成项目进度的提交记录。".to_string());
@@ -350,7 +419,7 @@ fn render_project_progress(groups: &BTreeMap<String, Vec<String>>) -> Vec<String
     lines
 }
 
-fn render_weekly_focus(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+fn render_weekly_focus(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
     let mut lines = vec!["## 一、本周重点".to_string(), "".to_string()];
     if groups.is_empty() {
         lines.push("- 本周未检索到可用于生成周报的提交记录。".to_string());
@@ -373,19 +442,32 @@ fn render_weekly_focus(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
     lines
 }
 
-fn render_actual_completion(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+fn render_actual_completion(
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+    show_evidence_details: bool,
+) -> Vec<String> {
     let mut lines = vec!["## 二、实际完成情况".to_string(), "".to_string()];
     for (project, items) in groups {
         lines.push(format!("### {}", project));
         for item in unique_items(items) {
-            lines.push(format!("- {}", item));
+            lines.push(format!("- {}", item.title));
+            if show_evidence_details {
+                lines.extend(render_evidence_block(&item.evidence));
+            }
         }
         lines.push("".to_string());
     }
     lines
 }
 
-fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+fn render_evidence_block(evidence: &str) -> Vec<String> {
+    evidence
+        .lines()
+        .map(|line| format!("  > {}", line))
+        .collect()
+}
+
+fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
     let mut lines = vec!["## 三、下周关注".to_string(), "".to_string()];
     if groups.is_empty() {
         lines.push("- 暂无基于提交记录推断的下周关注事项。".to_string());
@@ -403,7 +485,7 @@ fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<String>>) -> Vec<Strin
     lines
 }
 
-fn render_monthly_summary(groups: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+fn render_monthly_summary(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
     let mut lines = vec!["## 三、当月总结".to_string(), "".to_string()];
     for (project, items) in groups {
         let item_count = unique_items(items).len();
@@ -420,19 +502,26 @@ fn render_monthly_summary(groups: &BTreeMap<String, Vec<String>>) -> Vec<String>
     lines
 }
 
-fn unique_items(items: &[String]) -> Vec<String> {
+fn unique_items(items: &[ProjectCommitItem]) -> Vec<ProjectCommitItem> {
     let mut result = Vec::new();
     for item in items {
-        if !result.contains(item) {
+        if !result
+            .iter()
+            .any(|current: &ProjectCommitItem| current.title == item.title)
+        {
             result.push(item.clone());
         }
     }
     result
 }
 
-fn join_focus_items(items: &[String]) -> String {
+fn join_focus_items(items: &[ProjectCommitItem]) -> String {
     let unique = unique_items(items);
-    let selected = unique.iter().take(3).cloned().collect::<Vec<_>>();
+    let selected = unique
+        .iter()
+        .take(3)
+        .map(|item| item.title.clone())
+        .collect::<Vec<_>>();
     let suffix = if unique.len() > 3 { "等内容" } else { "" };
     format!("{}{}", selected.join("；"), suffix)
 }
@@ -505,6 +594,7 @@ mod tests {
             "2026-06-14",
             "tester",
             "2026-W24",
+            false,
         );
 
         assert!(report.contains("# 2026年第24周工作周报"));
@@ -514,12 +604,30 @@ mod tests {
         assert!(report.contains("## 三、下周关注"));
     }
 
+    #[test]
+    fn render_reports_can_include_commit_evidence_details() {
+        let commits = vec![commit("repo-a", "feature/report", "feat: 添加证据详情")];
+        let report = render_weekly_report(
+            &commits,
+            &HashMap::new(),
+            "2026-06-08",
+            "2026-06-14",
+            "tester",
+            "2026-W24",
+            true,
+        );
+
+        assert!(report.contains("- 添加证据详情"));
+        assert!(report.contains("  > 来源：`repo-a` / `feature/report` / `2026-06-10` / `abc123d`"));
+        assert!(report.contains("  > 原始：`feat: 添加证据详情`"));
+    }
+
     fn commit(project_name: &str, branch_name: &str, message: &str) -> CommitRecord {
         CommitRecord {
             repo_path: project_name.to_string(),
             project_name: project_name.to_string(),
             branch_name: branch_name.to_string(),
-            hash: "abc123".to_string(),
+            hash: "abc123def".to_string(),
             author: "tester".to_string(),
             date: "2026-06-10 10:00:00 +0800".to_string(),
             message: message.to_string(),

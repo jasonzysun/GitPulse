@@ -117,6 +117,7 @@ fn generate_monthly_report_sync(
         &dates.1,
         &options.author,
         &dates.2,
+        options.show_evidence_details,
     );
 
     report_text = apply_ai_if_enabled(report_text, &options, &dates, &mut warnings);
@@ -149,6 +150,7 @@ fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodRep
             &options.end_date,
             &options.author,
             &options.period_label,
+            options.show_evidence_details,
         ),
         "monthly" => report::render_monthly_report(
             &commits,
@@ -157,6 +159,7 @@ fn generate_period_report_sync(options: PeriodReportOptions) -> Result<PeriodRep
             &options.end_date,
             &options.author,
             &options.period_label,
+            options.show_evidence_details,
         ),
         _ => return Err(format!("未知报告类型：{}", options.report_kind)),
     };
@@ -183,6 +186,7 @@ fn extract_commits_sync(options: ExtractOptions) -> Result<ExtractResult, String
         warnings,
         &options.project_names,
         options.show_project_and_branch,
+        options.show_evidence_details,
         options.detailed_output,
     );
     apply_ai_to_extract_result(&mut result, &options);
@@ -371,6 +375,7 @@ fn monthly_extract_options(
         extract_all_branches: options.extract_all_branches,
         detailed_output: false,
         show_project_and_branch: true,
+        show_evidence_details: options.show_evidence_details,
         project_names: options.project_names.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
         system_prompt: String::new(),
@@ -388,6 +393,7 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         extract_all_branches: options.extract_all_branches,
         detailed_output: false,
         show_project_and_branch: true,
+        show_evidence_details: options.show_evidence_details,
         project_names: options.project_names.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
         system_prompt: String::new(),

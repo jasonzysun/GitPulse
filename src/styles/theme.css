@@ -360,10 +360,22 @@
   color: #c4d8f4;
 }
 
+:root[data-theme="dark"] .markdown-preview blockquote.md-evidence {
+  border-color: rgba(120, 144, 170, 0.22);
+  background: rgba(120, 144, 170, 0.08);
+  color: #9fb0c6;
+}
+
 :root[data-theme="dark"] .markdown-preview code {
   border-color: rgba(109, 168, 255, 0.18);
   background: rgba(10, 18, 31, 0.78);
   color: #ecf4ff;
+}
+
+:root[data-theme="dark"] .markdown-preview blockquote.md-evidence code {
+  border-color: rgba(120, 144, 170, 0.2);
+  background: rgba(10, 18, 31, 0.54);
+  color: #c1cede;
 }
 
 :root[data-theme="dark"] .markdown-preview hr {

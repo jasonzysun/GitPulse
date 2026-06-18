@@ -39,7 +39,12 @@ function renderBlock(block: Block, index: number) {
   }
 
   if (block.type === "blockquote") {
-    return <blockquote key={key}>{renderWithBreaks(block.text, key)}</blockquote>;
+    const className = block.text.trimStart().startsWith("来源：") ? "md-evidence" : undefined;
+    return (
+      <blockquote key={key} className={className}>
+        {renderWithBreaks(block.text, key)}
+      </blockquote>
+    );
   }
 
   if (block.type === "code") {
