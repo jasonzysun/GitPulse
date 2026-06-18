@@ -48,6 +48,7 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add configurable merge commit, revert commit, and bot author filters.
 - [x] Add repository scan progress and cancellation.
 - [x] Reuse the indexed repository list during report generation and extract commits with bounded parallel workers.
+- [x] Move report period selection into the report action bar with daily date, weekly week, monthly month, and custom range controls.
 
 ## Next Backlog
 

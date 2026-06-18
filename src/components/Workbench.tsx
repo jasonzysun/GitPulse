@@ -27,7 +27,6 @@ import {
 } from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
-import { MonthReportDialog } from "./MonthReportDialog";
 
 type Props = {
   repos: RepoInfo[];
@@ -46,9 +45,12 @@ type Props = {
   commitCount: number;
   author: string;
   dailyDate: string;
+  onDailyDateChange: (date: string) => void;
   weeklyRange: DateRange;
-  weeklyLabel: string;
+  weeklyWeek: string;
+  onWeeklyWeekChange: (week: string) => void;
   monthlyMonth: string;
+  onMonthlyMonthChange: (month: string) => void;
   monthlyRange: DateRange;
   customRange: DateRange;
   aiEnabled: boolean;
@@ -75,7 +77,6 @@ export function Workbench(props: Props) {
   const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
-  const [monthDialogOpen, setMonthDialogOpen] = useState(false);
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
 
@@ -106,10 +107,6 @@ export function Workbench(props: Props) {
   }, [polishMenuOpen]);
 
   function handlePreviewChange(preview: PreviewMode) {
-    if (preview === "custom") {
-      setCustomDialogOpen(true);
-      return;
-    }
     props.onPreviewChange(preview);
   }
 
@@ -119,27 +116,13 @@ export function Workbench(props: Props) {
     props.onGenerateCustom(range);
   }
 
-  function generateMonthly(month: string) {
-    setMonthDialogOpen(false);
-    props.onPreviewChange("monthly");
-    props.onGenerateMonthly(month);
-  }
-
-  function handleDateChipClick() {
-    if (props.activePreview === "monthly") {
-      setMonthDialogOpen(true);
-      return;
-    }
-    setCustomDialogOpen(true);
-  }
-
   function handleGenerate() {
     if (props.activePreview === "monthly") {
       props.onGenerateMonthly(props.monthlyMonth);
     } else if (props.activePreview === "weekly") {
       props.onGenerateWeekly();
     } else if (props.activePreview === "custom") {
-      setCustomDialogOpen(true);
+      props.onGenerateCustom(props.customRange);
     } else {
       props.onExtract();
     }
@@ -160,13 +143,6 @@ export function Workbench(props: Props) {
         ? "生成自定义报告"
         : "生成日报";
   const generateButtonIcon = props.activePreview === "monthly" ? <FileDown size={15} /> : props.activePreview === "weekly" || props.activePreview === "custom" ? <CalendarDays size={15} /> : <GitBranch size={15} />;
-  const dateChipLabel = props.activePreview === "custom"
-    ? `${props.customRange.startDate} ~ ${props.customRange.endDate}`
-    : props.activePreview === "weekly"
-      ? `${props.weeklyLabel} · ${props.weeklyRange.startDate} ~ ${props.weeklyRange.endDate}`
-      : props.activePreview === "monthly"
-        ? `${props.monthlyMonth} · ${props.monthlyRange.startDate} ~ ${props.monthlyRange.endDate}`
-        : `今日日报 · ${props.dailyDate}`;
   const enabledRepoCount = props.repos.filter((repo) => !props.disabledRepos.includes(repo.path)).length;
   const repoMeta = enabledRepoCount === props.repos.length
     ? `${props.repos.length} repos`
@@ -191,7 +167,7 @@ export function Workbench(props: Props) {
         <div className="hero-copy">
           <div className="brand-logo hero-brand" role="img" aria-label="GitPulse" />
           <h2>工作报告工作台</h2>
-          <p className="hero-subcopy">本地 Git 数据源 · 日报固定今天 · 周报取本周 · 月报可选月份 · 自定义可选周期</p>
+          <p className="hero-subcopy">本地 Git 数据源 · 日报可选单日 · 周报可选周次 · 月报可选月份 · 自定义可选周期</p>
         </div>
         <div className="hero-aside">
           <div className="hero-actions">
@@ -205,10 +181,6 @@ export function Workbench(props: Props) {
             </button>
           </div>
           <div className="context-chips" aria-label="当前工作区上下文">
-            <button type="button" className="context-chip" onClick={handleDateChipClick} title={props.activePreview === "monthly" ? "选择月报月份" : "选择自定义报告周期"}>
-              <CalendarDays size={13} />
-              {dateChipLabel}
-            </button>
             <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改 Git 作者">
               <UserRound size={13} />
               {props.author || "未设置作者"}
@@ -248,6 +220,20 @@ export function Workbench(props: Props) {
             </div>
             <div className="canvas-actionbar">
               <div className="canvas-primary-actions">
+                <ReportPeriodControl
+                  activePreview={props.activePreview}
+                  dailyDate={props.dailyDate}
+                  weeklyWeek={props.weeklyWeek}
+                  weeklyRange={props.weeklyRange}
+                  monthlyMonth={props.monthlyMonth}
+                  monthlyRange={props.monthlyRange}
+                  customRange={props.customRange}
+                  isBusy={props.isBusy}
+                  onDailyDateChange={props.onDailyDateChange}
+                  onWeeklyWeekChange={props.onWeeklyWeekChange}
+                  onMonthlyMonthChange={props.onMonthlyMonthChange}
+                  onOpenCustomRange={() => setCustomDialogOpen(true)}
+                />
                 <button className="preview-generate-button" type="button" onClick={handleGenerate} disabled={props.isBusy}>
                   {generateButtonIcon}
                   {generateButtonLabel}
@@ -431,14 +417,92 @@ export function Workbench(props: Props) {
         onClose={() => setCustomDialogOpen(false)}
         onConfirm={generateCustom}
       />
-      <MonthReportDialog
-        open={monthDialogOpen}
-        initialMonth={props.monthlyMonth}
-        isBusy={props.isBusy}
-        onClose={() => setMonthDialogOpen(false)}
-        onConfirm={generateMonthly}
-      />
     </section>
+  );
+}
+
+function ReportPeriodControl({
+  activePreview,
+  dailyDate,
+  weeklyWeek,
+  weeklyRange,
+  monthlyMonth,
+  monthlyRange,
+  customRange,
+  isBusy,
+  onDailyDateChange,
+  onWeeklyWeekChange,
+  onMonthlyMonthChange,
+  onOpenCustomRange,
+}: {
+  activePreview: PreviewMode;
+  dailyDate: string;
+  weeklyWeek: string;
+  weeklyRange: DateRange;
+  monthlyMonth: string;
+  monthlyRange: DateRange;
+  customRange: DateRange;
+  isBusy: boolean;
+  onDailyDateChange: (date: string) => void;
+  onWeeklyWeekChange: (week: string) => void;
+  onMonthlyMonthChange: (month: string) => void;
+  onOpenCustomRange: () => void;
+}) {
+  const rangeLabel = activePreview === "weekly"
+    ? `${weeklyRange.startDate} ~ ${weeklyRange.endDate}`
+    : activePreview === "monthly"
+      ? `${monthlyRange.startDate} ~ ${monthlyRange.endDate}`
+      : activePreview === "custom"
+        ? `${customRange.startDate} ~ ${customRange.endDate}`
+        : dailyDate;
+
+  return (
+    <div className="report-period-control" aria-label="报告周期选择">
+      <span className="period-label">
+        <CalendarDays size={14} />
+        周期
+      </span>
+      {activePreview === "summary" && (
+        <input
+          type="date"
+          value={dailyDate}
+          disabled={isBusy}
+          aria-label="选择日报日期"
+          onChange={(event) => event.target.value && onDailyDateChange(event.target.value)}
+        />
+      )}
+      {activePreview === "weekly" && (
+        <input
+          type="week"
+          value={weeklyWeek}
+          disabled={isBusy}
+          aria-label="选择周报周次"
+          onChange={(event) => event.target.value && onWeeklyWeekChange(event.target.value)}
+        />
+      )}
+      {activePreview === "monthly" && (
+        <input
+          type="month"
+          value={monthlyMonth}
+          disabled={isBusy}
+          aria-label="选择月报月份"
+          onChange={(event) => event.target.value && onMonthlyMonthChange(event.target.value)}
+        />
+      )}
+      {activePreview === "custom" && (
+        <button
+          className="period-range-button"
+          type="button"
+          disabled={isBusy}
+          onClick={onOpenCustomRange}
+        >
+          {rangeLabel}
+        </button>
+      )}
+      {activePreview !== "summary" && activePreview !== "custom" && (
+        <span className="period-range-label">{rangeLabel}</span>
+      )}
+    </div>
   );
 }
 

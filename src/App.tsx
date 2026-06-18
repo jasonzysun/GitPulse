@@ -27,11 +27,13 @@ import {
   buildPeriodReportOptions,
   clearRepoIndexCache,
   formatMonthLabel,
-  getCurrentWeekRange,
   getMonthRange,
   getPreviousMonthInput,
+  getSingleDayRange,
+  getToday,
   getTodayRange,
   getWeekLabel,
+  getWeekRange,
   isAiKeyReference,
   loadRepoIndexCache,
   loadSettingsState,
@@ -64,11 +66,11 @@ function App() {
   const [settings, setSettings] = useState<AppSettings>(loadedSettings.settings);
   const [repos, setRepos] = useState<RepoInfo[]>(() => loadRepoIndexCache(loadedSettings.settings.rootDirs)?.repos ?? []);
   const [summaryText, setSummaryText] = useState("");
+  const [dailyDate, setDailyDate] = useState(getToday);
   const [customReport, setCustomReport] = useState("");
   const [customRange, setCustomRange] = useState<DateRange>(getTodayRange);
   const [weeklyReport, setWeeklyReport] = useState("");
-  const [weeklyRange, setWeeklyRange] = useState<DateRange>(getCurrentWeekRange);
-  const [weeklyLabel, setWeeklyLabel] = useState(getWeekLabel);
+  const [weeklyWeek, setWeeklyWeek] = useState(getWeekLabel);
   const [monthlyReport, setMonthlyReport] = useState("");
   const [monthlyMonth, setMonthlyMonth] = useState(getPreviousMonthInput);
   const [monthlyLabel, setMonthlyLabel] = useState("");
@@ -100,6 +102,8 @@ function App() {
   const aiApiKeySaveTimer = useRef<number | null>(null);
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
+  const dailyRange = useMemo(() => getSingleDayRange(dailyDate), [dailyDate]);
+  const weeklyRange = useMemo(() => getWeekRange(weeklyWeek), [weeklyWeek]);
   const monthlyRange = useMemo(() => getMonthRange(monthlyMonth), [monthlyMonth]);
   const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText;
   const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
@@ -336,7 +340,6 @@ function App() {
   async function extractCommits() {
     setExtractProgress(null);
     await runTask("正在提取提交记录", async () => {
-      const dailyRange = getTodayRange();
       const result = await invoke<ExtractResult>("extract_commits", {
         options: buildExtractOptions(settings, projectNames, dailyRange, false, "", repos),
       });
@@ -344,8 +347,8 @@ function App() {
       setWarnings(result.warnings);
       setCommitCount(result.commits.length);
       setActivePreview("summary");
-      setStatus("日报已生成");
-    }, () => validateExtractSettings(settings));
+      setStatus(`${dailyDate} 日报已生成`);
+    }, () => validateExtractSettings(settings, dailyRange));
   }
 
   async function generateCustomReport(range: DateRange) {
@@ -364,15 +367,13 @@ function App() {
   }
 
   async function generateWeeklyReport() {
-    const range = getCurrentWeekRange();
-    const label = getWeekLabel();
+    const range = weeklyRange;
+    const label = weeklyWeek;
     setExtractProgress(null);
-    await runTask("正在生成本周周报", async () => {
+    await runTask("正在生成周报", async () => {
       const result = await invoke<PeriodReportResult>("generate_period_report", {
         options: buildPeriodReportOptions(settings, projectNames, "weekly", range, label, false, "", repos),
       });
-      setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
-      setWeeklyLabel(result.periodLabel);
       setWeeklyReport(result.reportText);
       setWarnings(result.warnings);
       setLastOutputFile(result.outputFile);
@@ -406,17 +407,15 @@ function App() {
     await runTask("AI 正在润色", async () => {
       if (activePreview === "weekly") {
         const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyLabel, true, extraInstruction, repos),
+          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyWeek, true, extraInstruction, repos),
         });
-        setWeeklyRange({ startDate: result.startDate, endDate: result.endDate });
-        setWeeklyLabel(result.periodLabel);
         setWeeklyReport(result.reportText);
         setWarnings(result.warnings);
         setLastOutputFile(result.outputFile);
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else if (activePreview === "monthly") {
         const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, monthlyLabel || monthlyMonth, true, extraInstruction, repos),
+          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, formatMonthLabel(monthlyMonth), true, extraInstruction, repos),
         });
         setMonthlyMonth(result.periodLabel);
         setMonthlyReport(result.reportText);
@@ -425,7 +424,7 @@ function App() {
         setLastOutputFile(result.outputFile);
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else {
-        const range = activePreview === "custom" ? customRange : getTodayRange();
+        const range = activePreview === "custom" ? customRange : dailyRange;
         const result = await invoke<ExtractResult>("extract_commits", {
           options: buildExtractOptions(settings, projectNames, range, true, extraInstruction, repos),
         });
@@ -440,7 +439,7 @@ function App() {
     }, () => {
       if (activePreview === "weekly") return validatePeriodReportSettings(settings, weeklyRange);
       if (activePreview === "monthly") return validatePeriodReportSettings(settings, monthlyRange);
-      return validateExtractSettings(settings, activePreview === "custom" ? customRange : getTodayRange());
+      return validateExtractSettings(settings, activePreview === "custom" ? customRange : dailyRange);
     });
   }
 
@@ -462,9 +461,9 @@ function App() {
     if (activePreview === "monthly") {
       fileName = `monthly_report_${monthlyLabel}.md`;
     } else if (activePreview === "weekly") {
-      fileName = `weekly_report_${weeklyLabel}.md`;
+      fileName = `weekly_report_${weeklyWeek}.md`;
     } else {
-      const range = activePreview === "custom" ? customRange : getTodayRange();
+      const range = activePreview === "custom" ? customRange : dailyRange;
       fileName = `git_commits_${range.startDate}_to_${range.endDate}.md`;
     }
     await runTask("正在导出报告", async () => {
@@ -669,10 +668,13 @@ function App() {
         repoCount={repos.length}
         commitCount={commitCount}
         author={settings.author}
-        dailyDate={getTodayRange().startDate}
+        dailyDate={dailyDate}
+        onDailyDateChange={setDailyDate}
         weeklyRange={weeklyRange}
-        weeklyLabel={weeklyLabel}
+        weeklyWeek={weeklyWeek}
+        onWeeklyWeekChange={setWeeklyWeek}
         monthlyMonth={monthlyMonth}
+        onMonthlyMonthChange={setMonthlyMonth}
         monthlyRange={monthlyRange}
         customRange={customRange}
         aiEnabled={settings.aiEnabled}

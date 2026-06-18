@@ -79,6 +79,84 @@
   min-width: 0;
 }
 
+.report-period-control {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-height: 38px;
+  padding: 5px;
+  border: 1px solid var(--canvas-line);
+  border-radius: var(--radius-md);
+  background: rgba(237, 246, 255, 0.78);
+}
+
+.period-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.report-period-control input,
+.period-range-button {
+  min-height: 30px;
+  border: 1px solid rgba(63, 140, 255, 0.18);
+  border-radius: var(--radius-sm);
+  padding: 0 9px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.94);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 760;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.report-period-control input {
+  width: 148px;
+  color-scheme: light;
+}
+
+.report-period-control input[type="month"] {
+  width: 126px;
+}
+
+.report-period-control input:focus,
+.period-range-button:focus-visible {
+  border-color: var(--primary);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(63, 140, 255, 0.13);
+  outline: none;
+}
+
+.period-range-button {
+  max-width: 260px;
+  cursor: pointer;
+}
+
+.period-range-button:hover:not(:disabled) {
+  border-color: rgba(63, 140, 255, 0.34);
+  background: #ffffff;
+}
+
+.period-range-label {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.report-period-control input:disabled,
+.period-range-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .canvas-actions-group {
   display: inline-flex;
   align-items: center;
@@ -635,6 +713,10 @@
   }
 
   .canvas-primary-actions {
+    width: 100%;
+  }
+
+  .report-period-control {
     width: 100%;
   }
 

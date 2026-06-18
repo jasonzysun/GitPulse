@@ -585,19 +585,30 @@ export function getTodayRange(): DateRange {
   return { startDate: today, endDate: today };
 }
 
+export function getSingleDayRange(date: string): DateRange {
+  return { startDate: date, endDate: date };
+}
+
 export function getCurrentWeekRange(): DateRange {
   const today = new Date();
-  const day = today.getDay() || 7;
-  const start = addDays(today, 1 - day);
-  return {
-    startDate: formatDateInput(start),
-    endDate: formatDateInput(today),
-  };
+  return getWeekRange(getWeekLabel(today));
 }
 
 export function getWeekLabel(date = new Date()) {
   const { year, week } = getIsoWeekParts(date);
   return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+export function getWeekRange(weekValue: string): DateRange {
+  const { year, week } = parseWeekInput(weekValue);
+  const januaryFourth = new Date(year, 0, 4);
+  const januaryFourthDay = januaryFourth.getDay() || 7;
+  const weekOneMonday = addDays(januaryFourth, 1 - januaryFourthDay);
+  const start = addDays(weekOneMonday, (week - 1) * 7);
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(addDays(start, 6)),
+  };
 }
 
 export function getPreviousMonthInput(date = new Date()) {
@@ -729,6 +740,15 @@ function parseMonthInput(monthValue: string) {
   const month = Number(match[2]);
   if (month < 1 || month > 12) throw new Error("请选择有效的报告月份");
   return { year, month };
+}
+
+function parseWeekInput(weekValue: string) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue);
+  if (!match) throw new Error("请选择有效的报告周");
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (week < 1 || week > 53) throw new Error("请选择有效的报告周");
+  return { year, week };
 }
 
 function getIsoWeekParts(date: Date) {

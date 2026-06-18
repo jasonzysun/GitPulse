@@ -342,6 +342,31 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
 }
 
+:root[data-theme="dark"] .report-period-control {
+  border-color: var(--canvas-line);
+  background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .report-period-control input,
+:root[data-theme="dark"] .period-range-button {
+  border-color: rgba(109, 168, 255, 0.22);
+  color: var(--ink);
+  background: rgba(10, 18, 31, 0.86);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .report-period-control input:focus,
+:root[data-theme="dark"] .period-range-button:focus-visible {
+  border-color: var(--primary);
+  background: rgba(12, 22, 36, 0.96);
+  box-shadow: 0 0 0 3px rgba(109, 168, 255, 0.16);
+}
+
+:root[data-theme="dark"] .period-range-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.36);
+  background: rgba(12, 22, 36, 0.96);
+}
+
 :root[data-theme="dark"] .preview-expand-button {
   border-color: rgba(109, 168, 255, 0.26);
   color: #d9eaff;
