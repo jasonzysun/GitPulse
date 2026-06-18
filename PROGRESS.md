@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-P2 Git accuracy.
+P3 product experience.
 
-GitPulse is already usable as a local-first desktop report generator. P0 reliability and P1 report usefulness work remain tracked, while the active product work now focuses on making Git extraction more accurate for multi-branch repositories and noisy commit histories.
+GitPulse is already usable as a local-first desktop report generator. P0 reliability, P1 report usefulness, and P2 Git accuracy work remain tracked, while the active product work now focuses on report reuse, richer exports, clearer diagnostics, and smoke verification.
 
 ## Completed Before This Phase
 
@@ -46,12 +46,9 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 
 - [x] Improve branch attribution when extracting all branches by using Git source refs.
 - [x] Add configurable merge commit, revert commit, and bot author filters.
+- [x] Add repository scan progress and cancellation.
 
 ## Next Backlog
-
-### P2 Git Accuracy
-
-- Add repository scan progress and cancellation.
 
 ### P3 Product Experience
 

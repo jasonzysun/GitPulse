@@ -8,15 +8,59 @@ mod secure_store;
 use crate::models::{
     AiConfig, AiModelInfo, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
     MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
+    RepoScanProgress,
 };
 use std::collections::HashSet;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 use tauri::async_runtime;
+use tauri::{AppHandle, Emitter, State};
+
+#[derive(Clone, Default)]
+struct RepoScanState {
+    cancel_requested: Arc<AtomicBool>,
+}
 
 #[tauri::command]
-async fn scan_repos(root_dirs: Vec<String>) -> Result<Vec<RepoInfo>, String> {
-    async_runtime::spawn_blocking(move || git_ops::find_git_repos(&root_dirs))
-        .await
-        .map_err(|err| format!("扫描仓库任务中断：{}", err))?
+async fn scan_repos(
+    app: AppHandle,
+    state: State<'_, RepoScanState>,
+    root_dirs: Vec<String>,
+) -> Result<Vec<RepoInfo>, String> {
+    let cancel_requested = state.cancel_requested.clone();
+    cancel_requested.store(false, Ordering::Relaxed);
+    let progress_app = app.clone();
+
+    let result = async_runtime::spawn_blocking(move || {
+        git_ops::find_git_repos_with_progress(&root_dirs, &cancel_requested, |progress| {
+            let _ = progress_app.emit("repo-scan-progress", progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("扫描仓库任务中断：{}", err))?;
+    if let Err(message) = &result {
+        if message.contains("取消") {
+            let _ = app.emit(
+                "repo-scan-progress",
+                RepoScanProgress {
+                    root_dir: String::new(),
+                    current_path: String::new(),
+                    scanned_dirs: 0,
+                    found_repos: 0,
+                    done: false,
+                    cancelled: true,
+                },
+            );
+        }
+    }
+    result
+}
+
+#[tauri::command]
+fn cancel_repo_scan(state: State<'_, RepoScanState>) {
+    state.cancel_requested.store(true, Ordering::Relaxed);
 }
 
 #[tauri::command]
@@ -299,8 +343,10 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .manage(RepoScanState::default())
         .invoke_handler(tauri::generate_handler![
             scan_repos,
+            cancel_repo_scan,
             get_git_identity,
             extract_commits,
             generate_monthly_report,

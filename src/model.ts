@@ -4,6 +4,15 @@ export type RepoInfo = {
   branch: string;
 };
 
+export type RepoScanProgress = {
+  rootDir: string;
+  currentPath: string;
+  scannedDirs: number;
+  foundRepos: number;
+  done: boolean;
+  cancelled: boolean;
+};
+
 export type ExtractResult = {
   repos: RepoInfo[];
   summaryText: string;

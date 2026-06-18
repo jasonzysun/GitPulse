@@ -68,6 +68,16 @@
   background: rgba(63, 140, 255, 0.28);
 }
 
+:root[data-theme="dark"] .repo-scan-progress {
+  border-color: rgba(109, 168, 255, 0.2);
+  background: rgba(63, 140, 255, 0.11);
+  color: #c4d8f4;
+}
+
+:root[data-theme="dark"] .repo-scan-path {
+  color: #8da1bc;
+}
+
 :root[data-theme="dark"] .settings-card,
 :root[data-theme="dark"] .repo-row {
   border-color: rgba(52, 74, 103, 0.9);

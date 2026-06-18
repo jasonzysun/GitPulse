@@ -1,9 +1,13 @@
-use crate::models::{CommitRecord, GitIdentity, RepoInfo};
+use crate::models::{CommitRecord, GitIdentity, RepoInfo, RepoScanProgress};
 use std::collections::HashSet;
 use std::fs;
 use std::io;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+const SCAN_CANCELLED_MESSAGE: &str = "仓库扫描已取消";
 
 pub struct GitCommitQuery<'a> {
     pub start_date: &'a str,
@@ -16,17 +20,41 @@ pub struct GitCommitQuery<'a> {
 }
 
 pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
+    let cancel_requested = AtomicBool::new(false);
+    find_git_repos_with_progress(root_dirs, &cancel_requested, |_| {})
+}
+
+pub fn find_git_repos_with_progress<F>(
+    root_dirs: &[String],
+    cancel_requested: &AtomicBool,
+    mut on_progress: F,
+) -> Result<Vec<RepoInfo>, String>
+where
+    F: FnMut(RepoScanProgress),
+{
     ensure_git_available()?;
     let mut repos = Vec::new();
     let mut seen = HashSet::new();
+    let mut scanned_dirs = 0;
     for root_dir in root_dirs {
+        check_scan_cancelled(cancel_requested)?;
         let root = PathBuf::from(root_dir);
         // 单个根目录失效（外置盘未挂载、目录被删）不应中断整次扫描，跳过即可。
         if !root.is_dir() {
             continue;
         }
         let mut found = Vec::new();
-        visit_dir(&root, &mut found).map_err(|err| err.to_string())?;
+        let found_offset = repos.len();
+        visit_dir(
+            &root,
+            &display_path(&root),
+            &mut found,
+            found_offset,
+            &mut scanned_dirs,
+            cancel_requested,
+            &mut on_progress,
+        )
+        .map_err(format_scan_error)?;
         for repo in found {
             // 多个根目录可能重叠或经软链指向同一仓库，按规整后的路径去重。
             if seen.insert(repo.path.clone()) {
@@ -40,6 +68,17 @@ pub fn find_git_repos(root_dirs: &[String]) -> Result<Vec<RepoInfo>, String> {
             .cmp(&right.name.to_lowercase())
             .then_with(|| left.path.cmp(&right.path))
     });
+    emit_scan_progress(
+        &mut on_progress,
+        RepoScanProgress {
+            root_dir: String::new(),
+            current_path: String::new(),
+            scanned_dirs,
+            found_repos: repos.len(),
+            done: true,
+            cancelled: false,
+        },
+    );
     Ok(repos)
 }
 
@@ -68,20 +107,92 @@ pub fn get_git_commits(
     Ok(parse_git_log_output(repo, &output, query))
 }
 
-fn visit_dir(dir: &Path, repos: &mut Vec<RepoInfo>) -> std::io::Result<()> {
+fn visit_dir<F>(
+    dir: &Path,
+    root_dir: &str,
+    repos: &mut Vec<RepoInfo>,
+    found_offset: usize,
+    scanned_dirs: &mut usize,
+    cancel_requested: &AtomicBool,
+    on_progress: &mut F,
+) -> std::io::Result<()>
+where
+    F: FnMut(RepoScanProgress),
+{
+    check_scan_cancelled(cancel_requested)
+        .map_err(|err| io::Error::new(ErrorKind::Interrupted, err))?;
+    *scanned_dirs += 1;
+    emit_scan_progress(
+        on_progress,
+        RepoScanProgress {
+            root_dir: root_dir.to_string(),
+            current_path: display_path(dir),
+            scanned_dirs: *scanned_dirs,
+            found_repos: found_offset + repos.len(),
+            done: false,
+            cancelled: false,
+        },
+    );
+
     if is_git_repo_dir(dir) {
         repos.push(build_repo_info(dir));
+        emit_scan_progress(
+            on_progress,
+            RepoScanProgress {
+                root_dir: root_dir.to_string(),
+                current_path: display_path(dir),
+                scanned_dirs: *scanned_dirs,
+                found_repos: found_offset + repos.len(),
+                done: false,
+                cancelled: false,
+            },
+        );
         return Ok(());
     }
 
     for entry in fs::read_dir(dir)? {
+        check_scan_cancelled(cancel_requested)
+            .map_err(|err| io::Error::new(ErrorKind::Interrupted, err))?;
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() && should_visit_dir(&path) {
-            let _ = visit_dir(&path, repos);
+            if let Err(err) = visit_dir(
+                &path,
+                root_dir,
+                repos,
+                found_offset,
+                scanned_dirs,
+                cancel_requested,
+                on_progress,
+            ) {
+                if err.kind() == ErrorKind::Interrupted {
+                    return Err(err);
+                }
+            }
         }
     }
     Ok(())
+}
+
+fn check_scan_cancelled(cancel_requested: &AtomicBool) -> Result<(), String> {
+    if cancel_requested.load(Ordering::Relaxed) {
+        return Err(SCAN_CANCELLED_MESSAGE.to_string());
+    }
+    Ok(())
+}
+
+fn format_scan_error(error: io::Error) -> String {
+    if error.kind() == ErrorKind::Interrupted {
+        return SCAN_CANCELLED_MESSAGE.to_string();
+    }
+    error.to_string()
+}
+
+fn emit_scan_progress<F>(on_progress: &mut F, progress: RepoScanProgress)
+where
+    F: FnMut(RepoScanProgress),
+{
+    on_progress(progress);
 }
 
 fn build_repo_info(dir: &Path) -> RepoInfo {
@@ -348,6 +459,48 @@ mod tests {
 
         assert_eq!(repos.len(), 1);
         assert_eq!(repos[0].name, "repo");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn find_git_repos_with_progress_reports_scanned_dirs_and_found_repos() {
+        let root = temp_root("scan-progress");
+        let repo = root.join("repo");
+        fs::create_dir_all(repo.join(".git")).unwrap();
+        let cancel_requested = AtomicBool::new(false);
+        let mut latest_progress = None;
+
+        let repos = find_git_repos_with_progress(
+            &[root.to_string_lossy().to_string()],
+            &cancel_requested,
+            |progress| latest_progress = Some(progress),
+        )
+        .unwrap();
+
+        assert_eq!(repos.len(), 1);
+        let progress = latest_progress.unwrap();
+        assert!(progress.done);
+        assert!(progress.scanned_dirs >= 1);
+        assert_eq!(progress.found_repos, 1);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn find_git_repos_with_progress_can_cancel_before_scanning() {
+        let root = temp_root("scan-cancel");
+        fs::create_dir_all(&root).unwrap();
+        let cancel_requested = AtomicBool::new(true);
+
+        let message = find_git_repos_with_progress(
+            &[root.to_string_lossy().to_string()],
+            &cancel_requested,
+            |_| {},
+        )
+        .unwrap_err();
+
+        assert_eq!(message, SCAN_CANCELLED_MESSAGE);
 
         let _ = fs::remove_dir_all(root);
     }

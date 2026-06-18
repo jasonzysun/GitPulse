@@ -14,6 +14,7 @@ import {
   Sparkles,
   TerminalSquare,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -21,6 +22,7 @@ import {
   type DateRange,
   type PreviewMode,
   type RepoInfo,
+  type RepoScanProgress,
 } from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -34,6 +36,8 @@ type Props = {
   status: string;
   warnings: string[];
   isBusy: boolean;
+  isRepoScanning: boolean;
+  scanProgress: RepoScanProgress | null;
   lastOutputFile: string;
   summaryText: string;
   repoCount: number;
@@ -60,6 +64,7 @@ type Props = {
   onToggleRepo: (path: string, enabled: boolean) => void;
   onEditRepo: (repo: RepoInfo) => void;
   onRefreshRepos: () => void;
+  onCancelRepoScan: () => void;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
 };
@@ -164,6 +169,9 @@ export function Workbench(props: Props) {
   const repoMeta = enabledRepoCount === props.repos.length
     ? `${props.repos.length} repos`
     : `${enabledRepoCount}/${props.repos.length} repos`;
+  const scanProgressText = props.scanProgress
+    ? `已检查 ${props.scanProgress.scannedDirs} 个目录 · 发现 ${props.scanProgress.foundRepos} 个仓库`
+    : "";
 
   return (
     <section className="workbench">
@@ -343,16 +351,29 @@ export function Workbench(props: Props) {
               <button
                 className="repo-refresh-button"
                 type="button"
-                onClick={props.onRefreshRepos}
-                disabled={props.isBusy}
-                aria-label="重新扫描仓库索引"
-                title="重新扫描仓库索引"
+                onClick={props.isRepoScanning ? props.onCancelRepoScan : props.onRefreshRepos}
+                disabled={props.isBusy && !props.isRepoScanning}
+                aria-label={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
+                title={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
               >
-                <RefreshCw size={14} />
-                重新扫描
+                {props.isRepoScanning ? <XCircle size={14} /> : <RefreshCw size={14} />}
+                {props.isRepoScanning ? "取消扫描" : "重新扫描"}
               </button>
             )}
           />
+          {props.isRepoScanning && props.scanProgress && (
+            <div className="repo-scan-progress" role="status" aria-live="polite">
+              <div>
+                <Loader2 className="spin" size={14} />
+                <span>{scanProgressText}</span>
+              </div>
+              {props.scanProgress.currentPath && (
+                <span className="repo-scan-path" title={props.scanProgress.currentPath}>
+                  {props.scanProgress.currentPath}
+                </span>
+              )}
+            </div>
+          )}
           <div className="repo-list">
             {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
             {props.repos.map((repo) => {

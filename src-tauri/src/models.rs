@@ -11,6 +11,17 @@ pub struct RepoInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct RepoScanProgress {
+    pub root_dir: String,
+    pub current_path: String,
+    pub scanned_dirs: usize,
+    pub found_repos: usize,
+    pub done: bool,
+    pub cancelled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MappingEntry {
     pub key: String,
     pub display_name: String,

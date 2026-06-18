@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow, type Theme } from "@tauri-apps/api/window";
 import { check, type Update as PendingAppUpdate } from "@tauri-apps/plugin-updater";
@@ -17,6 +18,7 @@ import {
   type PeriodReportResult,
   type PreviewMode,
   type RepoInfo,
+  type RepoScanProgress,
   type UpdateSummary,
   type MappingScope,
   STORAGE_KEY,
@@ -80,6 +82,8 @@ function App() {
   const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+  const [isRepoScanning, setIsRepoScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<RepoScanProgress | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
@@ -178,6 +182,25 @@ function App() {
   }, [resolvedTheme, settings.themeMode]);
 
   useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<RepoScanProgress>("repo-scan-progress", ({ payload }) => {
+      setScanProgress(payload);
+      if (payload.cancelled) {
+        setStatus("仓库扫描已取消");
+        return;
+      }
+      if (payload.done) return;
+      setStatus(`正在扫描仓库：已检查 ${payload.scannedDirs} 个目录，发现 ${payload.foundRepos} 个仓库`);
+    })
+      .then((cleanup) => {
+        unlisten = cleanup;
+      })
+      .catch(() => undefined);
+
+    return () => unlisten?.();
+  }, []);
+
+  useEffect(() => {
     if (settings.author) return;
 
     invoke<GitIdentity>("get_git_identity")
@@ -256,11 +279,41 @@ function App() {
   }
 
   async function scanWorkspace() {
-    await runTask("正在扫描仓库", async () => {
-      const result = await invoke<RepoInfo[]>("scan_repos", { rootDirs: settings.rootDirs });
-      updateRepoIndex(result);
-      setStatus(`已发现 ${result.length} 个仓库`);
-    }, () => validateWorkspaceSettings(settings));
+    setIsRepoScanning(true);
+    setScanProgress({
+      rootDir: "",
+      currentPath: "",
+      scannedDirs: 0,
+      foundRepos: 0,
+      done: false,
+      cancelled: false,
+    });
+    try {
+      await runTask("正在扫描仓库", async () => {
+        const result = await invoke<RepoInfo[]>("scan_repos", { rootDirs: settings.rootDirs });
+        updateRepoIndex(result);
+        setScanProgress((current) => ({
+          rootDir: current?.rootDir ?? "",
+          currentPath: current?.currentPath ?? "",
+          scannedDirs: current?.scannedDirs ?? 0,
+          foundRepos: result.length,
+          done: true,
+          cancelled: false,
+        }));
+        setStatus(`已发现 ${result.length} 个仓库`);
+      }, () => validateWorkspaceSettings(settings));
+    } finally {
+      setIsRepoScanning(false);
+    }
+  }
+
+  async function cancelRepoScan() {
+    setStatus("正在取消仓库扫描");
+    try {
+      await invoke("cancel_repo_scan");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    }
   }
 
   async function extractCommits() {
@@ -586,6 +639,8 @@ function App() {
         status={status}
         warnings={warnings}
         isBusy={isBusy}
+        isRepoScanning={isRepoScanning}
+        scanProgress={scanProgress}
         lastOutputFile={lastOutputFile}
         summaryText={activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText}
         repoCount={repos.length}
@@ -611,6 +666,7 @@ function App() {
         onToggleRepo={toggleRepo}
         onEditRepo={setEditingRepo}
         onRefreshRepos={scanWorkspace}
+        onCancelRepoScan={cancelRepoScan}
         onPreviewChange={setActivePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />
