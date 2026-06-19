@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+site/.astro/
+site/public/assets/
 src-tauri/target
 src-tauri/gen
 

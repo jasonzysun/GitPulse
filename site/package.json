@@ -1,0 +1,17 @@
+{
+  "name": "gitpulse-site",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=9.6.5"
+  },
+  "scripts": {
+    "dev": "node ./scripts/sync-assets.mjs && astro dev --host 127.0.0.1",
+    "build": "node ./scripts/sync-assets.mjs && astro build",
+    "preview": "astro preview --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "astro": "^6.4.8"
+  }
+}

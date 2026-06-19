@@ -1,0 +1,65 @@
+---
+import { defaultLocale, localeStorageKey, locales } from "../i18n/content";
+
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const defaultPath = `${base}${defaultLocale}/`;
+const absoluteUrl = (path: string) => new URL(path, Astro.site ?? "https://goldenzqqq.github.io").toString();
+const redirectScript = `
+(() => {
+  const base = ${JSON.stringify(base)};
+  const defaultLocale = ${JSON.stringify(defaultLocale)};
+  const storageKey = ${JSON.stringify(localeStorageKey)};
+  const supported = ${JSON.stringify(locales)};
+
+  const normalize = (value) => {
+    if (!value) return defaultLocale;
+    const normalized = String(value).toLowerCase();
+    return normalized.startsWith("zh") ? "zh-CN" : "en";
+  };
+
+  let stored;
+  try {
+    stored = localStorage.getItem(storageKey);
+  } catch {
+    stored = "";
+  }
+
+  const browserLanguage = navigator.languages?.[0] || navigator.language || "";
+  const locale = supported.includes(stored) ? stored : normalize(browserLanguage);
+  window.location.replace(base + locale + "/" + window.location.search + window.location.hash);
+})();
+`;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitPulse</title>
+    <meta
+      name="description"
+      content="GitPulse automatically opens in the best language for your browser and provides Chinese and English pages."
+    />
+    <meta http-equiv="refresh" content={`0;url=${defaultPath}`} />
+    {locales.map((locale) => (
+      <link rel="alternate" hreflang={locale} href={absoluteUrl(`${base}${locale}/`)} />
+    ))}
+    <link rel="alternate" hreflang="x-default" href={absoluteUrl(base)} />
+    <link rel="canonical" href={absoluteUrl(base)} />
+    <script is:inline set:html={redirectScript}></script>
+  </head>
+  <body>
+    <main>
+      <h1>GitPulse</h1>
+      <p>Redirecting to the best language for your browser.</p>
+      <p>
+        <a href={`${base}en/`}>English</a>
+        <span> · </span>
+        <a href={`${base}zh-CN/`}>中文</a>
+      </p>
+    </main>
+  </body>
+</html>

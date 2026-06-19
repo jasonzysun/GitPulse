@@ -25,7 +25,7 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)
 ![Rust](https://img.shields.io/badge/Rust-stable-DEA584?style=flat-square&logo=rust&logoColor=white)
 
-<b><a href="#-下载与安装">下载</a> · <a href="#-快速开始">快速开始</a> · <a href="#-功能特性">功能</a> · <a href="#-ai-润色">AI 润色</a> · <a href="#-本地开发">开发</a></b>
+<b><a href="https://goldenzqqq.github.io/GitPulse/">官网</a> · <a href="#-下载与安装">下载</a> · <a href="#-快速开始">快速开始</a> · <a href="#-功能特性">功能</a> · <a href="#-ai-润色">AI 润色</a> · <a href="#-本地开发">开发</a></b>
 
 </div>
 
@@ -138,6 +138,16 @@ npm run tauri dev      # 启动桌面应用（开发模式）
 npm run dev            # 仅启动前端（浏览器预览）
 npm run tauri build    # 构建安装包
 ```
+
+官网本地预览：
+
+```bash
+cd site
+npm install
+npm run dev
+```
+
+官网使用 Astro 6，建议使用 Node.js 22.12+。`site/.node-version` 已声明当前验证版本，`mise` / `asdf` / `nodenv` 等工具可自动读取。官网采用路径型国际化：`/GitPulse/` 会按浏览器语言或用户上次选择跳转到 `/GitPulse/zh-CN/` 或 `/GitPulse/en/`。
 
 提交前的校验：
 
