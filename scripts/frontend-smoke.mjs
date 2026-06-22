@@ -9,6 +9,8 @@ const files = {
   settings: readSource("src/components/SettingsDialog.tsx"),
   workbench: readSource("src/components/Workbench.tsx"),
   model: readSource("src/model.ts"),
+  diagnostics: readSource("src-tauri/src/diagnostics.rs"),
+  networkDiagnostics: readSource("src-tauri/src/diagnostics/network_checks.rs"),
 };
 
 const checks = [
@@ -37,6 +39,16 @@ const checks = [
       includes(files.settings, "diagnosticResult.okCount");
       includes(files.settings, "diagnostics-item");
       includes(files.settings, "{item.action && <small>{item.action}</small>}");
+    },
+  },
+  {
+    name: "diagnostics command includes network and updater checks",
+    run: () => {
+      includes(files.diagnostics, "network_checks::github()");
+      includes(files.diagnostics, "network_checks::updater_manifest()");
+      includes(files.networkDiagnostics, "GitHub 网络");
+      includes(files.networkDiagnostics, "更新清单");
+      includes(files.networkDiagnostics, "gitpulse-latest.json");
     },
   },
   {

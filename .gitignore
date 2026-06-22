@@ -20,6 +20,8 @@ src-tauri/gen
 .env.*
 !.env.example
 *.local
+.codex/config.toml
+.codex/*.local.toml
 .release.env
 .release.env.*
 !.release.env.example

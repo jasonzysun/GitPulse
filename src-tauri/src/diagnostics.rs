@@ -1,5 +1,6 @@
 mod ai_checks;
 mod checks;
+mod network_checks;
 
 use crate::models::{DiagnosticItem, DiagnosticOptions, DiagnosticResult, DiagnosticSeverity};
 
@@ -12,6 +13,8 @@ pub fn run(options: DiagnosticOptions) -> DiagnosticResult {
         checks::output_dir(&options.output_dir, options.output_enabled),
         ai_checks::ai(&options),
         checks::pdf_font(),
+        network_checks::github(),
+        network_checks::updater_manifest(),
     ];
     build_result(items)
 }

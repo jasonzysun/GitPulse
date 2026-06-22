@@ -59,13 +59,15 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add a settings diagnostics panel for Git, workspace roots, repository indexes, output directories, AI credentials, and PDF font readiness.
 - [x] Add a command-flow smoke test that creates a temporary Git repo, extracts a commit, generates a weekly report, and saves Markdown output.
 - [x] Add a zero-dependency frontend smoke guard for diagnostics tab wiring and report export controls.
+- [x] Extend diagnostics with GitHub network and updater manifest reachability checks.
+- [x] Ignore local Codex config files while keeping project-level `.codex/skills` available for sharing.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
 - Add browser-level frontend e2e coverage for diagnostics and export flows once a test runner dependency is approved.
-- Extend diagnostics with updater/network reachability checks before the next larger release.
+- Add a release readiness checklist that runs diagnostics, frontend smoke, Rust tests, and packaging checks together.
 
 ## Notes
 
