@@ -56,13 +56,15 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Increase the default desktop window height and compact short-window report history so the report preview remains usable.
 - [x] Add manual Word document export alongside Markdown export for generated reports.
 - [x] Add PDF export with system CJK font embedding and Markdown-aware report layout.
+- [x] Add a settings diagnostics panel for Git, workspace roots, repository indexes, output directories, AI credentials, and PDF font readiness.
+- [x] Add a command-flow smoke test that creates a temporary Git repo, extracts a commit, generates a weekly report, and saves Markdown output.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
-- Add clearer diagnostics for broken repositories, missing Git, invalid output directories, and missing AI credentials.
-- Add lightweight end-to-end smoke checks for the Tauri command flow.
+- Add frontend smoke coverage for the settings diagnostics tab and export controls.
+- Extend diagnostics with updater/network reachability checks before the next larger release.
 
 ## Notes
 

@@ -112,6 +112,49 @@ pub struct AiModelInfo {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DiagnosticOptions {
+    pub root_dirs: Vec<String>,
+    pub output_dir: String,
+    pub output_enabled: bool,
+    pub author: String,
+    pub ai_enabled: bool,
+    pub ai_provider: String,
+    pub ai_base_url: String,
+    pub ai_model: String,
+    pub ai_api_key: String,
+    #[serde(default)]
+    pub indexed_repos: Vec<RepoInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DiagnosticSeverity {
+    Ok,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticItem {
+    pub id: String,
+    pub label: String,
+    pub severity: DiagnosticSeverity,
+    pub message: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticResult {
+    pub items: Vec<DiagnosticItem>,
+    pub ok_count: usize,
+    pub warning_count: usize,
+    pub error_count: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonthlyReportOptions {
     pub root_dirs: Vec<String>,
     #[serde(default)]

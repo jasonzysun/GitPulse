@@ -92,6 +92,23 @@ export type AiModelInfo = {
   id: string;
 };
 
+export type DiagnosticSeverity = "ok" | "warning" | "error";
+
+export type DiagnosticItem = {
+  id: string;
+  label: string;
+  severity: DiagnosticSeverity;
+  message: string;
+  action: string;
+};
+
+export type DiagnosticResult = {
+  items: DiagnosticItem[];
+  okCount: number;
+  warningCount: number;
+  errorCount: number;
+};
+
 export type ThemeMode = "system" | "light" | "dark";
 
 export type ReportTemplateProfile = "auto" | "daily" | "weekly" | "performance" | "concise";

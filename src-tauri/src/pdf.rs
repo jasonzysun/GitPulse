@@ -101,6 +101,10 @@ pub fn markdown_to_pdf(markdown: &str) -> Result<Vec<u8>, String> {
         .save(&PdfSaveOptions::default(), &mut warnings))
 }
 
+pub fn has_report_font() -> bool {
+    parse_first_available_font().is_some()
+}
+
 fn load_report_font(document: &mut PdfDocument, markdown: &str) -> Result<PdfFontHandle, String> {
     if let Some(font) = parse_first_available_font() {
         return Ok(PdfFontHandle::External(document.add_font(&font)));

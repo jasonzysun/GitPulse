@@ -217,6 +217,44 @@
   background: rgba(101, 65, 16, 0.22);
 }
 
+:root[data-theme="dark"] .diagnostics-summary span {
+  border-color: rgba(90, 214, 159, 0.28);
+  color: #9ee8c7;
+  background: rgba(28, 109, 76, 0.22);
+}
+
+:root[data-theme="dark"] .diagnostics-summary span.warning {
+  border-color: rgba(244, 201, 120, 0.34);
+  color: #f4c978;
+  background: rgba(101, 65, 16, 0.22);
+}
+
+:root[data-theme="dark"] .diagnostics-summary span.error {
+  border-color: rgba(255, 126, 132, 0.3);
+  color: #ffb4b8;
+  background: rgba(117, 37, 42, 0.24);
+}
+
+:root[data-theme="dark"] .diagnostics-item {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(16, 24, 39, 0.7);
+}
+
+:root[data-theme="dark"] .diagnostics-status-icon {
+  color: #9ee8c7;
+  background: rgba(28, 109, 76, 0.26);
+}
+
+:root[data-theme="dark"] .diagnostics-item.warning .diagnostics-status-icon {
+  color: #f4c978;
+  background: rgba(101, 65, 16, 0.28);
+}
+
+:root[data-theme="dark"] .diagnostics-item.error .diagnostics-status-icon {
+  color: #ffb4b8;
+  background: rgba(117, 37, 42, 0.28);
+}
+
 :root[data-theme="dark"] .theme-mode-control button.active,
 :root[data-theme="dark"] .mapping-add {
   border-color: rgba(109, 168, 255, 0.3);

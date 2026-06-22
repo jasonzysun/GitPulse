@@ -107,6 +107,25 @@ pub fn get_git_commits(
     Ok(parse_git_log_output(repo, &output, query))
 }
 
+pub fn git_version() -> Result<String, String> {
+    git_command()
+        .arg("--version")
+        .output()
+        .map_err(format_git_launch_error)
+        .and_then(|output| {
+            if output.status.success() {
+                Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+            } else {
+                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                Err(if detail.is_empty() {
+                    "Git 命令不可用，请确认已安装 Git 并能在终端执行 git --version。".to_string()
+                } else {
+                    detail
+                })
+            }
+        })
+}
+
 fn visit_dir<F>(
     dir: &Path,
     root_dir: &str,
@@ -369,22 +388,7 @@ fn git_command() -> Command {
 }
 
 fn ensure_git_available() -> Result<(), String> {
-    git_command()
-        .arg("--version")
-        .output()
-        .map_err(format_git_launch_error)
-        .and_then(|output| {
-            if output.status.success() {
-                Ok(())
-            } else {
-                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                Err(if detail.is_empty() {
-                    "Git 命令不可用，请确认已安装 Git 并能在终端执行 git --version。".to_string()
-                } else {
-                    detail
-                })
-            }
-        })
+    git_version().map(|_| ())
 }
 
 fn run_git(repo_path: &Path, args: &[&str]) -> Result<String, String> {

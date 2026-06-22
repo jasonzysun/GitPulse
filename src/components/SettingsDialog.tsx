@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertCircle,
   Bot,
   CheckCircle2,
@@ -32,6 +33,7 @@ import {
   serializeMappingText,
   type AiModelInfo,
   type AppSettings,
+  type DiagnosticResult,
   type MappingEntry,
   type RepoInfo,
   type UpdateSummary,
@@ -67,7 +69,7 @@ type ModelFetchStatus = {
   message: string;
 };
 
-type SettingsTab = "workspace" | "ai" | "mapping" | "general";
+type SettingsTab = "workspace" | "ai" | "mapping" | "diagnostics" | "general";
 
 const EMPTY_MODEL_FETCH_STATUS: ModelFetchStatus = { type: "idle", message: "" };
 
@@ -75,6 +77,7 @@ const SETTINGS_TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "workspace", label: "工作区", icon: <FolderGit2 size={15} /> },
   { id: "ai", label: "AI 润色", icon: <Bot size={15} /> },
   { id: "mapping", label: "项目映射", icon: <Settings2 size={15} /> },
+  { id: "diagnostics", label: "诊断", icon: <Activity size={15} /> },
   { id: "general", label: "通用", icon: <Monitor size={15} /> },
 ];
 
@@ -109,6 +112,10 @@ export function SettingsDialog({
   const [savedPulse, setSavedPulse] = useState(false);
   const lastSettingsRef = useRef(settings);
   const [promptEditTarget, setPromptEditTarget] = useState<"daily" | "monthly">("daily");
+  const [diagnosticResult, setDiagnosticResult] = useState<DiagnosticResult | null>(null);
+  const [diagnosticBusy, setDiagnosticBusy] = useState(false);
+  const [diagnosticMessage, setDiagnosticMessage] = useState("");
+  const [diagnosticRanAt, setDiagnosticRanAt] = useState("");
   useEffect(() => {
     if (!open) {
       setImportNote("");
@@ -120,6 +127,10 @@ export function SettingsDialog({
       setCodexFlow(null);
       setCodexMessage("");
       setSavedPulse(false);
+      setDiagnosticResult(null);
+      setDiagnosticBusy(false);
+      setDiagnosticMessage("");
+      setDiagnosticRanAt("");
       stopCodexPolling();
     }
   }, [open]);
@@ -141,6 +152,12 @@ export function SettingsDialog({
     if (open && settings.aiProvider === "codex-oauth") void refreshCodexStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings.aiProvider]);
+  useEffect(() => {
+    if (open && activeTab === "diagnostics" && !diagnosticResult && !diagnosticBusy) {
+      void runDiagnostics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, activeTab]);
   if (!open) return null;
 
   const mappingRows = parseMappingText(settings.projectNamesText);
@@ -180,6 +197,33 @@ export function SettingsDialog({
   function resetSystemPrompt() {
     if (promptEditTarget === "daily") updateSetting("dailySystemPrompt", DEFAULT_DAILY_SYSTEM_PROMPT);
     else updateSetting("monthlySystemPrompt", DEFAULT_MONTHLY_SYSTEM_PROMPT);
+  }
+
+  async function runDiagnostics() {
+    setDiagnosticBusy(true);
+    setDiagnosticMessage("");
+    try {
+      const result = await invoke<DiagnosticResult>("run_diagnostics", {
+        options: {
+          rootDirs: settings.rootDirs,
+          outputDir: settings.outputDir,
+          outputEnabled: settings.outputEnabled,
+          author: settings.author,
+          aiEnabled: settings.aiEnabled,
+          aiProvider: settings.aiProvider,
+          aiBaseUrl: settings.aiBaseUrl,
+          aiModel: settings.aiModel,
+          aiApiKey: settings.aiApiKey,
+          indexedRepos: repos,
+        },
+      });
+      setDiagnosticResult(result);
+      setDiagnosticRanAt(new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }));
+    } catch (error) {
+      setDiagnosticMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDiagnosticBusy(false);
+    }
   }
 
   async function fetchAiModels() {
@@ -645,6 +689,67 @@ export function SettingsDialog({
                   </p>
                   {importNote && <p className="mapping-note">{importNote}</p>}
                 </div>
+              </section>
+            )}
+
+            {activeTab === "diagnostics" && (
+              <section className="settings-section diagnostics-section">
+                <div className="diagnostics-header">
+                  <div>
+                    <SectionTitle icon={<Activity size={16} />} title="运行诊断" />
+                    {diagnosticRanAt && <p className="diagnostics-ran-at">上次检查 {diagnosticRanAt}</p>}
+                  </div>
+                  <button
+                    type="button"
+                    className="model-fetch-button"
+                    onClick={() => void runDiagnostics()}
+                    disabled={diagnosticBusy}
+                    aria-busy={diagnosticBusy}
+                  >
+                    {diagnosticBusy ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
+                    {diagnosticBusy ? "检查中" : "重新检查"}
+                  </button>
+                </div>
+
+                {diagnosticResult && (
+                  <div className="diagnostics-summary" aria-label="诊断结果汇总">
+                    <span className={diagnosticResult.errorCount > 0 ? "error" : ""}>
+                      {diagnosticResult.errorCount} 异常
+                    </span>
+                    <span className={diagnosticResult.warningCount > 0 ? "warning" : ""}>
+                      {diagnosticResult.warningCount} 提醒
+                    </span>
+                    <span>{diagnosticResult.okCount} 正常</span>
+                  </div>
+                )}
+
+                {diagnosticMessage && (
+                  <p className="model-fetch-note error">
+                    <AlertCircle size={14} />
+                    {diagnosticMessage}
+                  </p>
+                )}
+
+                {diagnosticResult ? (
+                  <div className="diagnostics-list">
+                    {diagnosticResult.items.map((item) => (
+                      <article className={`diagnostics-item ${item.severity}`} key={item.id}>
+                        <span className="diagnostics-status-icon" aria-hidden="true">
+                          {item.severity === "ok" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}
+                        </span>
+                        <div className="diagnostics-copy">
+                          <strong>{item.label}</strong>
+                          <p>{item.message}</p>
+                          {item.action && <small>{item.action}</small>}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state diagnostics-empty">
+                    {diagnosticBusy ? "正在检查本地环境与当前设置..." : "点击重新检查，查看 GitPulse 当前配置是否可用。"}
+                  </p>
+                )}
               </section>
             )}
 

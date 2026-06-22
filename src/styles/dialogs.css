@@ -547,6 +547,125 @@
   color: var(--ink-soft);
 }
 
+.diagnostics-section {
+  gap: 12px;
+}
+
+.diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.diagnostics-ran-at {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.diagnostics-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.diagnostics-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(35, 154, 102, 0.2);
+  border-radius: 999px;
+  color: #14734a;
+  background: rgba(226, 249, 239, 0.82);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.diagnostics-summary span.warning {
+  border-color: rgba(229, 169, 54, 0.28);
+  color: #8a570d;
+  background: rgba(255, 244, 224, 0.88);
+}
+
+.diagnostics-summary span.error {
+  border-color: rgba(229, 72, 77, 0.22);
+  color: #b23539;
+  background: rgba(255, 228, 227, 0.9);
+}
+
+.diagnostics-list {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostics-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid rgba(220, 230, 240, 0.9);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.diagnostics-status-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: #14734a;
+  background: rgba(226, 249, 239, 0.9);
+}
+
+.diagnostics-item.warning .diagnostics-status-icon {
+  color: #8a570d;
+  background: rgba(255, 244, 224, 0.92);
+}
+
+.diagnostics-item.error .diagnostics-status-icon {
+  color: #b23539;
+  background: rgba(255, 228, 227, 0.94);
+}
+
+.diagnostics-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.diagnostics-copy strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.diagnostics-copy p,
+.diagnostics-copy small {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-copy p {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.diagnostics-copy small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.diagnostics-empty {
+  padding: 24px 18px;
+}
+
 .range-dialog {
   display: grid;
   gap: 14px;

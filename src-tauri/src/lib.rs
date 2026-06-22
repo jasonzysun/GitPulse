@@ -1,5 +1,6 @@
 mod ai;
 mod codex_oauth;
+mod diagnostics;
 mod docx;
 mod git_ops;
 mod models;
@@ -9,9 +10,10 @@ mod secure_store;
 mod zip_store;
 
 use crate::models::{
-    AiConfig, AiModelInfo, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    GitIdentity, MappingEntry, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
-    PeriodReportResult, RepoInfo, RepoScanProgress,
+    AiConfig, AiModelInfo, CommitExtractProgress, CommitRecord, DiagnosticOptions,
+    DiagnosticResult, ExtractOptions, ExtractResult, GitIdentity, MappingEntry,
+    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
+    RepoScanProgress,
 };
 use std::collections::{HashSet, VecDeque};
 use std::sync::{
@@ -119,6 +121,13 @@ async fn list_ai_models(config: AiConfig) -> Result<Vec<AiModelInfo>, String> {
     async_runtime::spawn_blocking(move || ai::list_models(&config))
         .await
         .map_err(|err| format!("获取模型列表任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn run_diagnostics(options: DiagnosticOptions) -> Result<DiagnosticResult, String> {
+    async_runtime::spawn_blocking(move || diagnostics::run(options))
+        .await
+        .map_err(|err| format!("诊断任务中断：{}", err))
 }
 
 #[tauri::command]
@@ -396,6 +405,7 @@ pub fn run() {
             generate_monthly_report,
             generate_period_report,
             list_ai_models,
+            run_diagnostics,
             get_secure_ai_api_key,
             set_secure_ai_api_key,
             clear_secure_ai_api_key,
@@ -875,6 +885,10 @@ fn count_projects(
 mod tests {
     use super::*;
     use crate::models::CommitRecord;
+    use std::fs;
+    use std::path::Path;
+    use std::process::Command;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn normalize_commits_sorts_newest_first_and_deduplicates_per_repo() {
@@ -945,6 +959,60 @@ mod tests {
         assert_eq!(repos[1].name, "zeta");
     }
 
+    #[test]
+    fn period_report_smoke_extracts_commit_and_saves_markdown() {
+        let root = temp_root("period-smoke");
+        let repo_dir = root.join("repo-a");
+        let output_dir = root.join("out");
+        fs::create_dir_all(&repo_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+        init_smoke_repo(&repo_dir);
+
+        let options = PeriodReportOptions {
+            root_dirs: vec![root.to_string_lossy().to_string()],
+            indexed_repos: vec![RepoInfo {
+                path: repo_dir.to_string_lossy().to_string(),
+                name: "repo-a".to_string(),
+                branch: "main".to_string(),
+            }],
+            output_dir: output_dir.to_string_lossy().to_string(),
+            output_enabled: true,
+            author: "Smoke Tester".to_string(),
+            start_date: "2026-06-10".to_string(),
+            end_date: "2026-06-10".to_string(),
+            period_label: "2026-W24".to_string(),
+            report_kind: "weekly".to_string(),
+            disabled_repos: Vec::new(),
+            extract_all_branches: false,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+            show_evidence_details: true,
+            project_names: Default::default(),
+            refinement_instruction: String::new(),
+            system_prompt: String::new(),
+            ai: AiConfig {
+                enabled: false,
+                provider: "openai-compatible".to_string(),
+                base_url: String::new(),
+                model: String::new(),
+                api_key: String::new(),
+                temperature: 0.2,
+                timeout_seconds: 60,
+            },
+        };
+
+        let result = generate_period_report_sync(options, |_| {}).unwrap();
+
+        assert_eq!(result.commit_count, 1);
+        assert!(result.report_text.contains("# 2026年第24周工作周报"));
+        assert!(result.report_text.contains("完成 smoke 验证"));
+        assert!(result.report_text.contains("来源：`repo-a`"));
+        assert!(result.output_file.ends_with("weekly_report_2026-W24.md"));
+        assert!(Path::new(&result.output_file).exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
     fn commit(repo_path: &str, hash: &str, date: &str) -> CommitRecord {
         CommitRecord {
             repo_path: repo_path.to_string(),
@@ -964,5 +1032,52 @@ mod tests {
             name: name.to_string(),
             branch: "main".to_string(),
         }
+    }
+
+    fn init_smoke_repo(repo_dir: &Path) {
+        run_smoke_git(repo_dir, &["init"], &[]);
+        run_smoke_git(repo_dir, &["config", "user.name", "Smoke Tester"], &[]);
+        run_smoke_git(
+            repo_dir,
+            &["config", "user.email", "smoke@example.com"],
+            &[],
+        );
+        run_smoke_git(repo_dir, &["config", "commit.gpgsign", "false"], &[]);
+        fs::write(repo_dir.join("work.txt"), "smoke").unwrap();
+        run_smoke_git(repo_dir, &["add", "."], &[]);
+        run_smoke_git(
+            repo_dir,
+            &["commit", "-m", "feat: 完成 smoke 验证"],
+            &[
+                ("GIT_AUTHOR_DATE", "2026-06-10T10:00:00+08:00"),
+                ("GIT_COMMITTER_DATE", "2026-06-10T10:00:00+08:00"),
+            ],
+        );
+    }
+
+    fn run_smoke_git(repo_dir: &Path, args: &[&str], envs: &[(&str, &str)]) {
+        let mut command = Command::new("git");
+        command.args(args).current_dir(repo_dir);
+        for (key, value) in envs {
+            command.env(key, value);
+        }
+        let output = command.output().unwrap_or_else(|err| {
+            panic!("failed to run git {}: {}", args.join(" "), err);
+        });
+        assert!(
+            output.status.success(),
+            "git {} failed: {}{}",
+            args.join(" "),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn temp_root(label: &str) -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("gitpulse-{label}-{}-{nanos}", std::process::id()))
     }
 }
