@@ -1,0 +1,90 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
+
+const files = {
+  app: readSource("src/App.tsx"),
+  settings: readSource("src/components/SettingsDialog.tsx"),
+  workbench: readSource("src/components/Workbench.tsx"),
+  model: readSource("src/model.ts"),
+};
+
+const checks = [
+  {
+    name: "settings diagnostics tab is reachable",
+    run: () => {
+      includes(files.settings, 'type SettingsTab = "workspace" | "ai" | "mapping" | "diagnostics" | "general"');
+      includes(files.settings, '{ id: "diagnostics", label: "诊断"');
+      includes(files.settings, 'activeTab === "diagnostics"');
+    },
+  },
+  {
+    name: "settings diagnostics invokes backend command",
+    run: () => {
+      includes(files.settings, 'invoke<DiagnosticResult>("run_diagnostics"');
+      includes(files.settings, "rootDirs: settings.rootDirs");
+      includes(files.settings, "indexedRepos: repos");
+      includes(files.model, "export type DiagnosticResult");
+    },
+  },
+  {
+    name: "diagnostics result renders summary and actionable rows",
+    run: () => {
+      includes(files.settings, "diagnosticResult.errorCount");
+      includes(files.settings, "diagnosticResult.warningCount");
+      includes(files.settings, "diagnosticResult.okCount");
+      includes(files.settings, "diagnostics-item");
+      includes(files.settings, "{item.action && <small>{item.action}</small>}");
+    },
+  },
+  {
+    name: "export menu exposes markdown docx and pdf formats",
+    run: () => {
+      includes(files.workbench, 'handleExport("markdown")');
+      includes(files.workbench, 'handleExport("docx")');
+      includes(files.workbench, 'handleExport("pdf")');
+      includes(files.workbench, 'aria-label="导出格式"');
+    },
+  },
+  {
+    name: "export action reaches save_report_file command",
+    run: () => {
+      includes(files.app, 'invoke<string>("save_report_file"');
+      includes(files.app, "baseName,");
+      includes(files.app, "format,");
+      includes(files.app, "content: previewText");
+      includes(files.app, "formatReportExportLabel");
+    },
+  },
+];
+
+let failed = 0;
+for (const check of checks) {
+  try {
+    check.run();
+    console.log(`ok - ${check.name}`);
+  } catch (error) {
+    failed += 1;
+    console.error(`not ok - ${check.name}`);
+    console.error(`  ${error.message}`);
+  }
+}
+
+if (failed > 0) {
+  console.error(`frontend smoke failed: ${failed}/${checks.length} checks failed`);
+  process.exit(1);
+}
+
+console.log(`frontend smoke passed: ${checks.length} checks`);
+
+function readSource(relativePath) {
+  return readFileSync(join(rootDir, relativePath), "utf8");
+}
+
+function includes(source, needle) {
+  if (!source.includes(needle)) {
+    throw new Error(`missing source marker: ${needle}`);
+  }
+}
