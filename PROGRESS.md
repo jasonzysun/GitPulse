@@ -61,13 +61,14 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add a zero-dependency frontend smoke guard for diagnostics tab wiring and report export controls.
 - [x] Extend diagnostics with GitHub network and updater manifest reachability checks.
 - [x] Ignore local Codex config files while keeping project-level `.codex/skills` available for sharing.
+- [x] Add `verify:release` / `release:check` scripts to run frontend smoke, build, Rust checks, diff checks, and release dry-run together.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
 - Add browser-level frontend e2e coverage for diagnostics and export flows once a test runner dependency is approved.
-- Add a release readiness checklist that runs diagnostics, frontend smoke, Rust tests, and packaging checks together.
+- Add optional browser-level e2e coverage after choosing a frontend test runner.
 
 ## Notes
 

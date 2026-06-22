@@ -16,6 +16,8 @@
     "build:patch": "node ./scripts/bump-version.mjs patch && npm run tauri:build:release",
     "build:minor": "node ./scripts/bump-version.mjs minor && npm run tauri:build:release",
     "build:major": "node ./scripts/bump-version.mjs major && npm run tauri:build:release",
+    "verify:release": "node ./scripts/verify-release.mjs",
+    "release:check": "node ./scripts/verify-release.mjs",
     "release:notes": "node ./scripts/generate-release-notes.mjs patch",
     "release:notes:patch": "node ./scripts/generate-release-notes.mjs patch",
     "release:notes:minor": "node ./scripts/generate-release-notes.mjs minor",

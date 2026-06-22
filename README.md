@@ -136,6 +136,7 @@ Tauri 2  ·  React 19  ·  Vite  ·  Rust  ·  lucide-react
 npm install            # 安装依赖
 npm run tauri dev      # 启动桌面应用（开发模式）
 npm run dev            # 仅启动前端（浏览器预览）
+npm run verify:release # 发版前检查
 npm run tauri build    # 构建安装包
 ```
 

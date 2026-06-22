@@ -70,6 +70,11 @@ node ./scripts/generate-release-notes.mjs patch --from-tag 82d4287
 ### 发布到 GitHub Release（含在线更新包）
 
 ```bash
+# 发版前门禁：smoke、前端构建、Rust check/test、diff check、发布计划 dry-run
+npm run verify:release
+# 需要连本机 Windows 安装包也一起验证时（要求签名环境）
+npm run verify:release -- --package
+
 # Windows PowerShell：首次准备配置文件
 Copy-Item .release.env.example .release.env.local
 
