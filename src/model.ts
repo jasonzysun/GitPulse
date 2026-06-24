@@ -1,3 +1,11 @@
+import {
+  DEFAULT_CUSTOM_REPORT_FORMAT_TEMPLATE,
+  DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
+  DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE,
+  DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
+  type ReportTemplateProfile,
+} from "./reportFormat";
+
 export type RepoInfo = {
   path: string;
   name: string;
@@ -111,8 +119,6 @@ export type DiagnosticResult = {
 
 export type ThemeMode = "system" | "light" | "dark";
 
-export type ReportTemplateProfile = "auto" | "daily" | "weekly" | "performance" | "concise";
-
 export type AppSettings = {
   onboardingDone: boolean;
   rootDirs: string[];
@@ -137,6 +143,10 @@ export type AppSettings = {
   aiApiKeySaved: boolean;
   refinementInstruction: string;
   reportTemplateProfile: ReportTemplateProfile;
+  dailyReportFormatTemplate: string;
+  weeklyReportFormatTemplate: string;
+  monthlyReportFormatTemplate: string;
+  customReportFormatTemplate: string;
   dailySystemPrompt: string;
   monthlySystemPrompt: string;
   aiTemperature: number;
@@ -195,7 +205,11 @@ export const defaultSettings: AppSettings = {
   aiApiKey: "",
   aiApiKeySaved: false,
   refinementInstruction: "",
-  reportTemplateProfile: "auto",
+  reportTemplateProfile: "standard",
+  dailyReportFormatTemplate: DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
+  weeklyReportFormatTemplate: DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
+  monthlyReportFormatTemplate: DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE,
+  customReportFormatTemplate: DEFAULT_CUSTOM_REPORT_FORMAT_TEMPLATE,
   dailySystemPrompt: DEFAULT_DAILY_SYSTEM_PROMPT,
   monthlySystemPrompt: DEFAULT_MONTHLY_SYSTEM_PROMPT,
   aiTemperature: 0.2,
@@ -255,6 +269,22 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.excludeRevertCommits = parsed.excludeRevertCommits !== false;
   parsed.excludeBotCommits = parsed.excludeBotCommits !== false;
   parsed.showEvidenceDetails = Boolean(parsed.showEvidenceDetails);
+  parsed.dailyReportFormatTemplate = normalizeReportFormatTemplate(
+    parsed.dailyReportFormatTemplate,
+    DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
+  );
+  parsed.weeklyReportFormatTemplate = normalizeReportFormatTemplate(
+    parsed.weeklyReportFormatTemplate,
+    DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
+  );
+  parsed.monthlyReportFormatTemplate = normalizeReportFormatTemplate(
+    parsed.monthlyReportFormatTemplate,
+    DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE,
+  );
+  parsed.customReportFormatTemplate = normalizeReportFormatTemplate(
+    parsed.customReportFormatTemplate,
+    DEFAULT_CUSTOM_REPORT_FORMAT_TEMPLATE,
+  );
   parsed.aiTemperature = Number.isFinite(parsed.aiTemperature) ? parsed.aiTemperature : defaultSettings.aiTemperature;
   // 旧版本只持久化单个 rootDir 字符串，迁移为 rootDirs 数组，避免老用户工作区配置失效。
   if (parsed.rootDirs.length === 0 && rawSettings.rootDir?.trim()) {
@@ -812,10 +842,17 @@ function normalizeThemeMode(value: unknown): ThemeMode {
 }
 
 function normalizeReportTemplateProfile(value: unknown): ReportTemplateProfile {
-  if (value === "auto" || value === "daily" || value === "weekly" || value === "performance" || value === "concise") {
+  if (value === "auto") return "standard";
+  if (value === "daily" || value === "weekly") return "grouped";
+  if (value === "performance") return "evidence";
+  if (value === "standard" || value === "grouped" || value === "evidence" || value === "concise" || value === "custom") {
     return value;
   }
   return defaultSettings.reportTemplateProfile;
+}
+
+function normalizeReportFormatTemplate(value: unknown, fallback: string) {
+  return typeof value === "string" ? value : fallback;
 }
 
 function stripWindowsVerbatimPrefix(path: string) {

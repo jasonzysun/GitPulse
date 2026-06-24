@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  FileText,
   FileUp,
   FolderGit2,
   Loader2,
@@ -39,6 +40,7 @@ import {
   type UpdateSummary,
 } from "../model";
 import { Field, PathInput, RootDirField, Toggle } from "./Primitives";
+import { ReportFormatSettings } from "./ReportFormatSettings";
 import { UpdateSection } from "./UpdateSection";
 
 type Props = {
@@ -69,12 +71,13 @@ type ModelFetchStatus = {
   message: string;
 };
 
-type SettingsTab = "workspace" | "ai" | "mapping" | "diagnostics" | "general";
+type SettingsTab = "workspace" | "format" | "ai" | "mapping" | "diagnostics" | "general";
 
 const EMPTY_MODEL_FETCH_STATUS: ModelFetchStatus = { type: "idle", message: "" };
 
 const SETTINGS_TABS: { id: SettingsTab; label: string; icon: ReactNode }[] = [
   { id: "workspace", label: "工作区", icon: <FolderGit2 size={15} /> },
+  { id: "format", label: "报告格式", icon: <FileText size={15} /> },
   { id: "ai", label: "AI 润色", icon: <Bot size={15} /> },
   { id: "mapping", label: "项目映射", icon: <Settings2 size={15} /> },
   { id: "diagnostics", label: "诊断", icon: <Activity size={15} /> },
@@ -471,6 +474,8 @@ export function SettingsDialog({
                 </section>
               </>
             )}
+
+            {activeTab === "format" && <ReportFormatSettings settings={settings} updateSetting={updateSetting} />}
 
             {activeTab === "ai" && (
               <section className="settings-section">

@@ -159,11 +159,32 @@
 :root[data-theme="dark"] .icon-button,
 :root[data-theme="dark"] .settings-section,
 :root[data-theme="dark"] .mapping-row,
+:root[data-theme="dark"] .report-format-preview,
+:root[data-theme="dark"] .report-format-variables,
 :root[data-theme="dark"] .update-status-card,
 :root[data-theme="dark"] .update-notes,
 :root[data-theme="dark"] .theme-mode-control button {
   border-color: rgba(52, 74, 103, 0.9);
   background: rgba(20, 31, 48, 0.78);
+}
+
+:root[data-theme="dark"] .report-format-presets button,
+:root[data-theme="dark"] .report-variable-grid button,
+:root[data-theme="dark"] .report-format-preview pre {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(12, 22, 36, 0.72);
+}
+
+:root[data-theme="dark"] .report-format-presets button:hover,
+:root[data-theme="dark"] .report-variable-grid button:hover {
+  border-color: rgba(109, 168, 255, 0.34);
+  background: rgba(63, 140, 255, 0.14);
+}
+
+:root[data-theme="dark"] .report-format-presets button.active {
+  border-color: rgba(109, 168, 255, 0.3);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.18);
 }
 
 :root[data-theme="dark"] .update-pill {
