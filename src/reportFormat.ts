@@ -7,6 +7,11 @@ export type ReportFormatVariable = {
   label: string;
 };
 
+export type ReportTemplateValidationIssue = {
+  severity: "info" | "warning";
+  message: string;
+};
+
 export const REPORT_FORMAT_KINDS: ReportFormatKind[] = ["daily", "weekly", "monthly", "custom"];
 
 export const REPORT_FORMAT_VARIABLES: ReportFormatVariable[] = [
@@ -14,9 +19,12 @@ export const REPORT_FORMAT_VARIABLES: ReportFormatVariable[] = [
   { token: "{startDate}", label: "开始日期" },
   { token: "{endDate}", label: "结束日期" },
   { token: "{author}", label: "作者" },
+  { token: "{projectCount}", label: "项目数量" },
+  { token: "{commitCount}", label: "提交事项数" },
   { token: "{projectSections}", label: "项目分组" },
   { token: "{commitItems}", label: "提交事项" },
   { token: "{summary}", label: "总结段落" },
+  { token: "{conclusion}", label: "收尾总结" },
   { token: "{nextSteps}", label: "后续关注" },
   { token: "{evidence}", label: "来源证据" },
   { token: "{notes}", label: "生成说明" },
@@ -28,7 +36,9 @@ export const DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE = [
   "# {periodLabel}工作周报",
   "",
   "- 统计周期：{startDate} 至 {endDate}",
-  "- 汇报人：{author}",
+  "- 作者：{author}",
+  "- 项目数量：{projectCount}",
+  "- 提交事项：{commitCount}",
   "",
   "## 一、本周重点",
   "",
@@ -49,7 +59,9 @@ export const DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE = [
   "# {periodLabel}工作月报",
   "",
   "- 统计周期：{startDate} 至 {endDate}",
-  "- 汇报人：{author}",
+  "- 作者：{author}",
+  "- 项目数量：{projectCount}",
+  "- 提交事项：{commitCount}",
   "",
   "## 一、项目进度",
   "",
@@ -61,7 +73,7 @@ export const DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE = [
   "",
   "## 三、当月总结",
   "",
-  "{summary}",
+  "{conclusion}",
   "",
   "{notes}",
 ].join("\n");
@@ -70,7 +82,9 @@ export const DEFAULT_CUSTOM_REPORT_FORMAT_TEMPLATE = [
   "# {periodLabel}工作报告",
   "",
   "- 统计周期：{startDate} 至 {endDate}",
-  "- 汇报人：{author}",
+  "- 作者：{author}",
+  "- 项目数量：{projectCount}",
+  "- 提交事项：{commitCount}",
   "",
   "{projectSections}",
   "",
@@ -90,6 +104,30 @@ export function profileReportFormatTemplate(profile: ReportTemplateProfile, kind
   if (profile === "evidence") return evidenceReportFormatTemplate(kind);
   return defaultReportFormatTemplate(kind);
 }
+
+export function validateReportFormatTemplate(template: string): ReportTemplateValidationIssue[] {
+  const trimmed = template.trim();
+  if (!trimmed) {
+    return [{ severity: "info", message: "模板为空时会使用当前报告类型的默认结构。" }];
+  }
+
+  const allowedTokens = new Set(REPORT_FORMAT_VARIABLES.map((variable) => variable.token));
+  const tokens = [...new Set(trimmed.match(/\{[A-Za-z][A-Za-z0-9]*\}/g) ?? [])];
+  const unknownTokens = tokens.filter((token) => !allowedTokens.has(token));
+  const issues: ReportTemplateValidationIssue[] = [];
+  if (unknownTokens.length > 0) {
+    issues.push({ severity: "warning", message: `未识别变量：${unknownTokens.join("、")}` });
+  }
+  if (!tokens.some((token) => CONTENT_TOKENS.has(token))) {
+    issues.push({ severity: "warning", message: "模板缺少内容变量，生成结果可能只剩标题或说明。" });
+  }
+  if (issues.length === 0) {
+    issues.push({ severity: "info", message: "模板变量可用。" });
+  }
+  return issues;
+}
+
+const CONTENT_TOKENS = new Set(["{projectSections}", "{commitItems}", "{summary}", "{conclusion}", "{evidence}"]);
 
 function conciseReportFormatTemplate(kind: ReportFormatKind) {
   if (kind === "daily") {

@@ -1,4 +1,4 @@
-import { Braces, FileText, RefreshCw } from "lucide-react";
+import { AlertCircle, Braces, CheckCircle2, FileText, RefreshCw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { AppSettings } from "../model";
 import {
@@ -6,6 +6,7 @@ import {
   profileReportFormatTemplate,
   REPORT_FORMAT_KINDS,
   REPORT_FORMAT_VARIABLES,
+  validateReportFormatTemplate,
   type ReportFormatKind,
   type ReportTemplateProfile,
 } from "../reportFormat";
@@ -31,6 +32,8 @@ const REPORT_TEMPLATE_PROFILES: { id: ReportTemplateProfile; label: string; desc
 
 const BASE_REPORT_FORMAT_SAMPLE_VALUES: Record<string, string> = {
   "{author}": "Zhang Wei",
+  "{projectCount}": "2",
+  "{commitCount}": "5",
   "{projectSections}": [
     "### GitPulse 桌面端",
     "",
@@ -45,6 +48,7 @@ const BASE_REPORT_FORMAT_SAMPLE_VALUES: Record<string, string> = {
   ].join("\n"),
   "{commitItems}": ["- 完成报告格式设置面板", "- 修复周报生成时的空状态文案", "- 优化 PDF 导出字体回退"].join("\n"),
   "{summary}": "- 本周期共推进 5 项可追踪事项，主要集中在报告生成、导出体验与本地配置稳定性。",
+  "{conclusion}": "- 整体来看，本周期工作以交付可验证事项为主，后续可结合测试、上线和业务反馈补充结果指标。",
   "{nextSteps}": "- 继续接入模板渲染逻辑，并补充导出格式回归测试。",
   "{evidence}": [
     "> 来源：`git_pulse` / `main` / `2026-06-12` / `abc123d`",
@@ -57,6 +61,7 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
   const [formatEditTarget, setFormatEditTarget] = useState<ReportFormatKind>("weekly");
   const activeReportFormatTemplate = reportFormatTemplateValue(settings, formatEditTarget);
   const activeReportFormatPreview = renderReportFormatPreview(activeReportFormatTemplate, formatEditTarget);
+  const templateValidationIssues = validateReportFormatTemplate(activeReportFormatTemplate);
 
   function updateReportFormatTemplate(kind: ReportFormatKind, value: string) {
     updateSetting(reportFormatTemplateKey(kind), value);
@@ -122,6 +127,15 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
               spellCheck={false}
             />
           </Field>
+
+          <div className="template-validation-list" aria-label="模板校验结果">
+            {templateValidationIssues.map((issue) => (
+              <p className={`template-validation ${issue.severity}`} key={issue.message}>
+                {issue.severity === "warning" ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
+                {issue.message}
+              </p>
+            ))}
+          </div>
 
           <div className="report-format-actions">
             <button type="button" className="mapping-import" onClick={resetCurrentReportFormatTemplate}>

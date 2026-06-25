@@ -187,6 +187,22 @@
   background: rgba(63, 140, 255, 0.18);
 }
 
+:root[data-theme="dark"] .template-validation {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(12, 22, 36, 0.72);
+}
+
+:root[data-theme="dark"] .template-validation.info {
+  border-color: rgba(109, 168, 255, 0.28);
+  background: rgba(63, 140, 255, 0.14);
+}
+
+:root[data-theme="dark"] .template-validation.warning {
+  border-color: rgba(244, 201, 120, 0.32);
+  color: #f5c978;
+  background: rgba(244, 201, 120, 0.12);
+}
+
 :root[data-theme="dark"] .update-pill {
   border-color: rgba(52, 74, 103, 0.9);
   background: rgba(12, 22, 36, 0.92);

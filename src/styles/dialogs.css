@@ -514,6 +514,43 @@
   tab-size: 2;
 }
 
+.template-validation-list {
+  display: grid;
+  gap: 6px;
+}
+
+.template-validation {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.45;
+}
+
+.template-validation svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.template-validation.info {
+  border-color: rgba(63, 140, 255, 0.24);
+  color: var(--primary-dark);
+  background: rgba(217, 235, 255, 0.48);
+}
+
+.template-validation.warning {
+  border-color: rgba(229, 169, 54, 0.38);
+  color: #8a5a00;
+  background: rgba(255, 244, 214, 0.78);
+}
+
 .report-format-actions {
   display: flex;
   flex-wrap: wrap;

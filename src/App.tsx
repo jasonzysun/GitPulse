@@ -426,7 +426,7 @@ function App() {
     setExtractProgress(null);
     await runTask("正在生成自定义报告", async () => {
       const result = await invoke<ExtractResult>("extract_commits", {
-        options: buildExtractOptions(settings, projectNames, range, false, "", repos),
+        options: buildExtractOptions(settings, projectNames, range, false, "", repos, "custom"),
       });
       const reportText = result.detailedText || result.summaryText;
       const periodLabel = `${range.startDate} ~ ${range.endDate}`;
@@ -510,7 +510,7 @@ function App() {
       } else {
         const range = activePreview === "custom" ? customRange : dailyRange;
         const result = await invoke<ExtractResult>("extract_commits", {
-          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction, repos),
+          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction, repos, activePreview === "custom" ? "custom" : "daily"),
         });
         const reportText = result.detailedText || result.summaryText;
         const mode = activePreview === "custom" ? "custom" : "summary";

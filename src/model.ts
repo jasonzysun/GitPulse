@@ -3,6 +3,7 @@ import {
   DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
   DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE,
   DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
+  type ReportFormatKind,
   type ReportTemplateProfile,
 } from "./reportFormat";
 
@@ -49,6 +50,8 @@ export type MonthlyReportResult = {
 
 export type PeriodReportKind = "weekly" | "monthly";
 
+export type ExtractReportKind = Extract<ReportFormatKind, "daily" | "custom">;
+
 export type PeriodReportResult = {
   reportText: string;
   outputFile: string;
@@ -68,6 +71,13 @@ export type ReportExportFormat = "markdown" | "docx" | "pdf";
 export type DateRange = {
   startDate: string;
   endDate: string;
+};
+
+export type ReportFormatTemplates = {
+  daily: string;
+  weekly: string;
+  monthly: string;
+  custom: string;
 };
 
 export type ReportHistoryEntry = {
@@ -166,6 +176,8 @@ const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const EVIDENCE_PRESERVATION_INSTRUCTION =
   "已启用提交证据详情。请保留每条事项下方的「来源」引用块，不要改写仓库、分支、日期、commit hash 或原始提交信息。";
+const TEMPLATE_PRESERVATION_INSTRUCTION =
+  "请保留当前报告草稿的模板结构、标题层级和分段顺序，不要改成其他固定格式。";
 
 export type RepoIndexCache = {
   rootDirs: string[];
@@ -525,6 +537,7 @@ export function buildExtractOptions(
   aiEnabled: boolean,
   extraInstruction = "",
   indexedRepos: RepoInfo[] = [],
+  reportKind: ExtractReportKind = "daily",
 ) {
   const range = dateRange ?? getTodayRange();
   return {
@@ -533,6 +546,8 @@ export function buildExtractOptions(
     author: settings.author,
     startDate: range.startDate,
     endDate: range.endDate,
+    periodLabel: reportKind === "custom" ? `${range.startDate} ~ ${range.endDate}` : range.startDate,
+    reportKind,
     disabledRepos: settings.disabledRepos,
     extractAllBranches: settings.extractAllBranches,
     excludeMergeCommits: settings.excludeMergeCommits,
@@ -542,6 +557,7 @@ export function buildExtractOptions(
     showProjectAndBranch: settings.showProjectAndBranch,
     showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
+    reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "daily"),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
@@ -568,6 +584,7 @@ export function buildMonthlyOptions(
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
+    reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "monthly"),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
@@ -601,6 +618,7 @@ export function buildPeriodReportOptions(
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
     projectNames,
+    reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
@@ -670,6 +688,15 @@ function buildAiOptions(settings: AppSettings) {
   };
 }
 
+function buildReportFormatTemplates(settings: AppSettings): ReportFormatTemplates {
+  return {
+    daily: settings.dailyReportFormatTemplate,
+    weekly: settings.weeklyReportFormatTemplate,
+    monthly: settings.monthlyReportFormatTemplate,
+    custom: settings.customReportFormatTemplate,
+  };
+}
+
 // AI 采样温度：超出 [0,1] 钳到边界，非数字回退默认 0.2（Anthropic 上限为 1，取并集安全区间）。
 function clampTemperature(value: number): number {
   if (!Number.isFinite(value)) return 0.2;
@@ -693,7 +720,10 @@ function buildReportSystemPrompt(settings: AppSettings, kind: "daily" | PeriodRe
 
 function buildReportRefinementInstruction(settings: AppSettings, extraInstruction: string) {
   const evidenceInstruction = settings.showEvidenceDetails ? EVIDENCE_PRESERVATION_INSTRUCTION : "";
-  return mergeInstructions(mergeInstructions(settings.refinementInstruction, evidenceInstruction), extraInstruction);
+  return mergeInstructions(
+    mergeInstructions(mergeInstructions(settings.refinementInstruction, TEMPLATE_PRESERVATION_INSTRUCTION), evidenceInstruction),
+    extraInstruction,
+  );
 }
 
 export function getTodayRange(): DateRange {

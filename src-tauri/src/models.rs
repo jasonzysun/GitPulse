@@ -68,6 +68,10 @@ pub struct ExtractOptions {
     pub author: String,
     pub start_date: String,
     pub end_date: String,
+    #[serde(default)]
+    pub period_label: String,
+    #[serde(default = "default_extract_report_kind")]
+    pub report_kind: String,
     pub disabled_repos: Vec<String>,
     pub extract_all_branches: bool,
     pub exclude_merge_commits: bool,
@@ -77,6 +81,8 @@ pub struct ExtractOptions {
     pub show_project_and_branch: bool,
     pub show_evidence_details: bool,
     pub project_names: HashMap<String, String>,
+    #[serde(default)]
+    pub report_format_templates: ReportFormatTemplates,
     pub refinement_instruction: String,
     pub system_prompt: String,
     pub ai: AiConfig,
@@ -155,6 +161,30 @@ pub struct DiagnosticResult {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReportFormatTemplates {
+    #[serde(default = "default_daily_report_template")]
+    pub daily: String,
+    #[serde(default = "default_weekly_report_template")]
+    pub weekly: String,
+    #[serde(default = "default_monthly_report_template")]
+    pub monthly: String,
+    #[serde(default = "default_custom_report_template")]
+    pub custom: String,
+}
+
+impl Default for ReportFormatTemplates {
+    fn default() -> Self {
+        Self {
+            daily: default_daily_report_template(),
+            weekly: default_weekly_report_template(),
+            monthly: default_monthly_report_template(),
+            custom: default_custom_report_template(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MonthlyReportOptions {
     pub root_dirs: Vec<String>,
     #[serde(default)]
@@ -169,6 +199,8 @@ pub struct MonthlyReportOptions {
     pub exclude_bot_commits: bool,
     pub show_evidence_details: bool,
     pub project_names: HashMap<String, String>,
+    #[serde(default)]
+    pub report_format_templates: ReportFormatTemplates,
     pub refinement_instruction: String,
     pub system_prompt: String,
     pub ai: AiConfig,
@@ -207,6 +239,8 @@ pub struct PeriodReportOptions {
     pub exclude_bot_commits: bool,
     pub show_evidence_details: bool,
     pub project_names: HashMap<String, String>,
+    #[serde(default)]
+    pub report_format_templates: ReportFormatTemplates,
     pub refinement_instruction: String,
     pub system_prompt: String,
     pub ai: AiConfig,
@@ -224,4 +258,80 @@ pub struct PeriodReportResult {
     pub report_kind: String,
     pub project_count: usize,
     pub commit_count: usize,
+}
+
+fn default_extract_report_kind() -> String {
+    "daily".to_string()
+}
+
+fn default_daily_report_template() -> String {
+    "{commitItems}".to_string()
+}
+
+fn default_weekly_report_template() -> String {
+    [
+        "# {periodLabel}工作周报",
+        "",
+        "- 统计周期：{startDate} 至 {endDate}",
+        "- 作者：{author}",
+        "- 项目数量：{projectCount}",
+        "- 提交事项：{commitCount}",
+        "",
+        "## 一、本周重点",
+        "",
+        "{summary}",
+        "",
+        "## 二、实际完成情况",
+        "",
+        "{projectSections}",
+        "",
+        "## 三、下周关注",
+        "",
+        "{nextSteps}",
+        "",
+        "{notes}",
+    ]
+    .join("\n")
+}
+
+fn default_monthly_report_template() -> String {
+    [
+        "# {periodLabel}工作月报",
+        "",
+        "- 统计周期：{startDate} 至 {endDate}",
+        "- 作者：{author}",
+        "- 项目数量：{projectCount}",
+        "- 提交事项：{commitCount}",
+        "",
+        "## 一、项目进度",
+        "",
+        "{summary}",
+        "",
+        "## 二、实际完成情况",
+        "",
+        "{projectSections}",
+        "",
+        "## 三、当月总结",
+        "",
+        "{conclusion}",
+        "",
+        "{notes}",
+    ]
+    .join("\n")
+}
+
+fn default_custom_report_template() -> String {
+    [
+        "# {periodLabel}工作报告",
+        "",
+        "- 统计周期：{startDate} 至 {endDate}",
+        "- 作者：{author}",
+        "- 项目数量：{projectCount}",
+        "- 提交事项：{commitCount}",
+        "",
+        "{projectSections}",
+        "",
+        "{evidence}",
+    ]
+    .join("\n")
 }

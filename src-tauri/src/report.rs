@@ -1,6 +1,9 @@
 use crate::{
     docx,
-    models::{CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo},
+    models::{
+        CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo,
+        ReportFormatTemplates,
+    },
     pdf,
 };
 use chrono::{Datelike, Duration, Local, NaiveDate};
@@ -8,6 +11,15 @@ use regex::Regex;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::PathBuf;
+
+pub struct ExtractReportFormat<'a> {
+    pub start_date: &'a str,
+    pub end_date: &'a str,
+    pub author: &'a str,
+    pub period_label: &'a str,
+    pub report_kind: &'a str,
+    pub templates: &'a ReportFormatTemplates,
+}
 
 pub fn previous_month_range() -> (String, String, String) {
     let today = Local::now().date_naive();
@@ -33,19 +45,23 @@ pub fn build_extract_result(
     show_project_and_branch: bool,
     show_evidence_details: bool,
     detailed_output: bool,
+    format: ExtractReportFormat,
 ) -> ExtractResult {
+    let summary_text = render_extract_report(
+        &commits,
+        project_names,
+        show_project_and_branch,
+        show_evidence_details,
+        &format,
+    );
+    let detailed_text = if detailed_output {
+        render_detailed_report(&summary_text, &commits)
+    } else {
+        String::new()
+    };
     ExtractResult {
-        summary_text: render_summary_text(
-            &commits,
-            project_names,
-            show_project_and_branch,
-            show_evidence_details,
-        ),
-        detailed_text: if detailed_output {
-            render_detailed_text(&commits)
-        } else {
-            String::new()
-        },
+        summary_text,
+        detailed_text,
         repos,
         commits,
         warnings,
@@ -72,7 +88,45 @@ pub fn render_summary_text(
         .join("\n")
 }
 
-pub fn render_monthly_report(
+pub fn render_extract_report(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    show_project_and_branch: bool,
+    show_evidence_details: bool,
+    format: &ExtractReportFormat,
+) -> String {
+    let kind = if format.report_kind == "custom" {
+        "custom"
+    } else {
+        "daily"
+    };
+    let template = report_template_for(format.templates, kind);
+    let period_label = resolve_period_label(
+        kind,
+        format.period_label,
+        format.start_date,
+        format.end_date,
+    );
+    let values = build_template_values(
+        kind,
+        commits,
+        project_names,
+        format.start_date,
+        format.end_date,
+        format.author,
+        &period_label,
+        show_evidence_details,
+    );
+    let values = values.with_commit_items(render_summary_text(
+        commits,
+        project_names,
+        show_project_and_branch,
+        show_evidence_details,
+    ));
+    render_report_template(template, default_template_for(kind), &values)
+}
+
+pub fn render_monthly_report_with_template(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
     start_date: &str,
@@ -80,26 +134,23 @@ pub fn render_monthly_report(
     author: &str,
     month_label: &str,
     show_evidence_details: bool,
+    template: &str,
 ) -> String {
-    let groups = group_commits_by_project(commits, project_names);
-    let mut lines = render_monthly_header(
-        groups.len(),
-        commits.len(),
+    let period_label = resolve_period_label("monthly", month_label, start_date, end_date);
+    let values = build_template_values(
+        "monthly",
+        commits,
+        project_names,
         start_date,
         end_date,
         author,
-        month_label,
+        &period_label,
+        show_evidence_details,
     );
-    lines.extend(render_project_progress(&groups));
-    lines.extend(render_actual_completion(&groups, show_evidence_details));
-    lines.extend(render_monthly_summary(&groups));
-    lines.push(
-        "> 说明：本报告基于 Git 提交记录生成，业务指标和验收结论建议结合绩效口径补充。".to_string(),
-    );
-    lines.join("\n")
+    render_report_template(template, default_template_for("monthly"), &values)
 }
 
-pub fn render_weekly_report(
+pub fn render_weekly_report_with_template(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
     start_date: &str,
@@ -107,23 +158,20 @@ pub fn render_weekly_report(
     author: &str,
     week_label: &str,
     show_evidence_details: bool,
+    template: &str,
 ) -> String {
-    let groups = group_commits_by_project(commits, project_names);
-    let mut lines = render_weekly_header(
-        groups.len(),
-        commits.len(),
+    let period_label = resolve_period_label("weekly", week_label, start_date, end_date);
+    let values = build_template_values(
+        "weekly",
+        commits,
+        project_names,
         start_date,
         end_date,
         author,
-        week_label,
+        &period_label,
+        show_evidence_details,
     );
-    lines.extend(render_weekly_focus(&groups));
-    lines.extend(render_actual_completion(&groups, show_evidence_details));
-    lines.extend(render_weekly_next_steps(&groups));
-    lines.push(
-        "> 说明：本周报基于 Git 提交记录生成，建议结合测试、上线和业务反馈补充结果。".to_string(),
-    );
-    lines.join("\n")
+    render_report_template(template, default_template_for("weekly"), &values)
 }
 
 pub fn save_report_file(
@@ -279,6 +327,15 @@ fn render_detailed_text(commits: &[CommitRecord]) -> String {
         .join("\n========================================\n")
 }
 
+fn render_detailed_report(summary_text: &str, commits: &[CommitRecord]) -> String {
+    let details = render_detailed_text(commits);
+    if details.trim().is_empty() {
+        summary_text.to_string()
+    } else {
+        format!("{}\n\n## 详细日志\n\n{}", summary_text.trim(), details)
+    }
+}
+
 /// 映射名末尾可能带各种连接符（也可能不带）。统一在此规整：由系统补连接符，
 /// 用户无需手动维护，同时兼容历史上已手动加了 "-" 的映射。
 const TRAILING_CONNECTORS: [char; 8] = ['-', '_', '：', ':', '；', ';', '、', ' '];
@@ -288,6 +345,273 @@ struct ProjectCommitItem {
     title: String,
     evidence: String,
 }
+
+struct ReportTemplateValues {
+    period_label: String,
+    start_date: String,
+    end_date: String,
+    author: String,
+    project_count: String,
+    commit_count: String,
+    project_sections: String,
+    commit_items: String,
+    summary: String,
+    conclusion: String,
+    next_steps: String,
+    evidence: String,
+    notes: String,
+}
+
+impl ReportTemplateValues {
+    fn with_commit_items(mut self, commit_items: String) -> Self {
+        self.commit_items = commit_items;
+        self
+    }
+}
+
+fn build_template_values(
+    kind: &str,
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    period_label: &str,
+    show_evidence_details: bool,
+) -> ReportTemplateValues {
+    let groups = group_commits_by_project(commits, project_names);
+    ReportTemplateValues {
+        period_label: period_label.to_string(),
+        start_date: start_date.to_string(),
+        end_date: end_date.to_string(),
+        author: display_author(author),
+        project_count: groups.len().to_string(),
+        commit_count: commits.len().to_string(),
+        project_sections: lines_to_block(render_actual_completion_content(
+            &groups,
+            show_evidence_details,
+        )),
+        commit_items: render_flat_commit_items(commits),
+        summary: lines_to_block(render_summary_content(kind, &groups)),
+        conclusion: lines_to_block(render_conclusion_content(kind, &groups)),
+        next_steps: lines_to_block(render_next_steps_content(kind, &groups)),
+        evidence: render_evidence_items(commits),
+        notes: report_note(kind).to_string(),
+    }
+}
+
+fn render_report_template(
+    template: &str,
+    fallback_template: &str,
+    values: &ReportTemplateValues,
+) -> String {
+    let source = if template.trim().is_empty() {
+        fallback_template
+    } else {
+        template
+    };
+    let replacements = [
+        ("{periodLabel}", values.period_label.as_str()),
+        ("{startDate}", values.start_date.as_str()),
+        ("{endDate}", values.end_date.as_str()),
+        ("{author}", values.author.as_str()),
+        ("{projectCount}", values.project_count.as_str()),
+        ("{commitCount}", values.commit_count.as_str()),
+        ("{projectSections}", values.project_sections.as_str()),
+        ("{commitItems}", values.commit_items.as_str()),
+        ("{summary}", values.summary.as_str()),
+        ("{conclusion}", values.conclusion.as_str()),
+        ("{nextSteps}", values.next_steps.as_str()),
+        ("{evidence}", values.evidence.as_str()),
+        ("{notes}", values.notes.as_str()),
+    ];
+    let mut output = source.to_string();
+    for (token, value) in replacements {
+        output = output.replace(token, value);
+    }
+    output.trim().to_string()
+}
+
+fn render_summary_content(
+    kind: &str,
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    match kind {
+        "monthly" => render_project_progress_content(groups),
+        "weekly" => render_weekly_focus_content(groups),
+        _ => render_generic_summary_content(kind, groups),
+    }
+}
+
+fn render_conclusion_content(
+    kind: &str,
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    if kind == "monthly" {
+        return render_monthly_summary_content(groups);
+    }
+    if groups.is_empty() {
+        return vec!["- 暂无可用于总结的提交记录。".to_string()];
+    }
+    vec![
+        "- 整体来看，本周期工作以交付可验证事项为主，后续可结合测试、上线和业务反馈补充结果指标。"
+            .to_string(),
+    ]
+}
+
+fn render_next_steps_content(
+    kind: &str,
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    if kind == "weekly" {
+        return render_weekly_next_steps_content(groups);
+    }
+    if groups.is_empty() {
+        return vec!["- 暂无基于提交记录推断的后续关注事项。".to_string()];
+    }
+    groups
+        .iter()
+        .map(|(project, items)| {
+            format!(
+                "- {}：建议继续围绕 {} 补充验证、发布或复盘记录。",
+                project,
+                join_focus_items(items)
+            )
+        })
+        .collect()
+}
+
+fn render_generic_summary_content(
+    kind: &str,
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    if groups.is_empty() {
+        let label = if kind == "daily" {
+            "今日"
+        } else {
+            "当前周期"
+        };
+        return vec![format!("- {}未检索到可用于生成报告的提交记录。", label)];
+    }
+    let total = groups
+        .values()
+        .map(|items| unique_items(items).len())
+        .sum::<usize>();
+    vec![format!(
+        "- 本周期共推进 {} 项可追踪事项，主要集中在：{}。",
+        total,
+        groups
+            .values()
+            .flat_map(|items| unique_items(items))
+            .take(3)
+            .map(|item| item.title)
+            .collect::<Vec<_>>()
+            .join("；")
+    )]
+}
+
+fn render_flat_commit_items(commits: &[CommitRecord]) -> String {
+    if commits.is_empty() {
+        return "- 未检索到提交记录。".to_string();
+    }
+    commits
+        .iter()
+        .map(|commit| format!("- {}", clean_commit_message(&commit.message)))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn render_evidence_items(commits: &[CommitRecord]) -> String {
+    if commits.is_empty() {
+        return "- 暂无提交证据。".to_string();
+    }
+    commits
+        .iter()
+        .map(|commit| {
+            format!(
+                "- {}\n{}",
+                clean_commit_message(&commit.message),
+                format_evidence_block(commit)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn lines_to_block(lines: Vec<String>) -> String {
+    lines.join("\n").trim().to_string()
+}
+
+fn display_author(author: &str) -> String {
+    if author.trim().is_empty() {
+        "未指定".to_string()
+    } else {
+        author.to_string()
+    }
+}
+
+fn resolve_period_label(kind: &str, label: &str, start_date: &str, end_date: &str) -> String {
+    let trimmed = label.trim();
+    match kind {
+        "weekly" => format_week_title(if trimmed.is_empty() {
+            start_date
+        } else {
+            trimmed
+        }),
+        "monthly" => format_month_title(if trimmed.is_empty() {
+            start_date
+        } else {
+            trimmed
+        }),
+        "custom" => {
+            if trimmed.is_empty() {
+                format!("{} 至 {}", start_date, end_date)
+            } else {
+                trimmed.to_string()
+            }
+        }
+        _ => {
+            if trimmed.is_empty() {
+                start_date.to_string()
+            } else {
+                trimmed.to_string()
+            }
+        }
+    }
+}
+
+fn report_template_for<'a>(templates: &'a ReportFormatTemplates, kind: &str) -> &'a str {
+    match kind {
+        "weekly" => &templates.weekly,
+        "monthly" => &templates.monthly,
+        "custom" => &templates.custom,
+        _ => &templates.daily,
+    }
+}
+
+fn default_template_for(kind: &str) -> &'static str {
+    match kind {
+        "weekly" => DEFAULT_WEEKLY_REPORT_TEMPLATE,
+        "monthly" => DEFAULT_MONTHLY_REPORT_TEMPLATE,
+        "custom" => DEFAULT_CUSTOM_REPORT_TEMPLATE,
+        _ => DEFAULT_DAILY_REPORT_TEMPLATE,
+    }
+}
+
+fn report_note(kind: &str) -> &'static str {
+    match kind {
+        "weekly" => "> 说明：本周报基于 Git 提交记录生成，建议结合测试、上线和业务反馈补充结果。",
+        "monthly" => {
+            "> 说明：本报告基于 Git 提交记录生成，业务指标和验收结论建议结合绩效口径补充。"
+        }
+        _ => "> 说明：本报告基于 Git 提交记录生成，建议结合实际交付和业务反馈补充。",
+    }
+}
+
+const DEFAULT_DAILY_REPORT_TEMPLATE: &str = "{commitItems}";
+const DEFAULT_WEEKLY_REPORT_TEMPLATE: &str = "# {periodLabel}工作周报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、本周重点\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、下周关注\n\n{nextSteps}\n\n{notes}";
+const DEFAULT_MONTHLY_REPORT_TEMPLATE: &str = "# {periodLabel}工作月报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、项目进度\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、当月总结\n\n{conclusion}\n\n{notes}";
+const DEFAULT_CUSTOM_REPORT_TEMPLATE: &str = "# {periodLabel}工作报告\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n{projectSections}\n\n{evidence}";
 
 fn render_summary_line(
     commit: &CommitRecord,
@@ -411,60 +735,10 @@ fn monthly_project_name(project_names: &HashMap<String, String>, commit: &Commit
     }
 }
 
-fn render_monthly_header(
-    project_count: usize,
-    commit_count: usize,
-    start_date: &str,
-    end_date: &str,
-    author: &str,
-    month_label: &str,
+fn render_project_progress_content(
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
 ) -> Vec<String> {
-    vec![
-        format!("# {}工作月报", format_month_title(month_label)),
-        "".to_string(),
-        format!("- 统计周期：{} 至 {}", start_date, end_date),
-        format!(
-            "- 作者：{}",
-            if author.is_empty() {
-                "未指定"
-            } else {
-                author
-            }
-        ),
-        format!("- 项目数量：{}", project_count),
-        format!("- 提交事项：{}", commit_count),
-        "".to_string(),
-    ]
-}
-
-fn render_weekly_header(
-    project_count: usize,
-    commit_count: usize,
-    start_date: &str,
-    end_date: &str,
-    author: &str,
-    week_label: &str,
-) -> Vec<String> {
-    vec![
-        format!("# {}工作周报", format_week_title(week_label)),
-        "".to_string(),
-        format!("- 统计周期：{} 至 {}", start_date, end_date),
-        format!(
-            "- 作者：{}",
-            if author.is_empty() {
-                "未指定"
-            } else {
-                author
-            }
-        ),
-        format!("- 项目数量：{}", project_count),
-        format!("- 提交事项：{}", commit_count),
-        "".to_string(),
-    ]
-}
-
-fn render_project_progress(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
-    let mut lines = vec!["## 一、项目进度".to_string(), "".to_string()];
+    let mut lines = Vec::new();
     if groups.is_empty() {
         lines.push("- 本月未检索到可用于生成项目进度的提交记录。".to_string());
         lines.push("".to_string());
@@ -485,8 +759,8 @@ fn render_project_progress(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) ->
     lines
 }
 
-fn render_weekly_focus(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
-    let mut lines = vec!["## 一、本周重点".to_string(), "".to_string()];
+fn render_weekly_focus_content(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
+    let mut lines = Vec::new();
     if groups.is_empty() {
         lines.push("- 本周未检索到可用于生成周报的提交记录。".to_string());
         lines.push("".to_string());
@@ -508,11 +782,16 @@ fn render_weekly_focus(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec
     lines
 }
 
-fn render_actual_completion(
+fn render_actual_completion_content(
     groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
     show_evidence_details: bool,
 ) -> Vec<String> {
-    let mut lines = vec!["## 二、实际完成情况".to_string(), "".to_string()];
+    let mut lines = Vec::new();
+    if groups.is_empty() {
+        lines.push("- 未检索到可用于生成完成情况的提交记录。".to_string());
+        lines.push("".to_string());
+        return lines;
+    }
     for (project, items) in groups {
         lines.push(format!("### {}", project));
         for item in unique_items(items) {
@@ -533,8 +812,10 @@ fn render_evidence_block(evidence: &str) -> Vec<String> {
         .collect()
 }
 
-fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
-    let mut lines = vec!["## 三、下周关注".to_string(), "".to_string()];
+fn render_weekly_next_steps_content(
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    let mut lines = Vec::new();
     if groups.is_empty() {
         lines.push("- 暂无基于提交记录推断的下周关注事项。".to_string());
         lines.push("".to_string());
@@ -551,8 +832,15 @@ fn render_weekly_next_steps(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -
     lines
 }
 
-fn render_monthly_summary(groups: &BTreeMap<String, Vec<ProjectCommitItem>>) -> Vec<String> {
-    let mut lines = vec!["## 三、当月总结".to_string(), "".to_string()];
+fn render_monthly_summary_content(
+    groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    if groups.is_empty() {
+        lines.push("- 本月未检索到可用于生成总结的提交记录。".to_string());
+        lines.push("".to_string());
+        return lines;
+    }
     for (project, items) in groups {
         let item_count = unique_items(items).len();
         lines.push(format!("### {}", project));
@@ -708,7 +996,7 @@ mod tests {
         let mut project_names = HashMap::new();
         project_names.insert("repo-a(*)".to_string(), "研发平台-".to_string());
 
-        let report = render_weekly_report(
+        let report = render_weekly_report_with_template(
             &commits,
             &project_names,
             "2026-06-08",
@@ -716,6 +1004,7 @@ mod tests {
             "tester",
             "2026-W24",
             false,
+            default_template_for("weekly"),
         );
 
         assert!(report.contains("# 2026年第24周工作周报"));
@@ -728,7 +1017,7 @@ mod tests {
     #[test]
     fn render_reports_can_include_commit_evidence_details() {
         let commits = vec![commit("repo-a", "feature/report", "feat: 添加证据详情")];
-        let report = render_weekly_report(
+        let report = render_weekly_report_with_template(
             &commits,
             &HashMap::new(),
             "2026-06-08",
@@ -736,11 +1025,116 @@ mod tests {
             "tester",
             "2026-W24",
             true,
+            default_template_for("weekly"),
         );
 
         assert!(report.contains("- 添加证据详情"));
         assert!(report.contains("  > 来源：`repo-a` / `feature/report` / `2026-06-10` / `abc123d`"));
         assert!(report.contains("  > 原始：`feat: 添加证据详情`"));
+    }
+
+    #[test]
+    fn render_weekly_report_uses_custom_template_variables() {
+        let commits = vec![
+            commit("repo-a", "main", "feat: 添加格式模板"),
+            commit("repo-b", "main", "fix: 修复模板预览"),
+        ];
+        let template =
+            "# {periodLabel}\n项目 {projectCount} / 提交 {commitCount}\n\n{projectSections}";
+
+        let report = render_weekly_report_with_template(
+            &commits,
+            &HashMap::new(),
+            "2026-06-08",
+            "2026-06-14",
+            "tester",
+            "2026-W24",
+            false,
+            template,
+        );
+
+        assert!(report.contains("# 2026年第24周"));
+        assert!(report.contains("项目 2 / 提交 2"));
+        assert!(report.contains("### repo-a(main)"));
+        assert!(report.contains("- 添加格式模板"));
+        assert!(!report.contains("## 一、本周重点"));
+    }
+
+    #[test]
+    fn render_extract_report_uses_daily_and_custom_templates_separately() {
+        let commits = vec![commit("repo-a", "main", "feat: 接入自定义输出")];
+        let templates = ReportFormatTemplates {
+            daily: "日报 {periodLabel}\n{commitItems}".to_string(),
+            custom: "自定义 {periodLabel}\n{projectCount}/{commitCount}\n{projectSections}"
+                .to_string(),
+            ..ReportFormatTemplates::default()
+        };
+
+        let daily = render_extract_report(
+            &commits,
+            &HashMap::new(),
+            false,
+            false,
+            &ExtractReportFormat {
+                start_date: "2026-06-14",
+                end_date: "2026-06-14",
+                author: "tester",
+                period_label: "",
+                report_kind: "daily",
+                templates: &templates,
+            },
+        );
+        let custom = render_extract_report(
+            &commits,
+            &HashMap::new(),
+            false,
+            false,
+            &ExtractReportFormat {
+                start_date: "2026-06-01",
+                end_date: "2026-06-14",
+                author: "tester",
+                period_label: "双周同步",
+                report_kind: "custom",
+                templates: &templates,
+            },
+        );
+
+        assert!(daily.contains("日报 2026-06-14"));
+        assert!(daily.contains("接入自定义输出"));
+        assert!(custom.contains("自定义 双周同步"));
+        assert!(custom.contains("1/1"));
+        assert!(custom.contains("### repo-a(main)"));
+    }
+
+    #[test]
+    fn build_extract_result_keeps_template_when_detailed_output_is_enabled() {
+        let commits = vec![commit("repo-a", "main", "feat: 保留详细日志")];
+        let templates = ReportFormatTemplates {
+            daily: "模板正文\n{commitItems}".to_string(),
+            ..ReportFormatTemplates::default()
+        };
+
+        let result = build_extract_result(
+            Vec::new(),
+            commits,
+            Vec::new(),
+            &HashMap::new(),
+            false,
+            false,
+            true,
+            ExtractReportFormat {
+                start_date: "2026-06-14",
+                end_date: "2026-06-14",
+                author: "tester",
+                period_label: "",
+                report_kind: "daily",
+                templates: &templates,
+            },
+        );
+
+        assert!(result.detailed_text.starts_with("模板正文"));
+        assert!(result.detailed_text.contains("## 详细日志"));
+        assert!(result.detailed_text.contains("Message: feat: 保留详细日志"));
     }
 
     fn commit(project_name: &str, branch_name: &str, message: &str) -> CommitRecord {

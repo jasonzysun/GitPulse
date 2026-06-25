@@ -188,7 +188,7 @@ where
     let dates = report::previous_month_range();
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
-    let mut report_text = report::render_monthly_report(
+    let mut report_text = report::render_monthly_report_with_template(
         &commits,
         &options.project_names,
         &dates.0,
@@ -196,6 +196,7 @@ where
         &options.author,
         &dates.2,
         options.show_evidence_details,
+        &options.report_format_templates.monthly,
     );
 
     report_text = apply_ai_if_enabled(report_text, &options, &dates, &mut warnings);
@@ -227,7 +228,7 @@ where
     let extract_options = period_extract_options(&options);
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
     let mut report_text = match options.report_kind.as_str() {
-        "weekly" => report::render_weekly_report(
+        "weekly" => report::render_weekly_report_with_template(
             &commits,
             &options.project_names,
             &options.start_date,
@@ -235,8 +236,9 @@ where
             &options.author,
             &options.period_label,
             options.show_evidence_details,
+            &options.report_format_templates.weekly,
         ),
-        "monthly" => report::render_monthly_report(
+        "monthly" => report::render_monthly_report_with_template(
             &commits,
             &options.project_names,
             &options.start_date,
@@ -244,6 +246,7 @@ where
             &options.author,
             &options.period_label,
             options.show_evidence_details,
+            &options.report_format_templates.monthly,
         ),
         _ => return Err(format!("未知报告类型：{}", options.report_kind)),
     };
@@ -275,6 +278,14 @@ where
         options.show_project_and_branch,
         options.show_evidence_details,
         options.detailed_output,
+        report::ExtractReportFormat {
+            start_date: &options.start_date,
+            end_date: &options.end_date,
+            author: &options.author,
+            period_label: &options.period_label,
+            report_kind: &options.report_kind,
+            templates: &options.report_format_templates,
+        },
     );
     apply_ai_to_extract_result(&mut result, &options);
     Ok(result)
@@ -715,6 +726,8 @@ fn monthly_extract_options(
         author: options.author.clone(),
         start_date: start.to_string(),
         end_date: end.to_string(),
+        period_label: start.to_string(),
+        report_kind: "monthly".to_string(),
         disabled_repos: options.disabled_repos.clone(),
         extract_all_branches: options.extract_all_branches,
         exclude_merge_commits: options.exclude_merge_commits,
@@ -724,6 +737,7 @@ fn monthly_extract_options(
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
         project_names: options.project_names.clone(),
+        report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
         system_prompt: String::new(),
         ai: options.ai.clone(),
@@ -737,6 +751,8 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         author: options.author.clone(),
         start_date: options.start_date.clone(),
         end_date: options.end_date.clone(),
+        period_label: options.period_label.clone(),
+        report_kind: options.report_kind.clone(),
         disabled_repos: options.disabled_repos.clone(),
         extract_all_branches: options.extract_all_branches,
         exclude_merge_commits: options.exclude_merge_commits,
@@ -746,6 +762,7 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
         project_names: options.project_names.clone(),
+        report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
         system_prompt: String::new(),
         ai: options.ai.clone(),
@@ -930,6 +947,8 @@ mod tests {
             author: "tester".to_string(),
             start_date: "2026-06-01".to_string(),
             end_date: "2026-06-01".to_string(),
+            period_label: "2026-06-01".to_string(),
+            report_kind: "daily".to_string(),
             disabled_repos: Vec::new(),
             extract_all_branches: false,
             exclude_merge_commits: true,
@@ -939,6 +958,7 @@ mod tests {
             show_project_and_branch: true,
             show_evidence_details: false,
             project_names: Default::default(),
+            report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),
             system_prompt: String::new(),
             ai: AiConfig {
@@ -989,6 +1009,7 @@ mod tests {
             exclude_bot_commits: true,
             show_evidence_details: true,
             project_names: Default::default(),
+            report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),
             system_prompt: String::new(),
             ai: AiConfig {
