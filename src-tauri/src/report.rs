@@ -648,8 +648,10 @@ fn display_prefix(display_name: &str) -> String {
 }
 
 fn clean_commit_message(message: &str) -> String {
+    // 兼容 Conventional Commits 的 `type(scope):` 写法：scope 为可选括号段，
+    // 与无 scope 的 `type:` 一并在此剥离，避免带 scope 的提交前缀残留进报告。
     let prefix =
-        Regex::new(r"(?i)^(feat|fix|refactor|chore|docs|style|test|perf|ci|build|revert|init):\s*")
+        Regex::new(r"(?i)^(feat|fix|refactor|chore|docs|style|test|perf|ci|build|revert|init)(\([^)]*\))?:\s*")
             .unwrap();
     let no_prefix = prefix.replace(message, "");
     let flattened = no_prefix.replace('"', "").replace("['']", "");
@@ -1135,6 +1137,26 @@ mod tests {
         assert!(result.detailed_text.starts_with("模板正文"));
         assert!(result.detailed_text.contains("## 详细日志"));
         assert!(result.detailed_text.contains("Message: feat: 保留详细日志"));
+    }
+
+    #[test]
+    fn clean_commit_message_strips_conventional_scope_prefix() {
+        // 复现：带 scope 的 Conventional Commits 前缀应被整体剥离，
+        // 不能让 `refactor(examuserprofile):` 之类残留进日报。
+        assert_eq!(
+            clean_commit_message("refactor(examuserprofile): 学习基础改用数据字典绑定"),
+            "学习基础改用数据字典绑定"
+        );
+        // 无 scope 的既有行为保持不变（向后兼容）。
+        assert_eq!(
+            clean_commit_message("feat: 支持报告模板自定义输出"),
+            "支持报告模板自定义输出"
+        );
+        // scope 大小写混合、含空格也一并处理。
+        assert_eq!(
+            clean_commit_message("fix(ExamUser): 修复字典绑定空指针"),
+            "修复字典绑定空指针"
+        );
     }
 
     fn commit(project_name: &str, branch_name: &str, message: &str) -> CommitRecord {
