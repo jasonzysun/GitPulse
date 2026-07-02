@@ -62,13 +62,14 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Extend diagnostics with GitHub network and updater manifest reachability checks.
 - [x] Ignore local Codex config files while keeping project-level `.codex/skills` available for sharing.
 - [x] Add `verify:release` / `release:check` scripts to run frontend smoke, build, Rust checks, diff checks, and release dry-run together.
+- [x] Add browser-level Playwright e2e coverage for onboarding, diagnostics, report export, and report history flows with mocked Tauri runtime support.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
-- Add browser-level frontend e2e coverage for diagnostics and export flows once a test runner dependency is approved.
-- Add optional browser-level e2e coverage after choosing a frontend test runner.
+- Expand browser-level e2e coverage to weekly/monthly generation, AI settings, and updater flows on top of the new mock harness.
+- Start extracting App / SettingsDialog state orchestration into smaller testable modules now that end-to-end coverage exists.
 
 ## Notes
 

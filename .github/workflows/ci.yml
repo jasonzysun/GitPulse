@@ -17,6 +17,7 @@ concurrency:
 jobs:
   desktop-checks:
     name: Desktop checks (${{ matrix.label }})
+    timeout-minutes: 35
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,6 +68,17 @@ jobs:
       - name: Frontend smoke
         run: node scripts/frontend-smoke.mjs
 
+      - name: Install Playwright browsers (Linux)
+        if: matrix.os == 'ubuntu-22.04'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright browsers (Windows)
+        if: matrix.os == 'windows-2022'
+        run: npx playwright install chromium
+
+      - name: Frontend e2e
+        run: npm run test:e2e
+
       - name: Frontend build
         run: npm run build
 
@@ -80,3 +92,13 @@ jobs:
 
       - name: Git diff check
         run: git diff --check
+
+      - name: Upload Playwright artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ matrix.label }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

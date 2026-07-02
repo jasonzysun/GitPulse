@@ -18,6 +18,7 @@ Usage:
 
 Default checks:
   - frontend smoke guard
+  - browser-level Playwright e2e
   - TypeScript and Vite production build
   - Rust cargo check
   - Rust cargo test
@@ -32,6 +33,7 @@ Options:
 
 const steps = [
   ["前端 smoke", "node", ["scripts/frontend-smoke.mjs"], rootDir],
+  ["浏览器 e2e", "npm", ["run", "test:e2e"], rootDir],
   ["前端生产构建", "npm", ["run", "build"], rootDir],
   ["Rust cargo check", "cargo", ["check"], join(rootDir, "src-tauri")],
   ["Rust cargo test", "cargo", ["test"], join(rootDir, "src-tauri")],

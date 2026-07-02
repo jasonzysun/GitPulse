@@ -1,0 +1,332 @@
+import { expect, type Page } from "@playwright/test";
+
+const STORAGE_KEY = "gitpulse-settings";
+const REPO_INDEX_CACHE_KEY = "gitpulse-repo-index-cache";
+const REPORT_HISTORY_KEY = "gitpulse-report-history";
+
+type RepoInfo = {
+  path: string;
+  name: string;
+  branch: string;
+};
+
+type ReportHistoryEntry = {
+  id: string;
+  mode: "summary" | "weekly" | "custom" | "monthly";
+  title: string;
+  range: { startDate: string; endDate: string };
+  periodLabel: string;
+  generatedAt: string;
+  repoCount: number;
+  commitCount: number;
+  aiEnhanced: boolean;
+  outputFile: string;
+  reportText: string;
+};
+
+type MockScenario = {
+  settings?: Record<string, unknown>;
+  repoCache?: { rootDirs: string[]; repos: RepoInfo[]; scannedAt: string };
+  reportHistory?: ReportHistoryEntry[];
+  dialogResponses?: unknown[];
+  appVersion?: string;
+  gitIdentity?: { userName: string; userEmail: string };
+  secureApiKey?: string | null;
+  scanRepos?: RepoInfo[];
+  extractResults?: Array<{
+    repos?: RepoInfo[];
+    summaryText: string;
+    detailedText?: string;
+    warnings?: string[];
+    commits: unknown[];
+  }>;
+  periodResults?: {
+    weekly?: Record<string, unknown>;
+    monthly?: Record<string, unknown>;
+  };
+  diagnosticsResult?: Record<string, unknown>;
+  updateMetadata?: Record<string, unknown> | null;
+  outputDir?: string;
+};
+
+export function createSettings(overrides: Record<string, unknown> = {}) {
+  return {
+    onboardingDone: true,
+    rootDirs: ["C:/workspace"],
+    outputDir: "C:/exports",
+    outputEnabled: true,
+    themeMode: "light",
+    author: "Playwright Tester",
+    disabledRepos: [],
+    extractAllBranches: false,
+    excludeMergeCommits: true,
+    excludeRevertCommits: true,
+    excludeBotCommits: true,
+    detailedOutput: false,
+    showProjectAndBranch: true,
+    showEvidenceDetails: false,
+    projectNamesText: "",
+    aiEnabled: false,
+    aiProvider: "openai-compatible",
+    aiBaseUrl: "https://api.openai.com/v1",
+    aiModel: "",
+    aiApiKey: "",
+    aiApiKeySaved: false,
+    refinementInstruction: "",
+    reportTemplateProfile: "standard",
+    dailyReportFormatTemplate: "{commitItems}",
+    weeklyReportFormatTemplate:
+      "# {periodLabel}工作周报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、本周重点\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、下周关注\n\n{nextSteps}\n\n{notes}",
+    monthlyReportFormatTemplate:
+      "# {periodLabel}工作月报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、项目进度\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、当月总结\n\n{conclusion}\n\n{notes}",
+    customReportFormatTemplate:
+      "# {periodLabel}工作报告\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n{projectSections}\n\n{evidence}",
+    dailySystemPrompt:
+      "你是一个严谨的工作日报写作助手。请基于 Git 提交记录润色为当天或指定周期的工作日报，不要虚构没有依据的业务结果、上线结论或百分比。最终输出保持为简洁纯文本或短列表，方便直接复制到工作汇报中。",
+    monthlySystemPrompt:
+      "你是一个严谨的绩效月报写作助手。请基于 Git 提交月报草稿改写，不要虚构没有依据的业务结果、上线结论或百分比。最终输出必须是 Markdown，标题之外的正文只包含三大模块：项目进度、实际完成情况、当月总结。每个模块下必须继续按照项目分组。",
+    aiTemperature: 0.2,
+    ...overrides,
+  };
+}
+
+export function createRepo(path: string, name: string, branch: string): RepoInfo {
+  return { path, name, branch };
+}
+
+export function createRepoCache(rootDirs: string[], repos: RepoInfo[]) {
+  return {
+    rootDirs,
+    repos,
+    scannedAt: new Date("2026-07-02T10:00:00.000Z").toISOString(),
+  };
+}
+
+export function createHistoryEntry(
+  overrides: Partial<ReportHistoryEntry> & Pick<ReportHistoryEntry, "id" | "mode" | "title" | "periodLabel" | "reportText">,
+): ReportHistoryEntry {
+  return {
+    id: overrides.id,
+    mode: overrides.mode,
+    title: overrides.title,
+    range: overrides.range ?? { startDate: "2026-07-01", endDate: "2026-07-01" },
+    periodLabel: overrides.periodLabel,
+    generatedAt: overrides.generatedAt ?? new Date("2026-07-02T10:00:00.000Z").toISOString(),
+    repoCount: overrides.repoCount ?? 1,
+    commitCount: overrides.commitCount ?? 2,
+    aiEnhanced: overrides.aiEnhanced ?? false,
+    outputFile: overrides.outputFile ?? "",
+    reportText: overrides.reportText,
+  };
+}
+
+export async function launchApp(page: Page, scenario: MockScenario) {
+  const payload = {
+    settings: scenario.settings,
+    repoCache: scenario.repoCache,
+    reportHistory: scenario.reportHistory,
+    dialogResponses: [...(scenario.dialogResponses ?? [])],
+    appVersion: scenario.appVersion ?? "0.3.7-test",
+    gitIdentity: scenario.gitIdentity ?? {
+      userName: "Playwright Tester",
+      userEmail: "playwright@example.com",
+    },
+    secureApiKey: scenario.secureApiKey ?? null,
+    scanRepos: scenario.scanRepos ?? scenario.repoCache?.repos ?? [],
+    extractResults: scenario.extractResults ?? [],
+    periodResults: scenario.periodResults ?? {},
+    diagnosticsResult: scenario.diagnosticsResult ?? {
+      items: [],
+      okCount: 0,
+      warningCount: 0,
+      errorCount: 0,
+    },
+    updateMetadata: scenario.updateMetadata ?? null,
+    outputDir: scenario.outputDir ?? "C:/exports",
+  };
+
+  await page.addInitScript(
+    ({ state, storageKey, repoIndexCacheKey, reportHistoryKey }) => {
+      const callbacks = new Map();
+      let nextCallbackId = 1;
+      let nextEventId = 1;
+
+      const dialogResponses = [...(state.dialogResponses ?? [])];
+      const extractResults = [...(state.extractResults ?? [])];
+      const mockState = {
+        ...state,
+        dialogResponses,
+        extractResults,
+        calls: [],
+        clipboard: "",
+      };
+
+      const mediaQueryFallback = {
+        matches: false,
+        media: "",
+        onchange: null,
+        addListener() {},
+        removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+        dispatchEvent() {
+          return false;
+        },
+      };
+
+      if (typeof window.matchMedia !== "function") {
+        window.matchMedia = (query) => ({ ...mediaQueryFallback, media: query });
+      }
+
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          async writeText(text) {
+            mockState.clipboard = String(text);
+          },
+          async readText() {
+            return mockState.clipboard;
+          },
+        },
+      });
+
+      window.localStorage.clear();
+      if (state.settings) {
+        window.localStorage.setItem(storageKey, JSON.stringify(state.settings));
+      }
+      if (state.repoCache) {
+        window.localStorage.setItem(repoIndexCacheKey, JSON.stringify(state.repoCache));
+      }
+      if (state.reportHistory) {
+        window.localStorage.setItem(reportHistoryKey, JSON.stringify(state.reportHistory));
+      }
+
+      function nextDialogResponse() {
+        return dialogResponses.length > 0 ? dialogResponses.shift() : null;
+      }
+
+      function nextExtractResult() {
+        if (extractResults.length > 0) return extractResults.shift();
+        return {
+          repos: state.scanRepos ?? [],
+          summaryText: "",
+          detailedText: "",
+          warnings: [],
+          commits: [],
+        };
+      }
+
+      function resolvePeriodResult(kind) {
+        const fallback = {
+          reportText: "",
+          outputFile: "",
+          warnings: [],
+          startDate: "2026-07-01",
+          endDate: "2026-07-07",
+          periodLabel: kind === "weekly" ? "2026-W27" : "2026-07",
+          reportKind: kind,
+          projectCount: 1,
+          commitCount: 0,
+        };
+        return { ...fallback, ...(state.periodResults?.[kind] ?? {}) };
+      }
+
+      function saveReportFile(args) {
+        const extension = args.format === "markdown" ? "md" : args.format;
+        return `${state.outputDir ?? "C:/exports"}/${args.baseName}.${extension}`;
+      }
+
+      function registerCallback(callback, once = false) {
+        const id = nextCallbackId++;
+        callbacks.set(id, { callback, once });
+        return id;
+      }
+
+      function runCallback(id, payload) {
+        const entry = callbacks.get(id);
+        if (!entry) return;
+        entry.callback(payload);
+        if (entry.once) callbacks.delete(id);
+      }
+
+      window.__mockTauri = mockState;
+      window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+        unregisterListener() {},
+      };
+      window.__TAURI_INTERNALS__ = {
+        callbacks,
+        metadata: {
+          currentWindow: { label: "main" },
+          currentWebview: { label: "main" },
+        },
+        transformCallback: registerCallback,
+        unregisterCallback(id) {
+          callbacks.delete(id);
+        },
+        runCallback,
+        convertFileSrc(filePath, protocol = "asset") {
+          return `${protocol}://${filePath}`;
+        },
+        async invoke(cmd, args = {}) {
+          mockState.calls.push({ cmd, args });
+
+          switch (cmd) {
+            case "plugin:app|version":
+              return state.appVersion;
+            case "plugin:dialog|open":
+            case "plugin:dialog|save":
+              return nextDialogResponse();
+            case "plugin:event|listen":
+              return nextEventId++;
+            case "plugin:event|unlisten":
+              return null;
+            case "plugin:window|theme":
+              return "light";
+            case "plugin:window|set_theme":
+              return null;
+            case "plugin:updater|check":
+              return state.updateMetadata;
+            case "get_secure_ai_api_key":
+              return state.secureApiKey;
+            case "set_secure_ai_api_key":
+            case "clear_secure_ai_api_key":
+            case "cancel_repo_scan":
+            case "write_mapping_template_xlsx":
+            case "codex_oauth_logout":
+              return null;
+            case "codex_oauth_status":
+              return { authenticated: false };
+            case "list_ai_models":
+              return [];
+            case "get_git_identity":
+              return state.gitIdentity;
+            case "scan_repos":
+              return state.scanRepos ?? [];
+            case "extract_commits":
+              return nextExtractResult();
+            case "generate_period_report":
+              return resolvePeriodResult(args.options?.reportKind);
+            case "run_diagnostics":
+              return state.diagnosticsResult;
+            case "save_report_file":
+              return saveReportFile(args);
+            default:
+              return null;
+          }
+        },
+      };
+    },
+    {
+      state: payload,
+      storageKey: STORAGE_KEY,
+      repoIndexCacheKey: REPO_INDEX_CACHE_KEY,
+      reportHistoryKey: REPORT_HISTORY_KEY,
+    },
+  );
+
+  await page.goto("/");
+}
+
+export async function expectWorkbench(page: Page) {
+  await expect(page.getByRole("heading", { name: "工作报告工作台" })).toBeVisible();
+}

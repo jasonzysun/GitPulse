@@ -14,13 +14,15 @@ npm run tauri dev
 Run these before opening a PR:
 
 ```bash
+npx playwright install chromium   # 首次运行浏览器 e2e 前执行一次
 npm run build
+npm run test:e2e
 cd src-tauri
 cargo check
 cargo test
 ```
 
-GitHub Actions now runs the same desktop checks on every `pull_request` and on pushes to `main`, including frontend smoke, production build, Rust `check/test`, and `git diff --check`.
+GitHub Actions now runs the same desktop checks on every `pull_request` and on pushes to `main`, including frontend smoke, browser-level Playwright e2e, production build, Rust `check/test`, and `git diff --check`.
 
 For release-level verification:
 

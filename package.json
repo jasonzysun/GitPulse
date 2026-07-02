@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test:e2e": "playwright test",
     "tauri": "tauri",
     "tauri:build:release": "tauri build --config src-tauri/tauri.release.conf.json",
     "version:patch": "node ./scripts/bump-version.mjs patch",
@@ -41,6 +42,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
