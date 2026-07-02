@@ -7,6 +7,8 @@ const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const files = {
   app: readSource("src/App.tsx"),
   settings: readSource("src/components/SettingsDialog.tsx"),
+  diagnosticsSection: readSource("src/components/DiagnosticsSection.tsx"),
+  diagnosticsHook: readSource("src/hooks/useDiagnosticsPanel.ts"),
   workbench: readSource("src/components/Workbench.tsx"),
   model: readSource("src/model.ts"),
   diagnostics: readSource("src-tauri/src/diagnostics.rs"),
@@ -25,20 +27,21 @@ const checks = [
   {
     name: "settings diagnostics invokes backend command",
     run: () => {
-      includes(files.settings, 'invoke<DiagnosticResult>("run_diagnostics"');
-      includes(files.settings, "rootDirs: settings.rootDirs");
-      includes(files.settings, "indexedRepos: repos");
+      includes(files.settings, "useDiagnosticsPanel");
+      includes(files.diagnosticsHook, 'invoke<DiagnosticResult>("run_diagnostics"');
+      includes(files.diagnosticsHook, "rootDirs: settings.rootDirs");
+      includes(files.diagnosticsHook, "indexedRepos: repos");
       includes(files.model, "export type DiagnosticResult");
     },
   },
   {
     name: "diagnostics result renders summary and actionable rows",
     run: () => {
-      includes(files.settings, "diagnosticResult.errorCount");
-      includes(files.settings, "diagnosticResult.warningCount");
-      includes(files.settings, "diagnosticResult.okCount");
-      includes(files.settings, "diagnostics-item");
-      includes(files.settings, "{item.action && <small>{item.action}</small>}");
+      includes(files.diagnosticsSection, "result.errorCount");
+      includes(files.diagnosticsSection, "result.warningCount");
+      includes(files.diagnosticsSection, "result.okCount");
+      includes(files.diagnosticsSection, "diagnostics-item");
+      includes(files.diagnosticsSection, "{item.action && <small>{item.action}</small>}");
     },
   },
   {
