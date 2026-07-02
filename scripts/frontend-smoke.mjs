@@ -17,7 +17,7 @@ const checks = [
   {
     name: "settings diagnostics tab is reachable",
     run: () => {
-      includes(files.settings, 'type SettingsTab = "workspace" | "ai" | "mapping" | "diagnostics" | "general"');
+      matches(files.settings, /type SettingsTab = [^;]*"diagnostics"[^;]*;/);
       includes(files.settings, '{ id: "diagnostics", label: "诊断"');
       includes(files.settings, 'activeTab === "diagnostics"');
     },
@@ -98,5 +98,11 @@ function readSource(relativePath) {
 function includes(source, needle) {
   if (!source.includes(needle)) {
     throw new Error(`missing source marker: ${needle}`);
+  }
+}
+
+function matches(source, pattern) {
+  if (!pattern.test(source)) {
+    throw new Error(`missing source pattern: ${pattern}`);
   }
 }

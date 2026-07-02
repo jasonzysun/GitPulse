@@ -20,6 +20,8 @@ cargo check
 cargo test
 ```
 
+GitHub Actions now runs the same desktop checks on every `pull_request` and on pushes to `main`, including frontend smoke, production build, Rust `check/test`, and `git diff --check`.
+
 For release-level verification:
 
 ```bash
