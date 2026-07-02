@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { getCurrentWindow, type Theme } from "@tauri-apps/api/window";
-import { check, type Update as PendingAppUpdate } from "@tauri-apps/plugin-updater";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { RepoMappingDialog } from "./components/RepoMappingDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Workbench } from "./components/Workbench";
+import { useAppRuntime } from "./hooks/useAppRuntime";
 import {
   type AppSettings,
   type CommitExtractProgress,
@@ -22,7 +20,6 @@ import {
   type ReportHistoryEntry,
   type RepoInfo,
   type RepoScanProgress,
-  type UpdateSummary,
   type MappingScope,
   STORAGE_KEY,
   buildExtractOptions,
@@ -100,21 +97,22 @@ function App() {
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
   const [commitCount, setCommitCount] = useState(0);
-  const [systemTheme, setSystemTheme] = useState<Theme>(readSystemTheme);
-  const [appVersion, setAppVersion] = useState("读取中");
-  const [updateSummary, setUpdateSummary] = useState<UpdateSummary | null>(null);
-  const [updateMessage, setUpdateMessage] = useState("当前版本信息读取中");
-  const [updateProgress, setUpdateProgress] = useState("");
-  const [updateBusy, setUpdateBusy] = useState<"checking" | "installing" | null>(null);
-  const [pendingUpdate, setPendingUpdate] = useState<PendingAppUpdate | null>(null);
   const aiApiKeySaveTimer = useRef<number | null>(null);
+  const {
+    appVersion,
+    updateSummary,
+    updateMessage,
+    updateProgress,
+    updateBusy,
+    checkForUpdates,
+    installUpdate,
+  } = useAppRuntime({ themeMode: settings.themeMode });
 
   const projectNames = useMemo(() => parseProjectNames(settings.projectNamesText), [settings.projectNamesText]);
   const dailyRange = useMemo(() => getSingleDayRange(dailyDate), [dailyDate]);
   const weeklyRange = useMemo(() => getWeekRange(weeklyWeek), [weeklyWeek]);
   const monthlyRange = useMemo(() => getMonthRange(monthlyMonth), [monthlyMonth]);
   const previewText = activePreview === "monthly" ? monthlyReport : activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText;
-  const resolvedTheme = settings.themeMode === "system" ? systemTheme : settings.themeMode;
   const aiConfigured =
     settings.aiProvider === "codex-oauth"
       ? Boolean(settings.aiModel.trim())
@@ -150,50 +148,6 @@ function App() {
     const timer = window.setTimeout(() => setCopyNotice(null), 2200);
     return () => window.clearTimeout(timer);
   }, [copyNotice]);
-
-  useEffect(() => {
-    getVersion()
-      .then((version) => {
-        setAppVersion(version);
-        setUpdateMessage(`当前版本 v${version}，可手动检查更新`);
-      })
-      .catch(() => {
-        setAppVersion("开发环境");
-        setUpdateMessage("当前是浏览器预览，在线更新仅在桌面应用中可用");
-      });
-  }, []);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onMediaChange = (event: MediaQueryListEvent) => setSystemTheme(event.matches ? "dark" : "light");
-    media.addEventListener("change", onMediaChange);
-
-    let unlistenTheme: (() => void) | undefined;
-    try {
-      const appWindow = getCurrentWindow();
-      appWindow.theme().then((theme) => theme && setSystemTheme(theme)).catch(() => undefined);
-      appWindow.onThemeChanged(({ payload }) => setSystemTheme(payload)).then((unlisten) => {
-        unlistenTheme = unlisten;
-      }).catch(() => undefined);
-    } catch {
-      // Running in a browser-only preview has no Tauri window API.
-    }
-
-    return () => {
-      media.removeEventListener("change", onMediaChange);
-      unlistenTheme?.();
-    };
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
-    try {
-      getCurrentWindow().setTheme(settings.themeMode === "system" ? null : settings.themeMode).catch(() => undefined);
-    } catch {
-      // Browser-only preview fallback.
-    }
-  }, [resolvedTheme, settings.themeMode]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -267,12 +221,6 @@ function App() {
     }
     scanWorkspace();
   }, [settings.rootDirs, settings.onboardingDone]);
-
-  useEffect(() => {
-    return () => {
-      pendingUpdate?.close().catch(() => undefined);
-    };
-  }, [pendingUpdate]);
 
   useEffect(() => {
     return () => {
@@ -626,73 +574,6 @@ function App() {
     setStatus("最近报告记录已清空");
   }
 
-  async function checkForUpdates() {
-    setUpdateBusy("checking");
-    setUpdateProgress("");
-    setUpdateMessage("正在检查更新");
-
-    try {
-      const nextUpdate = await check({ timeout: 20000 });
-      await replacePendingUpdate(nextUpdate);
-
-      if (!nextUpdate) {
-        setUpdateSummary(null);
-        setUpdateMessage(`当前已是最新版本 v${appVersion}`);
-        return;
-      }
-
-      setUpdateSummary({
-        currentVersion: nextUpdate.currentVersion,
-        version: nextUpdate.version,
-        notes: nextUpdate.body || "本次版本未提供更新说明。",
-        date: nextUpdate.date,
-      });
-      setUpdateMessage(`发现新版本 v${nextUpdate.version}`);
-    } catch (error) {
-      setUpdateSummary(null);
-      setUpdateMessage(formatUpdaterError(error));
-    } finally {
-      setUpdateBusy(null);
-    }
-  }
-
-  async function installUpdate() {
-    if (!pendingUpdate) {
-      setUpdateMessage("请先检查更新");
-      return;
-    }
-
-    setUpdateBusy("installing");
-    setUpdateProgress("正在下载安装包");
-    setUpdateMessage(`正在安装 v${pendingUpdate.version}`);
-
-    try {
-      let total = 0;
-      let downloaded = 0;
-
-      await pendingUpdate.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          total = event.data.contentLength ?? 0;
-          setUpdateProgress(total > 0 ? `已下载 0 / ${formatBytes(total)}` : "开始下载更新包");
-        }
-        if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
-          setUpdateProgress(total > 0 ? `已下载 ${formatBytes(downloaded)} / ${formatBytes(total)}` : `已下载 ${formatBytes(downloaded)}`);
-        }
-        if (event.event === "Finished") {
-          setUpdateProgress("下载完成，正在准备安装");
-        }
-      });
-
-      setUpdateMessage("更新包已准备就绪，应用将退出并完成安装");
-    } catch (error) {
-      setUpdateMessage(formatUpdaterError(error));
-      setUpdateProgress("");
-    } finally {
-      setUpdateBusy(null);
-    }
-  }
-
   async function runTask(label: string, task: () => Promise<void>, validate = () => validateRequiredSettings(settings)) {
     setIsBusy(true);
     setStatus(label);
@@ -746,13 +627,6 @@ function App() {
     }));
     setStatus(displayName.trim() ? `已更新「${editingRepo.name}」的映射名称` : `已清除「${editingRepo.name}」的映射名称`);
     setEditingRepo(null);
-  }
-
-  async function replacePendingUpdate(nextUpdate: PendingAppUpdate | null) {
-    if (pendingUpdate && pendingUpdate !== nextUpdate) {
-      await pendingUpdate.close().catch(() => undefined);
-    }
-    setPendingUpdate(nextUpdate);
   }
 
   function scheduleSecureAiApiKeySync(value: string) {
@@ -907,26 +781,6 @@ function formatExtractProgress(progress: CommitExtractProgress) {
   if (total === 0) return "没有启用的仓库可提取";
   const current = progress.currentRepo ? ` · 刚完成 ${progress.currentRepo}` : "";
   return `正在提取提交：${progress.completedRepos}/${total} 仓库 · ${progress.concurrency} 并发 · ${progress.commitCount} 条提交${current}`;
-}
-
-function formatUpdaterError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  if (message.includes("plugin") || message.includes("updater")) {
-    return "当前环境暂不可用在线更新，请在桌面打包版中重试";
-  }
-  return message;
-}
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
-}
-
-function readSystemTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export default App;
