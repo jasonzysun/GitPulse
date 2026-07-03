@@ -418,8 +418,15 @@ export function SettingsDialog({
                     onRemove={onRemoveRootDir}
                     hint="可添加多个分散在不同位置的目录，全部一起扫描"
                   />
-                  <Field label="Git 作者">
-                    <input value={settings.author} onChange={(event) => updateSetting("author", event.target.value)} />
+                  <Field
+                    label="Git 作者"
+                    hint="留空 = 不过滤作者（适合团队周报）；多人用逗号分隔，任一命中即纳入"
+                  >
+                    <input
+                      value={settings.author}
+                      placeholder="留空取全部作者；如 张三, 李四"
+                      onChange={(event) => updateSetting("author", event.target.value)}
+                    />
                   </Field>
                   <p className="mapping-hint">日报默认使用今天；周报取本周；月报可在首页选择月份。其他日期范围请切换到「自定义」。</p>
                 </section>

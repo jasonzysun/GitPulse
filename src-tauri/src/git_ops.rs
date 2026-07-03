@@ -266,11 +266,34 @@ fn build_log_args(query: &GitCommitQuery) -> Vec<String> {
     args.extend([
         format!("--since={} 00:00:00", query.start_date),
         format!("--until={} 23:59:59", query.end_date),
-        format!("--author={}", query.author),
         "--pretty=format:%x1e%H%x1f%P%x1f%S%x1f%an%x1f%ae%x1f%ad%x1f%B".to_string(),
         "--date=iso".to_string(),
     ]);
+    // 多作者/留空语义：author 字符串按逗号或空白拆分，每个非空作者推一个
+    // `--author=`（git 对多个 `--author=` 取 OR 匹配）。全空时不传任何
+    // `--author=`，等同不过滤作者——既支持团队周报聚合，也避免旧逻辑下
+    // 留空 author 被当成"匹配空"而得到空报告的隐患。
+    for author in split_authors(query.author) {
+        args.push(format!("--author={}", author));
+    }
     args
+}
+
+/// 按逗号或任意空白拆分作者输入，去空白、去重、保留出现顺序。
+/// 输入全空白时返回空 Vec，调用方据此决定是否跳过 `--author=`。
+fn split_authors(author: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut result = Vec::new();
+    for part in author.split(|ch: char| ch == ',' || ch.is_whitespace()) {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if seen.insert(part.to_lowercase()) {
+            result.push(part.to_string());
+        }
+    }
+    result
 }
 
 fn parse_git_log_output(
@@ -629,6 +652,70 @@ mod tests {
         assert!(args.contains(&"--all".to_string()));
         assert!(args.contains(&"--source".to_string()));
         assert!(args.contains(&"--no-merges".to_string()));
+    }
+
+    #[test]
+    fn build_log_args_emits_one_author_flag_per_comma_separated_author() {
+        let query = GitCommitQuery {
+            start_date: "2026-06-01",
+            end_date: "2026-06-30",
+            author: "Alice, Bob\tdave",
+            extract_all_branches: false,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+        };
+
+        let args = build_log_args(&query);
+
+        let author_flags: Vec<String> = args
+            .iter()
+            .filter(|arg| arg.starts_with("--author="))
+            .cloned()
+            .collect();
+        assert_eq!(
+            author_flags,
+            vec![
+                "--author=Alice".to_string(),
+                "--author=Bob".to_string(),
+                "--author=dave".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn build_log_args_omits_author_flag_when_author_blank_so_all_authors_match() {
+        let query = GitCommitQuery {
+            start_date: "2026-06-01",
+            end_date: "2026-06-30",
+            author: "  ,  ",
+            extract_all_branches: false,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+        };
+
+        let args = build_log_args(&query);
+
+        assert!(
+            !args
+                .iter()
+                .any(|arg| arg.starts_with("--author=")),
+            "空白作者不应传入 --author=，留空意为不过滤作者"
+        );
+    }
+
+    #[test]
+    fn split_authors_deduplicates_case_insensitively_and_preserves_order() {
+        assert_eq!(
+            split_authors("Alice, alice, BOB, bob"),
+            vec!["Alice".to_string(), "BOB".to_string()]
+        );
+        assert_eq!(split_authors("  , "), Vec::<String>::new());
+        assert_eq!(
+            split_authors("张三 李四,王五"),
+            vec!["张三".to_string(), "李四".to_string(), "王五".to_string()]
+        );
     }
 
     fn temp_root(label: &str) -> PathBuf {

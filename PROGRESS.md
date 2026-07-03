@@ -65,12 +65,16 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Add browser-level Playwright e2e coverage for onboarding, diagnostics, report export, and report history flows with mocked Tauri runtime support.
 - [x] Expand browser-level e2e coverage to weekly and monthly report generation, preview, export, and history marking.
 - [x] Extract report orchestration and the parallel commit-extraction pipeline out of `lib.rs` into a dedicated `commit_pipeline` module, leaving `lib.rs` as a thin Tauri IPC transport layer.
+- [x] Support multi-author and all-author commit extraction: comma-separated authors are OR-matched, and a blank author no longer yields an empty report.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
 - Expand browser-level e2e coverage to AI settings and updater flows on top of the new mock harness.
+- Group rendered reports by author when multiple (or all) authors are selected, so team weekly reports read naturally.
+- Surface a hint in the UI when an empty report is caused by no matching commits versus misconfigured workspace/author.
+- Add a Git version check to the diagnostics panel so too-old `git` versions are flagged before silently dropping commits.
 - Extract the `report.rs` rendering, template, and persistence responsibilities into smaller modules now that the orchestration layer is separated.
 - Extract App / SettingsDialog state orchestration into smaller testable modules now that end-to-end coverage exists.
 
