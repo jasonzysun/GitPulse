@@ -648,6 +648,12 @@ fn display_prefix(display_name: &str) -> String {
 }
 
 fn clean_commit_message(message: &str) -> String {
+    // 部分编辑器/工具会在提交信息行首写入 BOM 或零宽字符（U+FEFF、U+200B~U+200D
+    // 等）。它们不是 ASCII 空白，`trim()` 剥不掉，会顶在 `type:` 前面让前缀正则从
+    // 行首匹配失败，导致 `feat:` 前缀残留进报告。这里先统一剥掉前导零宽字符。
+    let message = message.trim_start_matches(|ch: char| {
+        ch == '\u{feff}' || ('\u{200b}'..='\u{200f}').contains(&ch)
+    });
     // 兼容 Conventional Commits 的 `type(scope):` 写法：scope 为可选括号段，
     // 与无 scope 的 `type:` 一并在此剥离，避免带 scope 的提交前缀残留进报告。
     let prefix =
@@ -1155,6 +1161,21 @@ mod tests {
         // scope 大小写混合、含空格也一并处理。
         assert_eq!(
             clean_commit_message("fix(ExamUser): 修复字典绑定空指针"),
+            "修复字典绑定空指针"
+        );
+    }
+
+    #[test]
+    fn clean_commit_message_strips_leading_bom_before_prefix() {
+        // 复现：部分编辑器在提交信息行首写入 BOM（U+FEFF），顶在 `feat:` 前，
+        // 使前缀正则从行首匹配失败，导致 `feat:` 残留进报告。剥掉后应正常清理。
+        assert_eq!(
+            clean_commit_message("\u{feff}feat: 优化课程包关联课程交互与抽屉面板展宽"),
+            "优化课程包关联课程交互与抽屉面板展宽"
+        );
+        // 零宽空格（U+200B）等其他前导零宽字符同样处理。
+        assert_eq!(
+            clean_commit_message("\u{200b}fix(ExamUser): 修复字典绑定空指针"),
             "修复字典绑定空指针"
         );
     }
