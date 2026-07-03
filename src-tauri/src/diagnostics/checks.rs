@@ -12,13 +12,31 @@ use std::{
 
 pub fn git() -> DiagnosticItem {
     match git_ops::git_version() {
-        Ok(version) => item(
-            "git",
-            "Git 命令",
-            DiagnosticSeverity::Ok,
-            format!("已检测到 {}", version.trim()),
-            "",
-        ),
+        Ok(version) => {
+            let trimmed = version.trim();
+            // `--pretty=%S` 等占位符与 `--source` 行为依赖较新 git，过低版本可能悄悄丢 commit。
+            // 仅在能解析版本且明显过低时降级为 warning，不确定时仍判 OK，避免误伤正常用户。
+            if let Some((major, minor)) = git_ops::git_version_short(trimmed) {
+                const MIN_MAJOR: u32 = 2;
+                const MIN_MINOR: u32 = 4;
+                if major < MIN_MAJOR || (major == MIN_MAJOR && minor < MIN_MINOR) {
+                    return item(
+                        "git",
+                        "Git 命令",
+                        DiagnosticSeverity::Warning,
+                        format!("已检测到 {}，但版本偏低，部分提交可能无法提取。", trimmed),
+                        "升级 Git 至 2.4 及以上版本，避免报告周期内提交被遗漏。",
+                    );
+                }
+            }
+            item(
+                "git",
+                "Git 命令",
+                DiagnosticSeverity::Ok,
+                format!("已检测到 {}", trimmed),
+                "",
+            )
+        }
         Err(message) => item(
             "git",
             "Git 命令",
@@ -145,13 +163,25 @@ pub fn repo_index(indexed_repos: &[RepoInfo]) -> DiagnosticItem {
 }
 
 pub fn author(author: &str) -> DiagnosticItem {
-    if author.trim().is_empty() {
+    let authors = git_ops::split_authors(author);
+    if authors.is_empty() {
+        // 留空即「全部作者」语义：与多作者提取逻辑一致，是合法选择而非配置缺失。
         return item(
             "author",
             "Git 作者",
-            DiagnosticSeverity::Error,
-            "Git 作者未填写，报告无法按作者过滤提交记录。",
-            "填写本机 Git user.name，或与你提交记录一致的作者名 / 邮箱片段。",
+            DiagnosticSeverity::Ok,
+            "未限定作者，将统计所选仓库下所有人的提交（适合团队周报）。",
+            "若只想统计某个人，请填写其 Git user.name 或邮箱片段。",
+        );
+    }
+
+    if authors.len() == 1 {
+        return item(
+            "author",
+            "Git 作者",
+            DiagnosticSeverity::Ok,
+            format!("将按「{}」过滤提交记录。", authors[0]),
+            "",
         );
     }
 
@@ -159,8 +189,8 @@ pub fn author(author: &str) -> DiagnosticItem {
         "author",
         "Git 作者",
         DiagnosticSeverity::Ok,
-        format!("将按「{}」过滤提交记录。", author.trim()),
-        "",
+        format!("将按 {} 位作者过滤提交记录：{}。", authors.len(), authors.join("、")),
+        "多位作者取并集；如需人人单列可分别在自定义周期生成。",
     )
 }
 
@@ -279,6 +309,29 @@ mod tests {
 
         assert_eq!(item.severity, DiagnosticSeverity::Ok);
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn diagnostics_treats_blank_author_as_all_authors_ok() {
+        // 留空即「全部作者」语义，应判为合法而非报错——与多作者提取逻辑保持一致。
+        let item = author("   ");
+        assert_eq!(item.severity, DiagnosticSeverity::Ok);
+        assert!(item.message.contains("未限定作者"));
+    }
+
+    #[test]
+    fn diagnostics_reports_single_author_name() {
+        let item = author("Alice");
+        assert_eq!(item.severity, DiagnosticSeverity::Ok);
+        assert!(item.message.contains("Alice"));
+    }
+
+    #[test]
+    fn diagnostics_reports_comma_separated_authors_as_union() {
+        let item = author("Alice, Bob");
+        assert_eq!(item.severity, DiagnosticSeverity::Ok);
+        assert!(item.message.contains("2 位作者"));
+        assert!(item.message.contains("Alice") && item.message.contains("Bob"));
     }
 
     fn temp_root(label: &str) -> PathBuf {

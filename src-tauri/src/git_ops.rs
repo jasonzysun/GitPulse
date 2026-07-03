@@ -126,6 +126,20 @@ pub fn git_version() -> Result<String, String> {
         })
 }
 
+/// 从 `git --version` 输出里解析出主、次版本号。
+/// 输入形如 `git version 2.45.1.windows.1`，返回 `Some((2, 45))`；
+/// 无法识别时返回 `None`，调用方据此退化为不校验。
+pub fn git_version_short(version: &str) -> Option<(u32, u32)> {
+    let mut parts = version.split_whitespace();
+    let _ = parts.next(); // "git"
+    let _ = parts.next(); // "version"
+    let version_token = parts.next()?;
+    let mut numbers = version_token.split('.');
+    let major = numbers.next()?.parse::<u32>().ok()?;
+    let minor = numbers.next()?.parse::<u32>().ok()?;
+    Some((major, minor))
+}
+
 fn visit_dir<F>(
     dir: &Path,
     root_dir: &str,
@@ -281,7 +295,7 @@ fn build_log_args(query: &GitCommitQuery) -> Vec<String> {
 
 /// 按逗号或任意空白拆分作者输入，去空白、去重、保留出现顺序。
 /// 输入全空白时返回空 Vec，调用方据此决定是否跳过 `--author=`。
-fn split_authors(author: &str) -> Vec<String> {
+pub(crate) fn split_authors(author: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut result = Vec::new();
     for part in author.split(|ch: char| ch == ',' || ch.is_whitespace()) {
@@ -716,6 +730,18 @@ mod tests {
             split_authors("张三 李四,王五"),
             vec!["张三".to_string(), "李四".to_string(), "王五".to_string()]
         );
+    }
+
+    #[test]
+    fn git_version_short_parses_major_minor_from_version_string() {
+        assert_eq!(
+            git_version_short("git version 2.45.1.windows.1"),
+            Some((2, 45))
+        );
+        assert_eq!(git_version_short("git version 2.13.0"), Some((2, 13)));
+        // 无法识别的形态不应误判，返回 None 让调用方退化为不校验。
+        assert_eq!(git_version_short("unknown"), None);
+        assert_eq!(git_version_short(""), None);
     }
 
     fn temp_root(label: &str) -> PathBuf {

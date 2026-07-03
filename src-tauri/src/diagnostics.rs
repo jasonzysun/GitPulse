@@ -81,11 +81,12 @@ mod tests {
             find_item(&result, "output-dir").severity,
             DiagnosticSeverity::Error
         );
+        // author 留空即「全部作者」语义，属合法选择，不应再计为 Error。
         assert_eq!(
             find_item(&result, "author").severity,
-            DiagnosticSeverity::Error
+            DiagnosticSeverity::Ok
         );
-        assert!(result.error_count >= 3);
+        assert!(result.error_count >= 2);
     }
 
     fn find_item<'a>(result: &'a DiagnosticResult, id: &str) -> &'a DiagnosticItem {
