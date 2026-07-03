@@ -172,6 +172,17 @@ export function Workbench(props: Props) {
   const extractProgressText = props.extractProgress && !props.extractProgress.done
     ? `${props.extractProgress.completedRepos}/${props.extractProgress.totalRepos} 仓库 · ${props.extractProgress.concurrency} 并发 · ${props.extractProgress.commitCount} 条提交`
     : props.status;
+  const emptyReportAdvice = props.previewText && props.commitCount === 0
+    ? buildEmptyReportAdvice({
+      activePreview: props.activePreview,
+      dailyDate: props.dailyDate,
+      weeklyRange: props.weeklyRange,
+      monthlyRange: props.monthlyRange,
+      customRange: props.customRange,
+      author: props.author,
+      enabledRepoCount,
+    })
+    : null;
 
   return (
     <section className="workbench">
@@ -474,9 +485,29 @@ export function Workbench(props: Props) {
         </section>
       </div>
 
-      {(props.warnings.length > 0 || props.lastOutputFile) && (
+      {(props.warnings.length > 0 || props.lastOutputFile || emptyReportAdvice) && (
         <footer className="event-log">
           {props.lastOutputFile && <p>输出文件：{props.lastOutputFile}</p>}
+          {emptyReportAdvice && (
+            <div className="empty-report-advice" role="status" aria-live="polite">
+              <div>
+                <AlertCircle size={15} />
+                <strong>{emptyReportAdvice.title}</strong>
+              </div>
+              <p>{emptyReportAdvice.scope}</p>
+              <ul>
+                {emptyReportAdvice.checks.map((check) => <li key={check}>{check}</li>)}
+              </ul>
+              <div className="empty-report-actions">
+                <button type="button" onClick={props.onOpenSettings} disabled={props.isBusy}>
+                  检查作者/分支
+                </button>
+                <button type="button" onClick={props.onRefreshRepos} disabled={props.isBusy || props.isRepoScanning}>
+                  重新扫描仓库
+                </button>
+              </div>
+            </div>
+          )}
           {props.warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </footer>
       )}
@@ -657,6 +688,55 @@ function getHistoryKindLabel(mode: PreviewMode) {
   if (mode === "weekly") return "周报";
   if (mode === "custom") return "自定义";
   return "日报";
+}
+
+function buildEmptyReportAdvice({
+  activePreview,
+  dailyDate,
+  weeklyRange,
+  monthlyRange,
+  customRange,
+  author,
+  enabledRepoCount,
+}: {
+  activePreview: PreviewMode;
+  dailyDate: string;
+  weeklyRange: DateRange;
+  monthlyRange: DateRange;
+  customRange: DateRange;
+  author: string;
+  enabledRepoCount: number;
+}) {
+  return {
+    title: "本次报告没有匹配到提交",
+    scope: `${getHistoryKindLabel(activePreview)} · ${formatActiveRange(activePreview, dailyDate, weeklyRange, monthlyRange, customRange)} · ${formatAuthorScope(author)} · ${enabledRepoCount} 个启用仓库`,
+    checks: [
+      "确认周期覆盖了真实提交时间，尤其是周报/月报跨月边界。",
+      "若已填写作者，请核对 Git name/email；留空会按全部作者提取。",
+      "如果提交在其他分支，请在设置中开启全部分支提取。",
+      "刚添加或移动仓库后，请重新扫描仓库索引。",
+    ],
+  };
+}
+
+function formatActiveRange(
+  activePreview: PreviewMode,
+  dailyDate: string,
+  weeklyRange: DateRange,
+  monthlyRange: DateRange,
+  customRange: DateRange,
+) {
+  if (activePreview === "weekly") return `${weeklyRange.startDate} ~ ${weeklyRange.endDate}`;
+  if (activePreview === "monthly") return `${monthlyRange.startDate} ~ ${monthlyRange.endDate}`;
+  if (activePreview === "custom") return `${customRange.startDate} ~ ${customRange.endDate}`;
+  return dailyDate;
+}
+
+function formatAuthorScope(author: string) {
+  const trimmed = author.trim();
+  if (!trimmed) return "全部作者";
+  if (trimmed.includes(",")) return `多作者：${trimmed}`;
+  return `作者：${trimmed}`;
 }
 
 function formatHistoryRange(entry: ReportHistoryEntry) {

@@ -78,6 +78,32 @@
   color: #8da1bc;
 }
 
+:root[data-theme="dark"] .empty-report-advice {
+  border-color: rgba(245, 158, 11, 0.36);
+  background: rgba(68, 44, 14, 0.58);
+  color: #f5d08a;
+}
+
+:root[data-theme="dark"] .empty-report-advice strong {
+  color: #ffe0a3;
+}
+
+:root[data-theme="dark"] .empty-report-advice p,
+:root[data-theme="dark"] .empty-report-advice ul {
+  color: #efc779;
+}
+
+:root[data-theme="dark"] .empty-report-actions button {
+  border-color: rgba(245, 158, 11, 0.32);
+  color: #ffe0a3;
+  background: rgba(15, 23, 36, 0.68);
+}
+
+:root[data-theme="dark"] .empty-report-actions button:hover:not(:disabled) {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(88, 58, 18, 0.72);
+}
+
 :root[data-theme="dark"] .settings-card,
 :root[data-theme="dark"] .repo-row {
   border-color: rgba(52, 74, 103, 0.9);

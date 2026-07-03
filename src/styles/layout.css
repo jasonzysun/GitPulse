@@ -258,6 +258,78 @@
   word-break: break-all;
 }
 
+.empty-report-advice {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(243, 169, 95, 0.36);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 247, 235, 0.86);
+  color: #7a4b0b;
+}
+
+.empty-report-advice > div:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.empty-report-advice strong {
+  color: #6c430c;
+  font-size: 13px;
+}
+
+.empty-report-advice p,
+.empty-report-advice ul {
+  margin: 0;
+}
+
+.empty-report-advice p {
+  color: #8a570d;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.empty-report-advice ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 18px;
+  color: #8a570d;
+  line-height: 1.55;
+}
+
+.empty-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.empty-report-actions button {
+  min-height: 30px;
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  color: #7a4b0b;
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 820;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease, opacity 0.14s ease;
+}
+
+.empty-report-actions button:hover:not(:disabled) {
+  border-color: rgba(217, 119, 6, 0.46);
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.empty-report-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 @media (max-height: 820px) and (min-width: 721px) {
   .app-root {
     padding: 10px;

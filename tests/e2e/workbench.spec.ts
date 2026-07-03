@@ -96,6 +96,31 @@ test("generates and exports a daily report", async ({ page }) => {
   expect(saveCalls[0].args.format).toBe("markdown");
 });
 
+test("shows actionable guidance for empty daily reports", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "- 未检索到提交记录。",
+        detailedText: "",
+        warnings: [],
+        commits: [],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "生成日报" }).click();
+
+  await expect(page.getByText("本次报告没有匹配到提交")).toBeVisible();
+  await expect(page.getByText(/日报 · \d{4}-\d{2}-\d{2} · 作者：Playwright Tester · 1 个启用仓库/)).toBeVisible();
+  await expect(page.getByText("若已填写作者，请核对 Git name/email；留空会按全部作者提取。")).toBeVisible();
+  await expect(page.getByRole("button", { name: "检查作者/分支" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新扫描仓库", exact: true })).toBeVisible();
+});
+
 test("generates and exports a weekly report", async ({ page }) => {
   await launchApp(page, {
     settings,
