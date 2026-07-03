@@ -184,7 +184,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (settings.author) return;
+    if (settings.author || settings.onboardingDone) return;
 
     invoke<GitIdentity>("get_git_identity")
       .then((identity) => {

@@ -544,7 +544,7 @@ fn lines_to_block(lines: Vec<String>) -> String {
 
 fn display_author(author: &str) -> String {
     if author.trim().is_empty() {
-        "未指定".to_string()
+        "全部作者".to_string()
     } else {
         author.to_string()
     }

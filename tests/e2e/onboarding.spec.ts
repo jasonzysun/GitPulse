@@ -33,7 +33,9 @@ test("completes onboarding with mocked workspace scan", async ({ page }) => {
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page.getByLabel("Git 作者")).toHaveValue("Playwright Tester");
 
+  await page.getByLabel("Git 作者").fill("");
   await page.getByRole("button", { name: "进入工作台" }).click();
   await expectWorkbench(page);
+  await expect(page.getByRole("button", { name: "全部作者" })).toBeVisible();
   await expect(page.locator(".repo-display-name").filter({ hasText: "gitpulse" })).toBeVisible();
 });

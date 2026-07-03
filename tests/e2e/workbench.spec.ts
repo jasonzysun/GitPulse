@@ -121,6 +121,34 @@ test("shows actionable guidance for empty daily reports", async ({ page }) => {
   await expect(page.getByRole("button", { name: "重新扫描仓库", exact: true })).toBeVisible();
 });
 
+test("generates daily reports for all authors when author is blank", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, author: "" }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "# 全部作者日报\n\n- 汇总团队当天提交",
+        detailedText: "",
+        warnings: [],
+        commits: [{ id: 1 }],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await expect(page.getByRole("button", { name: "全部作者" })).toBeVisible();
+  await page.getByRole("button", { name: "生成日报" }).click();
+
+  await expect(page.getByText("汇总团队当天提交")).toBeVisible();
+
+  const extractCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "extract_commits"),
+  );
+  expect(extractCalls).toHaveLength(1);
+  expect(extractCalls[0].args.options.author).toBe("");
+});
+
 test("generates and exports a weekly report", async ({ page }) => {
   await launchApp(page, {
     settings,

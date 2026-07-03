@@ -338,7 +338,7 @@ fn monthly_user_prompt(
         "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的月报草稿润色为适合绩效考核提交的正式月报。要求语气客观、具体、不过度夸大；保留项目分组；实际完成情况必须贴合提交记录。\n\n{}",
         start_date,
         end_date,
-        if author.is_empty() { "未指定" } else { author },
+        if author.is_empty() { "全部作者" } else { author },
         instruction,
         base_report
     )
@@ -360,7 +360,7 @@ fn weekly_user_prompt(
         "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的周报草稿润色为适合周工作汇报的正式周报。要求语气客观、具体、不过度夸大；保留项目分组；本周重点和完成情况必须贴合提交记录，下周关注只能基于已完成事项自然延伸。\n\n{}",
         start_date,
         end_date,
-        if author.is_empty() { "未指定" } else { author },
+        if author.is_empty() { "全部作者" } else { author },
         instruction,
         base_report
     )
@@ -382,7 +382,7 @@ fn daily_user_prompt(
         "统计周期：{} 至 {}\n作者：{}\n用户补充/修改要求：{}\n\n请把下面的 Git 提交摘要润色为工作日报。要求保留可追溯的事项，不添加提交记录之外的事实；语言简洁、正式，适合直接复制到日报；如果内容较多，请按项目或事项分组。\n\n{}",
         start_date,
         end_date,
-        if author.is_empty() { "未指定" } else { author },
+        if author.is_empty() { "全部作者" } else { author },
         instruction,
         base_report
     )

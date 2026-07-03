@@ -211,9 +211,9 @@ export function Workbench(props: Props) {
             </button>
           </div>
           <div className="context-chips" aria-label="当前工作区上下文">
-            <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改 Git 作者">
+            <button type="button" className="context-chip" onClick={props.onOpenSettings} title="在设置中修改统计作者">
               <UserRound size={13} />
-              {props.author || "未设置作者"}
+              {formatAuthorScope(props.author)}
             </button>
           </div>
           <div className="quick-stats" aria-label="当前结果概览">

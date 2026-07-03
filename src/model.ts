@@ -632,14 +632,12 @@ export function validateRequiredSettings(settings: AppSettings) {
 
 export function validateMonthlySettings(settings: AppSettings) {
   validateWorkspaceSettings(settings);
-  if (!settings.author) throw new Error("请输入 Git 作者");
   validateOutputSettings(settings);
   validateAiSettings(settings);
 }
 
 export function validatePeriodReportSettings(settings: AppSettings, range: DateRange) {
   validateWorkspaceSettings(settings);
-  if (!settings.author) throw new Error("请输入 Git 作者");
   validateDateRange(range.startDate, range.endDate);
   validateOutputSettings(settings);
   validateAiSettings(settings);
@@ -647,7 +645,6 @@ export function validatePeriodReportSettings(settings: AppSettings, range: DateR
 
 export function validateExtractSettings(settings: AppSettings, dateRange?: DateRange) {
   validateWorkspaceSettings(settings);
-  if (!settings.author) throw new Error("请输入 Git 作者");
   const range = dateRange ?? getTodayRange();
   validateDateRange(range.startDate, range.endDate);
   validateAiSettings(settings);

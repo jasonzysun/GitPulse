@@ -26,15 +26,14 @@ type Props = {
 const STEPS = [
   { title: "欢迎使用", desc: "了解 GitPulse 能做什么" },
   { title: "仓库根目录", desc: "告诉我们代码放在哪里" },
-  { title: "Git 作者", desc: "确认提交归属" },
+  { title: "统计作者", desc: "可选单人、多人或全部" },
 ] as const;
 
 export function OnboardingWizard({ settings, repos, isBusy, updateSetting, onAddRootDirs, onRemoveRootDir, onComplete }: Props) {
   const [step, setStep] = useState(0);
 
   const rootReady = settings.rootDirs.length > 0;
-  const authorReady = settings.author.trim().length > 0;
-  const canAdvance = step === 0 || (step === 1 ? rootReady : authorReady);
+  const canAdvance = step === 0 || (step === 1 ? rootReady : true);
 
   function goNext() {
     if (step < STEPS.length - 1) {
@@ -135,15 +134,15 @@ export function OnboardingWizard({ settings, repos, isBusy, updateSetting, onAdd
             <StepBody
               icon={<UserRound size={22} />}
               kicker="Step 2"
-              title="确认 Git 作者"
-              subtitle="报告只统计该作者的提交。已自动读取本机 Git 配置，可直接修改。"
+              title="确认统计作者"
+              subtitle="默认读取本机 Git 作者；也可以留空统计全部作者，或用逗号分隔多个作者。"
             >
               <label className="onboarding-author">
                 <span>Git 作者</span>
                 <input
                   value={settings.author}
                   onChange={(event) => updateSetting("author", event.target.value)}
-                  placeholder="git config user.name 中的名字"
+                  placeholder="留空取全部作者；如 张三, 李四"
                   autoFocus
                 />
               </label>
