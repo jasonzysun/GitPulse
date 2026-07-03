@@ -63,13 +63,16 @@ GitPulse is already usable as a local-first desktop report generator. P0 reliabi
 - [x] Ignore local Codex config files while keeping project-level `.codex/skills` available for sharing.
 - [x] Add `verify:release` / `release:check` scripts to run frontend smoke, build, Rust checks, diff checks, and release dry-run together.
 - [x] Add browser-level Playwright e2e coverage for onboarding, diagnostics, report export, and report history flows with mocked Tauri runtime support.
+- [x] Expand browser-level e2e coverage to weekly and monthly report generation, preview, export, and history marking.
+- [x] Extract report orchestration and the parallel commit-extraction pipeline out of `lib.rs` into a dedicated `commit_pipeline` module, leaving `lib.rs` as a thin Tauri IPC transport layer.
 
 ## Next Backlog
 
 ### P3 Product Experience
 
-- Expand browser-level e2e coverage to weekly/monthly generation, AI settings, and updater flows on top of the new mock harness.
-- Start extracting App / SettingsDialog state orchestration into smaller testable modules now that end-to-end coverage exists.
+- Expand browser-level e2e coverage to AI settings and updater flows on top of the new mock harness.
+- Extract the `report.rs` rendering, template, and persistence responsibilities into smaller modules now that the orchestration layer is separated.
+- Extract App / SettingsDialog state orchestration into smaller testable modules now that end-to-end coverage exists.
 
 ## Notes
 

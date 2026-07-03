@@ -96,6 +96,93 @@ test("generates and exports a daily report", async ({ page }) => {
   expect(saveCalls[0].args.format).toBe("markdown");
 });
 
+test("generates and exports a weekly report", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    periodResults: {
+      weekly: {
+        reportText: "# 2026-W27 工作周报\n\n- 接入 Playwright 汶览器级端到端护栏\n- 补齐周报生成路径回归",
+        outputFile: "C:/exports/weekly_report_2026-W27.md",
+        warnings: [],
+        periodLabel: "2026-W27",
+        reportKind: "weekly",
+        projectCount: 1,
+        commitCount: 2,
+      },
+    },
+    outputDir: "C:/exports",
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "周报" }).click();
+  await page.getByRole("button", { name: "生成周报" }).click();
+
+  await expect(page.getByText("接入 Playwright 汶览器级端到端护栏")).toBeVisible();
+  await expect(page.getByText(/周报 · 2026-W27/)).toBeVisible();
+  await expect(page.getByText(/输出文件：.*weekly_report_2026-W27\.md/)).toBeVisible();
+
+  await page.locator("button.preview-save-button").click();
+
+  await expect(page.locator(".history-badge.exported")).toBeVisible();
+
+  const generateCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "generate_period_report"),
+  );
+  expect(generateCalls).toHaveLength(1);
+  expect(generateCalls[0].args.options.reportKind).toBe("weekly");
+
+  const saveCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "save_report_file"),
+  );
+  expect(saveCalls).toHaveLength(1);
+  expect(saveCalls[0].args.format).toBe("markdown");
+  expect(saveCalls[0].args.baseName).toContain("weekly_report_2026-W27");
+});
+
+test("generates and exports a monthly report", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    periodResults: {
+      monthly: {
+        reportText: "# 2026-06 工作月报\n\n- 完成报告逻辑拆分与导出能力加固\n- 修复 Conventional Commits scope 剥离",
+        outputFile: "C:/exports/monthly_report_2026-06.md",
+        warnings: [],
+        periodLabel: "2026-06",
+        reportKind: "monthly",
+        projectCount: 2,
+        commitCount: 5,
+      },
+    },
+    outputDir: "C:/exports",
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "月报" }).click();
+  await page.getByRole("button", { name: "生成月报" }).click();
+
+  await expect(page.getByText("完成报告逻辑拆分与导出能力加固")).toBeVisible();
+  await expect(page.getByText(/月报 · 2026-06/)).toBeVisible();
+  await expect(page.getByText(/输出文件：.*monthly_report_2026-06\.md/)).toBeVisible();
+
+  await page.locator("button.preview-save-button").click();
+
+  await expect(page.locator(".history-badge.exported")).toBeVisible();
+
+  const generateCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "generate_period_report"),
+  );
+  expect(generateCalls).toHaveLength(1);
+  expect(generateCalls[0].args.options.reportKind).toBe("monthly");
+
+  const saveCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "save_report_file"),
+  );
+  expect(saveCalls).toHaveLength(1);
+  expect(saveCalls[0].args.baseName).toContain("monthly_report_2026-06");
+});
+
 test("opens and clears report history", async ({ page }) => {
   await launchApp(page, {
     settings,
