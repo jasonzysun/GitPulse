@@ -115,14 +115,9 @@ pub fn render_extract_report(
         format.end_date,
         format.author,
         &period_label,
-        show_evidence_details,
-    );
-    let values = values.with_commit_items(render_summary_text(
-        commits,
-        project_names,
         show_project_and_branch,
         show_evidence_details,
-    ));
+    );
     render_report_template(template, default_template_for(kind), &values)
 }
 
@@ -145,6 +140,7 @@ pub fn render_monthly_report_with_template(
         end_date,
         author,
         &period_label,
+        false,
         show_evidence_details,
     );
     render_report_template(template, default_template_for("monthly"), &values)
@@ -169,6 +165,7 @@ pub fn render_weekly_report_with_template(
         end_date,
         author,
         &period_label,
+        false,
         show_evidence_details,
     );
     render_report_template(template, default_template_for("weekly"), &values)
@@ -346,6 +343,9 @@ struct ProjectCommitItem {
     evidence: String,
 }
 
+type ProjectGroups = BTreeMap<String, Vec<ProjectCommitItem>>;
+type AuthorProjectGroups = BTreeMap<String, ProjectGroups>;
+
 struct ReportTemplateValues {
     period_label: String,
     start_date: String,
@@ -362,13 +362,6 @@ struct ReportTemplateValues {
     notes: String,
 }
 
-impl ReportTemplateValues {
-    fn with_commit_items(mut self, commit_items: String) -> Self {
-        self.commit_items = commit_items;
-        self
-    }
-}
-
 fn build_template_values(
     kind: &str,
     commits: &[CommitRecord],
@@ -377,9 +370,12 @@ fn build_template_values(
     end_date: &str,
     author: &str,
     period_label: &str,
+    show_project_and_branch: bool,
     show_evidence_details: bool,
 ) -> ReportTemplateValues {
     let groups = group_commits_by_project(commits, project_names);
+    let author_groups = group_commits_by_author_project(commits, project_names);
+    let group_by_author = should_group_by_author(author, &author_groups);
     ReportTemplateValues {
         period_label: period_label.to_string(),
         start_date: start_date.to_string(),
@@ -387,15 +383,54 @@ fn build_template_values(
         author: display_author(author),
         project_count: groups.len().to_string(),
         commit_count: commits.len().to_string(),
-        project_sections: lines_to_block(render_actual_completion_content(
-            &groups,
-            show_evidence_details,
-        )),
-        commit_items: render_flat_commit_items(commits),
-        summary: lines_to_block(render_summary_content(kind, &groups)),
-        conclusion: lines_to_block(render_conclusion_content(kind, &groups)),
-        next_steps: lines_to_block(render_next_steps_content(kind, &groups)),
-        evidence: render_evidence_items(commits),
+        project_sections: if group_by_author {
+            lines_to_block(render_author_scoped_content(&author_groups, |groups| {
+                render_actual_completion_content(groups, show_evidence_details)
+            }))
+        } else {
+            lines_to_block(render_actual_completion_content(
+                &groups,
+                show_evidence_details,
+            ))
+        },
+        commit_items: if group_by_author {
+            render_author_commit_items(&author_groups, show_evidence_details)
+        } else if show_project_and_branch || show_evidence_details {
+            render_summary_text(
+                commits,
+                project_names,
+                show_project_and_branch,
+                show_evidence_details,
+            )
+        } else {
+            render_flat_commit_items(commits)
+        },
+        summary: if group_by_author {
+            lines_to_block(render_author_scoped_content(&author_groups, |groups| {
+                render_summary_content(kind, groups)
+            }))
+        } else {
+            lines_to_block(render_summary_content(kind, &groups))
+        },
+        conclusion: if group_by_author {
+            lines_to_block(render_author_scoped_content(&author_groups, |groups| {
+                render_conclusion_content(kind, groups)
+            }))
+        } else {
+            lines_to_block(render_conclusion_content(kind, &groups))
+        },
+        next_steps: if group_by_author {
+            lines_to_block(render_author_scoped_content(&author_groups, |groups| {
+                render_next_steps_content(kind, groups)
+            }))
+        } else {
+            lines_to_block(render_next_steps_content(kind, &groups))
+        },
+        evidence: if group_by_author {
+            render_author_evidence_items(&author_groups)
+        } else {
+            render_evidence_items(commits)
+        },
         notes: report_note(kind).to_string(),
     }
 }
@@ -651,14 +686,14 @@ fn clean_commit_message(message: &str) -> String {
     // 部分编辑器/工具会在提交信息行首写入 BOM 或零宽字符（U+FEFF、U+200B~U+200D
     // 等）。它们不是 ASCII 空白，`trim()` 剥不掉，会顶在 `type:` 前面让前缀正则从
     // 行首匹配失败，导致 `feat:` 前缀残留进报告。这里先统一剥掉前导零宽字符。
-    let message = message.trim_start_matches(|ch: char| {
-        ch == '\u{feff}' || ('\u{200b}'..='\u{200f}').contains(&ch)
-    });
+    let message = message
+        .trim_start_matches(|ch: char| ch == '\u{feff}' || ('\u{200b}'..='\u{200f}').contains(&ch));
     // 兼容 Conventional Commits 的 `type(scope):` 写法：scope 为可选括号段，
     // 与无 scope 的 `type:` 一并在此剥离，避免带 scope 的提交前缀残留进报告。
-    let prefix =
-        Regex::new(r"(?i)^(feat|fix|refactor|chore|docs|style|test|perf|ci|build|revert|init)(\([^)]*\))?:\s*")
-            .unwrap();
+    let prefix = Regex::new(
+        r"(?i)^(feat|fix|refactor|chore|docs|style|test|perf|ci|build|revert|init)(\([^)]*\))?:\s*",
+    )
+    .unwrap();
     let no_prefix = prefix.replace(message, "");
     let flattened = no_prefix.replace('"', "").replace("['']", "");
     let whitespace = Regex::new(r"\s+").unwrap().replace_all(&flattened, " ");
@@ -680,7 +715,7 @@ fn resolve_project_name(project_names: &HashMap<String, String>, commit: &Commit
 fn group_commits_by_project(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
-) -> BTreeMap<String, Vec<ProjectCommitItem>> {
+) -> ProjectGroups {
     let mut groups = BTreeMap::new();
     for commit in commits {
         let name = monthly_project_name(project_names, commit);
@@ -693,6 +728,125 @@ fn group_commits_by_project(
             });
     }
     groups
+}
+
+fn group_commits_by_author_project(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+) -> AuthorProjectGroups {
+    let mut author_groups = BTreeMap::new();
+    for commit in commits {
+        let author = display_commit_author(commit);
+        let project = monthly_project_name(project_names, commit);
+        author_groups
+            .entry(author)
+            .or_insert_with(BTreeMap::new)
+            .entry(project)
+            .or_insert_with(Vec::new)
+            .push(ProjectCommitItem {
+                title: clean_commit_message(&commit.message),
+                evidence: format_evidence_text(commit),
+            });
+    }
+    author_groups
+}
+
+fn should_group_by_author(author_filter: &str, author_groups: &AuthorProjectGroups) -> bool {
+    author_groups.len() > 1 && author_filter_count(author_filter) != 1
+}
+
+fn author_filter_count(author_filter: &str) -> usize {
+    author_filter
+        .split(|ch: char| ch == ',' || ch.is_whitespace())
+        .filter(|part| !part.trim().is_empty())
+        .count()
+}
+
+fn display_commit_author(commit: &CommitRecord) -> String {
+    let author = commit.author.trim();
+    if !author.is_empty() {
+        return author.to_string();
+    }
+
+    let email = commit.author_email.trim();
+    if !email.is_empty() {
+        return email.to_string();
+    }
+
+    "未知作者".to_string()
+}
+
+fn render_author_scoped_content<F>(author_groups: &AuthorProjectGroups, render: F) -> Vec<String>
+where
+    F: Fn(&ProjectGroups) -> Vec<String>,
+{
+    if author_groups.is_empty() {
+        return render(&BTreeMap::new());
+    }
+
+    let mut lines = Vec::new();
+    for (author, groups) in author_groups {
+        lines.push(format!("### {}", author));
+        lines.extend(demote_project_headings(render(groups)));
+        lines.push(String::new());
+    }
+    lines
+}
+
+fn render_author_commit_items(
+    author_groups: &AuthorProjectGroups,
+    show_evidence_details: bool,
+) -> String {
+    if author_groups.is_empty() {
+        return "- 未检索到提交记录。".to_string();
+    }
+
+    lines_to_block(render_author_project_items(
+        author_groups,
+        show_evidence_details,
+    ))
+}
+
+fn render_author_evidence_items(author_groups: &AuthorProjectGroups) -> String {
+    if author_groups.is_empty() {
+        return "- 暂无提交证据。".to_string();
+    }
+
+    lines_to_block(render_author_project_items(author_groups, true))
+}
+
+fn render_author_project_items(
+    author_groups: &AuthorProjectGroups,
+    show_evidence_details: bool,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    for (author, groups) in author_groups {
+        lines.push(format!("### {}", author));
+        for (project, items) in groups {
+            lines.push(format!("#### {}", project));
+            for item in unique_items(items) {
+                lines.push(format!("- {}", item.title));
+                if show_evidence_details {
+                    lines.extend(render_evidence_block(&item.evidence));
+                }
+            }
+            lines.push(String::new());
+        }
+    }
+    lines
+}
+
+fn demote_project_headings(lines: Vec<String>) -> Vec<String> {
+    lines
+        .into_iter()
+        .map(|line| {
+            if let Some(rest) = line.strip_prefix("### ") {
+                format!("#### {}", rest)
+            } else {
+                line
+            }
+        })
+        .collect()
 }
 
 fn format_evidence_text(commit: &CommitRecord) -> String {
@@ -1069,6 +1223,63 @@ mod tests {
     }
 
     #[test]
+    fn render_weekly_report_groups_all_authors_by_author_then_project() {
+        let commits = vec![
+            commit_by_author("repo-a", "main", "feat: 完成团队周报", "Alice"),
+            commit_by_author("repo-b", "main", "fix: 修复导出异常", "Bob"),
+        ];
+
+        let report = render_weekly_report_with_template(
+            &commits,
+            &HashMap::new(),
+            "2026-06-08",
+            "2026-06-14",
+            "",
+            "2026-W24",
+            false,
+            default_template_for("weekly"),
+        );
+
+        assert!(report.contains("- 作者：全部作者"));
+        assert!(report.contains("### Alice"));
+        assert!(report.contains("#### repo-a(main)"));
+        assert!(report.contains("- 完成团队周报"));
+        assert!(report.contains("### Bob"));
+        assert!(report.contains("#### repo-b(main)"));
+        assert!(report.contains("- 修复导出异常"));
+    }
+
+    #[test]
+    fn render_daily_report_groups_multi_author_commit_items() {
+        let commits = vec![
+            commit_by_author("repo-a", "main", "feat: 汇总前端日报", "Alice"),
+            commit_by_author("repo-a", "main", "fix: 修复后端日报", "Bob"),
+        ];
+        let templates = ReportFormatTemplates::default();
+
+        let report = render_extract_report(
+            &commits,
+            &HashMap::new(),
+            false,
+            false,
+            &ExtractReportFormat {
+                start_date: "2026-06-14",
+                end_date: "2026-06-14",
+                author: "",
+                period_label: "",
+                report_kind: "daily",
+                templates: &templates,
+            },
+        );
+
+        assert!(report.contains("### Alice"));
+        assert!(report.contains("#### repo-a(main)"));
+        assert!(report.contains("- 汇总前端日报"));
+        assert!(report.contains("### Bob"));
+        assert!(report.contains("- 修复后端日报"));
+    }
+
+    #[test]
     fn render_extract_report_uses_daily_and_custom_templates_separately() {
         let commits = vec![commit("repo-a", "main", "feat: 接入自定义输出")];
         let templates = ReportFormatTemplates {
@@ -1181,13 +1392,22 @@ mod tests {
     }
 
     fn commit(project_name: &str, branch_name: &str, message: &str) -> CommitRecord {
+        commit_by_author(project_name, branch_name, message, "tester")
+    }
+
+    fn commit_by_author(
+        project_name: &str,
+        branch_name: &str,
+        message: &str,
+        author: &str,
+    ) -> CommitRecord {
         CommitRecord {
             repo_path: project_name.to_string(),
             project_name: project_name.to_string(),
             branch_name: branch_name.to_string(),
             hash: "abc123def".to_string(),
-            author: "tester".to_string(),
-            author_email: "tester@example.com".to_string(),
+            author: author.to_string(),
+            author_email: format!("{}@example.com", author.to_lowercase()),
             date: "2026-06-10 10:00:00 +0800".to_string(),
             message: message.to_string(),
         }
