@@ -15,6 +15,10 @@ const settings = createSettings({
   outputDir: "C:/exports",
   author: "Playwright Tester",
 });
+const dailyCommits = [
+  createCommit("abc1231", "feat: 完成浏览器级诊断校验"),
+  createCommit("abc1232", "ci: 接入 GitHub Actions 日常门禁"),
+];
 
 test("renders mocked diagnostics in settings", async ({ page }) => {
   await launchApp(page, {
@@ -72,7 +76,7 @@ test("generates and exports a daily report", async ({ page }) => {
         summaryText: "# 今日工作报告\n\n- 完成浏览器级诊断校验\n- 接入 GitHub Actions 日常门禁",
         detailedText: "",
         warnings: [],
-        commits: [{ id: 1 }, { id: 2 }],
+        commits: dailyCommits,
       },
     ],
     outputDir: "C:/exports",
@@ -83,6 +87,12 @@ test("generates and exports a daily report", async ({ page }) => {
 
   await expect(page.getByText("完成浏览器级诊断校验")).toBeVisible();
   await expect(page.getByText(/日报 · \d{4}-\d{2}-\d{2}/)).toBeVisible();
+  await expect(page.getByLabel("报告交付质量提示")).toBeVisible();
+  await expect(page.getByText("2 条提交")).toBeVisible();
+  await expect(page.getByText("1 个项目")).toBeVisible();
+  await expect(page.getByText("本地模板")).toBeVisible();
+  await expect(page.getByText("证据未显示")).toBeVisible();
+  await expect(page.getByText("可导出")).toBeVisible();
 
   await page.locator("button.preview-save-button").click();
 
@@ -131,7 +141,7 @@ test("generates daily reports for all authors when author is blank", async ({ pa
         summaryText: "# 全部作者日报\n\n- 汇总团队当天提交",
         detailedText: "",
         warnings: [],
-        commits: [{ id: 1 }],
+        commits: [createCommit("abc1233", "feat: 汇总团队当天提交", "Alice")],
       },
     ],
   });
@@ -262,3 +272,16 @@ test("opens and clears report history", async ({ page }) => {
 
   await expect(page.getByText("生成报告后会在这里保留最近记录，可重新打开、复制或按同一周期重新生成。")).toBeVisible();
 });
+
+function createCommit(hash: string, message: string, author = "Playwright Tester") {
+  return {
+    repoPath: "C:/workspace/gitpulse",
+    projectName: "gitpulse",
+    branchName: "main",
+    hash,
+    author,
+    authorEmail: `${author.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+    date: "2026-07-02 10:00:00 +0800",
+    message,
+  };
+}

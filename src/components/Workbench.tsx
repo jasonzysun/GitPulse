@@ -33,6 +33,7 @@ import {
 } from "../model";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { ReportQualityPanel } from "./ReportQualityPanel";
 
 type Props = {
   repos: RepoInfo[];
@@ -51,6 +52,7 @@ type Props = {
   activeHistoryId: string;
   repoCount: number;
   commitCount: number;
+  projectCount: number;
   author: string;
   dailyDate: string;
   onDailyDateChange: (date: string) => void;
@@ -63,6 +65,7 @@ type Props = {
   customRange: DateRange;
   aiEnabled: boolean;
   aiConfigured: boolean;
+  showEvidenceDetails: boolean;
   onExtract: () => void;
   onGenerateWeekly: () => void;
   onGenerateCustom: (range: DateRange) => void;
@@ -401,6 +404,18 @@ export function Workbench(props: Props) {
               {isPreviewExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
           </div>
+          {!isPreviewExpanded && props.previewText && props.commitCount > 0 && (
+            <ReportQualityPanel
+              commitCount={props.commitCount}
+              projectCount={props.projectCount}
+              enabledRepoCount={enabledRepoCount}
+              totalRepoCount={props.repos.length}
+              aiEnabled={props.aiEnabled}
+              aiConfigured={props.aiConfigured}
+              showEvidenceDetails={props.showEvidenceDetails}
+              canExport={props.canExport}
+            />
+          )}
           {!isPreviewExpanded && (
             <ReportHistoryPanel
               entries={props.reportHistory}

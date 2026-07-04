@@ -13,6 +13,17 @@ export type RepoInfo = {
   branch: string;
 };
 
+export type CommitRecord = {
+  repoPath: string;
+  projectName: string;
+  branchName: string;
+  hash: string;
+  author: string;
+  authorEmail: string;
+  date: string;
+  message: string;
+};
+
 export type RepoScanProgress = {
   rootDir: string;
   currentPath: string;
@@ -37,7 +48,7 @@ export type ExtractResult = {
   summaryText: string;
   detailedText: string;
   warnings: string[];
-  commits: unknown[];
+  commits: CommitRecord[];
 };
 
 export type MonthlyReportResult = {
@@ -88,6 +99,7 @@ export type ReportHistoryEntry = {
   periodLabel: string;
   generatedAt: string;
   repoCount: number;
+  projectCount?: number;
   commitCount: number;
   aiEnhanced: boolean;
   outputFile: string;
@@ -489,6 +501,20 @@ export function resolveRepoDisplayName(repo: RepoInfo, projectNames: Record<stri
   const mapped = projectNames[`${repo.name}(${repo.branch})`] ?? projectNames[`${repo.name}(*)`];
   const trimmed = mapped?.replace(TRAILING_CONNECTORS, "").trim();
   return trimmed ? trimmed : repo.name;
+}
+
+export function countCommitProjects(commits: CommitRecord[], projectNames: Record<string, string>): number {
+  const projects = new Set<string>();
+  for (const commit of commits) {
+    const projectName = commit.projectName?.trim();
+    const branchName = commit.branchName?.trim();
+    if (!projectName || !branchName) continue;
+    const exactKey = `${projectName}(${branchName})`;
+    const mapped = projectNames[exactKey] ?? projectNames[`${projectName}(*)`] ?? exactKey;
+    const displayName = mapped.replace(TRAILING_CONNECTORS, "").trim();
+    projects.add(displayName || exactKey);
+  }
+  return projects.size;
 }
 
 export type MappingScope = "all" | "branch";

@@ -26,6 +26,7 @@ import {
   buildPeriodReportOptions,
   clearReportHistory,
   clearRepoIndexCache,
+  countCommitProjects,
   formatMonthLabel,
   getMonthRange,
   getPreviousMonthInput,
@@ -97,6 +98,7 @@ function App() {
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
   const [commitCount, setCommitCount] = useState(0);
+  const [projectCount, setProjectCount] = useState(0);
   const aiApiKeySaveTimer = useRef<number | null>(null);
   const {
     appVersion,
@@ -329,6 +331,7 @@ function App() {
     periodLabel: string,
     reportText: string,
     commitTotal: number,
+    projectTotal: number,
     aiEnhanced: boolean,
     outputFile = "",
   ): ReportHistoryEntry {
@@ -340,6 +343,7 @@ function App() {
       periodLabel,
       generatedAt: new Date().toISOString(),
       repoCount: getEnabledRepoCount(),
+      projectCount: projectTotal,
       commitCount: commitTotal,
       aiEnhanced,
       outputFile,
@@ -359,13 +363,15 @@ function App() {
         options: buildExtractOptions(settings, projectNames, range, false, "", repos),
       });
       const reportText = result.detailedText || result.summaryText;
+      const projectTotal = countCommitProjects(result.commits, projectNames);
       setDailyDate(dateValue);
       setSummaryText(reportText);
       setWarnings(result.warnings);
       setLastOutputFile("");
       setCommitCount(result.commits.length);
+      setProjectCount(projectTotal);
       setActivePreview("summary");
-      rememberHistory(buildHistoryEntry("summary", range, dateValue, reportText, result.commits.length, false));
+      rememberHistory(buildHistoryEntry("summary", range, dateValue, reportText, result.commits.length, projectTotal, false));
       setStatus(`${dateValue} 日报已生成`);
     }, () => validateExtractSettings(settings, range));
   }
@@ -378,13 +384,15 @@ function App() {
       });
       const reportText = result.detailedText || result.summaryText;
       const periodLabel = `${range.startDate} ~ ${range.endDate}`;
+      const projectTotal = countCommitProjects(result.commits, projectNames);
       setCustomRange(range);
       setCustomReport(reportText);
       setWarnings(result.warnings);
       setLastOutputFile("");
       setCommitCount(result.commits.length);
+      setProjectCount(projectTotal);
       setActivePreview("custom");
-      rememberHistory(buildHistoryEntry("custom", range, periodLabel, reportText, result.commits.length, false));
+      rememberHistory(buildHistoryEntry("custom", range, periodLabel, reportText, result.commits.length, projectTotal, false));
       setStatus("自定义报告已生成");
     }, () => validateExtractSettings(settings, range));
   }
@@ -402,8 +410,9 @@ function App() {
       setWarnings(result.warnings);
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
+      setProjectCount(result.projectCount);
       setActivePreview("weekly");
-      rememberHistory(buildHistoryEntry("weekly", range, result.periodLabel, result.reportText, result.commitCount, false, result.outputFile));
+      rememberHistory(buildHistoryEntry("weekly", range, result.periodLabel, result.reportText, result.commitCount, result.projectCount, false, result.outputFile));
       setStatus(result.outputFile ? `${result.periodLabel} 周报已生成` : `${result.periodLabel} 周报已生成，未写入文件`);
     }, () => validatePeriodReportSettings(settings, range));
   }
@@ -422,8 +431,9 @@ function App() {
       setWarnings(result.warnings);
       setLastOutputFile(result.outputFile);
       setCommitCount(result.commitCount);
+      setProjectCount(result.projectCount);
       setActivePreview("monthly");
-      rememberHistory(buildHistoryEntry("monthly", range, result.periodLabel, result.reportText, result.commitCount, false, result.outputFile));
+      rememberHistory(buildHistoryEntry("monthly", range, result.periodLabel, result.reportText, result.commitCount, result.projectCount, false, result.outputFile));
       setStatus(result.outputFile ? `${result.periodLabel} 月报已生成` : `${result.periodLabel} 月报已生成，未写入文件`);
     }, () => validatePeriodReportSettings(settings, getMonthRange(monthValue)));
   }
@@ -440,7 +450,8 @@ function App() {
         setWarnings(result.warnings);
         setLastOutputFile(result.outputFile);
         setCommitCount(result.commitCount);
-        rememberHistory(buildHistoryEntry("weekly", weeklyRange, result.periodLabel, result.reportText, result.commitCount, aiEnhanced, result.outputFile));
+        setProjectCount(result.projectCount);
+        rememberHistory(buildHistoryEntry("weekly", weeklyRange, result.periodLabel, result.reportText, result.commitCount, result.projectCount, aiEnhanced, result.outputFile));
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else if (activePreview === "monthly") {
         const result = await invoke<PeriodReportResult>("generate_period_report", {
@@ -453,7 +464,8 @@ function App() {
         setWarnings(result.warnings);
         setLastOutputFile(result.outputFile);
         setCommitCount(result.commitCount);
-        rememberHistory(buildHistoryEntry("monthly", monthlyRange, result.periodLabel, result.reportText, result.commitCount, aiEnhanced, result.outputFile));
+        setProjectCount(result.projectCount);
+        rememberHistory(buildHistoryEntry("monthly", monthlyRange, result.periodLabel, result.reportText, result.commitCount, result.projectCount, aiEnhanced, result.outputFile));
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       } else {
         const range = activePreview === "custom" ? customRange : dailyRange;
@@ -464,6 +476,7 @@ function App() {
         const mode = activePreview === "custom" ? "custom" : "summary";
         const periodLabel = mode === "custom" ? `${range.startDate} ~ ${range.endDate}` : range.startDate;
         const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
+        const projectTotal = countCommitProjects(result.commits, projectNames);
         if (activePreview === "custom") {
           setCustomReport(reportText);
         } else {
@@ -472,7 +485,8 @@ function App() {
         setWarnings(result.warnings);
         setLastOutputFile("");
         setCommitCount(result.commits.length);
-        rememberHistory(buildHistoryEntry(mode, range, periodLabel, reportText, result.commits.length, aiEnhanced));
+        setProjectCount(projectTotal);
+        rememberHistory(buildHistoryEntry(mode, range, periodLabel, reportText, result.commits.length, projectTotal, aiEnhanced));
         setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
       }
     }, () => {
@@ -523,6 +537,7 @@ function App() {
     setWarnings([]);
     setLastOutputFile(entry.outputFile);
     setCommitCount(entry.commitCount);
+    setProjectCount(entry.projectCount ?? entry.repoCount);
 
     if (entry.mode === "monthly") {
       setMonthlyMonth(entry.periodLabel);
@@ -692,6 +707,7 @@ function App() {
         activeHistoryId={activeHistoryId}
         repoCount={repos.length}
         commitCount={commitCount}
+        projectCount={projectCount}
         author={settings.author}
         dailyDate={dailyDate}
         onDailyDateChange={changeDailyDate}
@@ -704,6 +720,7 @@ function App() {
         customRange={customRange}
         aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}
+        showEvidenceDetails={settings.showEvidenceDetails}
         onExtract={extractCommits}
         onGenerateWeekly={generateWeeklyReport}
         onGenerateCustom={generateCustomReport}

@@ -18,6 +18,7 @@ type ReportHistoryEntry = {
   periodLabel: string;
   generatedAt: string;
   repoCount: number;
+  projectCount?: number;
   commitCount: number;
   aiEnhanced: boolean;
   outputFile: string;
@@ -113,6 +114,7 @@ export function createHistoryEntry(
     periodLabel: overrides.periodLabel,
     generatedAt: overrides.generatedAt ?? new Date("2026-07-02T10:00:00.000Z").toISOString(),
     repoCount: overrides.repoCount ?? 1,
+    projectCount: overrides.projectCount,
     commitCount: overrides.commitCount ?? 2,
     aiEnhanced: overrides.aiEnhanced ?? false,
     outputFile: overrides.outputFile ?? "",
