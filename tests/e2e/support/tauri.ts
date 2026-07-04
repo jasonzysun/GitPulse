@@ -74,6 +74,7 @@ export function createSettings(overrides: Record<string, unknown> = {}) {
     aiApiKey: "",
     aiApiKeySaved: false,
     refinementInstruction: "",
+    reportPurposePreset: "custom",
     reportTemplateProfile: "standard",
     dailyReportFormatTemplate: "{commitItems}",
     weeklyReportFormatTemplate:

@@ -90,6 +90,43 @@ test("suggests project mappings for unmapped repositories", async ({ page }) => 
   expect(savedMapping).toContain("learning-platform-api(*) -> Learning Platform Api");
 });
 
+test("applies report purpose presets to templates and generation options", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    periodResults: {
+      monthly: {
+        reportText: "# 2026-06 绩效月报\n\n- 完成绩效材料模板",
+        outputFile: "C:/exports/monthly_report_2026-06.md",
+        warnings: [],
+        periodLabel: "2026-06",
+        reportKind: "monthly",
+        projectCount: 1,
+        commitCount: 2,
+      },
+    },
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "打开设置" }).click();
+  await page.getByRole("button", { name: "报告格式" }).click();
+  await page.locator(".report-purpose-presets button").filter({ hasText: "绩效材料" }).click();
+  await page.getByRole("radio", { name: "月报" }).click();
+
+  await expect(page.locator("textarea.report-template-input")).toHaveValue(/绩效月报/);
+  await page.getByRole("button", { name: "关闭设置" }).click();
+
+  await page.getByRole("button", { name: "月报" }).click();
+  await page.getByRole("button", { name: "生成月报" }).click();
+
+  const generateCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "generate_period_report"),
+  );
+  expect(generateCalls).toHaveLength(1);
+  expect(generateCalls[0].args.options.reportFormatTemplates.monthly).toContain("绩效月报");
+  expect(generateCalls[0].args.options.refinementInstruction).toContain("报告用途：绩效材料");
+});
+
 test("generates and exports a daily report", async ({ page }) => {
   await launchApp(page, {
     settings,

@@ -4,10 +4,13 @@ import type { AppSettings } from "../model";
 import {
   defaultReportFormatTemplate,
   profileReportFormatTemplate,
+  purposeReportFormatTemplate,
   REPORT_FORMAT_KINDS,
+  REPORT_PURPOSE_PRESETS,
   REPORT_FORMAT_VARIABLES,
   validateReportFormatTemplate,
   type ReportFormatKind,
+  type ReportPurposePreset,
   type ReportTemplateProfile,
 } from "../reportFormat";
 import { Field } from "./Primitives";
@@ -65,12 +68,23 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
 
   function updateReportFormatTemplate(kind: ReportFormatKind, value: string) {
     updateSetting(reportFormatTemplateKey(kind), value);
+    if (settings.reportPurposePreset !== "custom") updateSetting("reportPurposePreset", "custom");
     if (settings.reportTemplateProfile !== "custom") updateSetting("reportTemplateProfile", "custom");
   }
 
   function applyReportTemplateProfile(profile: ReportTemplateProfile) {
+    if (settings.reportPurposePreset !== "custom") updateSetting("reportPurposePreset", "custom");
     updateSetting("reportTemplateProfile", profile);
     updateSetting(reportFormatTemplateKey(formatEditTarget), profileReportFormatTemplate(profile, formatEditTarget));
+  }
+
+  function applyReportPurposePreset(purpose: ReportPurposePreset) {
+    updateSetting("reportPurposePreset", purpose);
+    if (purpose === "custom") return;
+    updateSetting("reportTemplateProfile", "custom");
+    for (const kind of REPORT_FORMAT_KINDS) {
+      updateSetting(reportFormatTemplateKey(kind), purposeReportFormatTemplate(purpose, kind));
+    }
   }
 
   function resetCurrentReportFormatTemplate() {
@@ -85,6 +99,22 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
   return (
     <section className="settings-section report-format-section">
       <SectionTitle icon={<FileText size={16} />} title="报告格式" />
+
+      <Field label="报告用途">
+        <div className="report-format-presets report-purpose-presets">
+          {REPORT_PURPOSE_PRESETS.map((purpose) => (
+            <button
+              key={purpose.id}
+              type="button"
+              className={settings.reportPurposePreset === purpose.id ? "active" : ""}
+              onClick={() => applyReportPurposePreset(purpose.id)}
+            >
+              <span>{purpose.label}</span>
+              <small>{purpose.description}</small>
+            </button>
+          ))}
+        </div>
+      </Field>
 
       <div className="mapping-scope-control report-format-kind-control" role="radiogroup" aria-label="选择报告类型">
         {REPORT_FORMAT_KINDS.map((kind) => (

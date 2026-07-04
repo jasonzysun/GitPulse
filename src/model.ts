@@ -4,7 +4,9 @@ import {
   DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE,
   DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
   type ReportFormatKind,
+  type ReportPurposePreset,
   type ReportTemplateProfile,
+  purposeRefinementInstruction,
 } from "./reportFormat";
 
 export type RepoInfo = {
@@ -164,6 +166,7 @@ export type AppSettings = {
   aiApiKey: string;
   aiApiKeySaved: boolean;
   refinementInstruction: string;
+  reportPurposePreset: ReportPurposePreset;
   reportTemplateProfile: ReportTemplateProfile;
   dailyReportFormatTemplate: string;
   weeklyReportFormatTemplate: string;
@@ -229,6 +232,7 @@ export const defaultSettings: AppSettings = {
   aiApiKey: "",
   aiApiKeySaved: false,
   refinementInstruction: "",
+  reportPurposePreset: "custom",
   reportTemplateProfile: "standard",
   dailyReportFormatTemplate: DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
   weeklyReportFormatTemplate: DEFAULT_WEEKLY_REPORT_FORMAT_TEMPLATE,
@@ -288,6 +292,7 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
+  parsed.reportPurposePreset = normalizeReportPurposePreset(parsed.reportPurposePreset);
   parsed.reportTemplateProfile = normalizeReportTemplateProfile(parsed.reportTemplateProfile);
   parsed.excludeMergeCommits = parsed.excludeMergeCommits !== false;
   parsed.excludeRevertCommits = parsed.excludeRevertCommits !== false;
@@ -815,8 +820,15 @@ function buildReportSystemPrompt(settings: AppSettings, kind: "daily" | PeriodRe
 
 function buildReportRefinementInstruction(settings: AppSettings, extraInstruction: string) {
   const evidenceInstruction = settings.showEvidenceDetails ? EVIDENCE_PRESERVATION_INSTRUCTION : "";
+  const purposeInstruction = purposeRefinementInstruction(settings.reportPurposePreset);
   return mergeInstructions(
-    mergeInstructions(mergeInstructions(settings.refinementInstruction, TEMPLATE_PRESERVATION_INSTRUCTION), evidenceInstruction),
+    mergeInstructions(
+      mergeInstructions(
+        mergeInstructions(purposeInstruction, settings.refinementInstruction),
+        TEMPLATE_PRESERVATION_INSTRUCTION,
+      ),
+      evidenceInstruction,
+    ),
     extraInstruction,
   );
 }
@@ -974,6 +986,19 @@ function normalizeReportTemplateProfile(value: unknown): ReportTemplateProfile {
     return value;
   }
   return defaultSettings.reportTemplateProfile;
+}
+
+function normalizeReportPurposePreset(value: unknown): ReportPurposePreset {
+  if (
+    value === "custom"
+    || value === "daily-sync"
+    || value === "weekly-briefing"
+    || value === "performance"
+    || value === "project-review"
+  ) {
+    return value;
+  }
+  return defaultSettings.reportPurposePreset;
 }
 
 function normalizeReportFormatTemplate(value: unknown, fallback: string) {
