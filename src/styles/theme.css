@@ -308,6 +308,11 @@
   background: rgba(117, 37, 42, 0.24);
 }
 
+:root[data-theme="dark"] .local-boundary-item {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(16, 24, 39, 0.7);
+}
+
 :root[data-theme="dark"] .diagnostics-item {
   border-color: rgba(52, 74, 103, 0.9);
   background: rgba(16, 24, 39, 0.7);

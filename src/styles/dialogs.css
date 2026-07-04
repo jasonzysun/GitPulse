@@ -825,6 +825,50 @@
   gap: 12px;
 }
 
+.local-boundary-section {
+  gap: 12px;
+}
+
+.local-boundary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.local-boundary-item {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(220, 230, 240, 0.9);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.local-boundary-item strong {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.local-boundary-item p,
+.local-boundary-item small {
+  margin: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.local-boundary-item p {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.local-boundary-item small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
 .diagnostics-header {
   display: flex;
   align-items: flex-start;
@@ -1179,6 +1223,10 @@
   }
 
   .model-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .local-boundary-grid {
     grid-template-columns: 1fr;
   }
 

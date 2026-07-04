@@ -58,6 +58,9 @@ test("renders mocked diagnostics in settings", async ({ page }) => {
   await page.getByRole("button", { name: "打开设置" }).click();
   await page.getByRole("button", { name: "诊断" }).click();
 
+  await expect(page.getByText("本地数据边界")).toBeVisible();
+  await expect(page.getByText("GitPulse 只读取你选择的本机目录和 Git 元数据")).toBeVisible();
+  await expect(page.getByText("AI 润色关闭时，报告草稿、提交记录和项目映射不会发送到外部 AI 服务。")).toBeVisible();
   await expect(page.getByText("1 异常")).toBeVisible();
   await expect(page.getByText("1 提醒")).toBeVisible();
   await expect(page.getByText("1 正常")).toBeVisible();
