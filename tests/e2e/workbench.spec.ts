@@ -402,6 +402,58 @@ test("opens and clears report history", async ({ page }) => {
   await expect(page.getByText("生成报告后会在这里保留最近记录，可重新打开、复制或按同一周期重新生成。")).toBeVisible();
 });
 
+test("filters report history by type date status and search", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    reportHistory: [
+      createHistoryEntry({
+        id: "history-weekly-ai",
+        mode: "weekly",
+        title: "周报 · 2026-W24",
+        periodLabel: "2026-W24",
+        range: { startDate: "2026-06-08", endDate: "2026-06-14" },
+        generatedAt: "2026-06-14T10:00:00.000Z",
+        aiEnhanced: true,
+        outputFile: "C:/exports/weekly_report_2026-W24.md",
+        reportText: "# 2026-W24\n\n## 支付平台\n- 处理交易证据链",
+      }),
+      createHistoryEntry({
+        id: "history-monthly",
+        mode: "monthly",
+        title: "月报 · 2026-07",
+        periodLabel: "2026-07",
+        range: { startDate: "2026-07-01", endDate: "2026-07-31" },
+        generatedAt: "2026-07-31T10:00:00.000Z",
+        aiEnhanced: false,
+        outputFile: "",
+        reportText: "# 2026-07\n\n## CRM 平台\n- 整理客户跟进月报",
+      }),
+    ],
+  });
+
+  await expectWorkbench(page);
+  await page.getByLabel("筛选报告类型").selectOption("weekly");
+  await expect(page.getByRole("button", { name: /周报 · 2026-W24/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /月报 · 2026-07/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "重置" }).click();
+  await page.getByLabel("搜索历史报告").fill("CRM");
+  await expect(page.getByRole("button", { name: /月报 · 2026-07/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /周报 · 2026-W24/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "重置" }).click();
+  await page.getByLabel("筛选历史日期").fill("2026-06-12");
+  await expect(page.getByRole("button", { name: /周报 · 2026-W24/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /月报 · 2026-07/ })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "重置" }).click();
+  await page.getByLabel("筛选 AI 状态").selectOption("ai");
+  await page.getByLabel("筛选导出状态").selectOption("exported");
+  await expect(page.getByRole("button", { name: /周报 · 2026-W24/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /月报 · 2026-07/ })).toHaveCount(0);
+});
+
 function createCommit(hash: string, message: string, author = "Playwright Tester") {
   return {
     repoPath: "C:/workspace/gitpulse",

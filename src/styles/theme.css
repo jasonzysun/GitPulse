@@ -544,6 +544,34 @@
   background: rgba(20, 31, 48, 0.46);
 }
 
+:root[data-theme="dark"] .history-search-field svg {
+  color: #8292a8;
+}
+
+:root[data-theme="dark"] .history-search-field input,
+:root[data-theme="dark"] .history-filter-bar select,
+:root[data-theme="dark"] .history-filter-bar input[type="date"],
+:root[data-theme="dark"] .history-filter-reset {
+  border-color: rgba(109, 168, 255, 0.2);
+  color: var(--ink);
+  background: rgba(10, 18, 31, 0.82);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .history-search-field input:focus,
+:root[data-theme="dark"] .history-filter-bar select:focus,
+:root[data-theme="dark"] .history-filter-bar input[type="date"]:focus {
+  border-color: var(--primary);
+  background: rgba(12, 22, 36, 0.96);
+  box-shadow: 0 0 0 3px rgba(109, 168, 255, 0.16);
+}
+
+:root[data-theme="dark"] .history-filter-reset:hover {
+  border-color: rgba(109, 168, 255, 0.38);
+  color: #d9eaff;
+  background: rgba(63, 140, 255, 0.18);
+}
+
 :root[data-theme="dark"] .history-row {
   border-color: rgba(52, 74, 103, 0.9);
   background: rgba(12, 22, 36, 0.66);
