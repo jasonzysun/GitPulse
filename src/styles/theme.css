@@ -110,6 +110,16 @@
   background: rgba(16, 24, 39, 0.7);
 }
 
+:root[data-theme="dark"] .mapping-suggestion-panel {
+  border-color: rgba(109, 168, 255, 0.24);
+  background: rgba(63, 140, 255, 0.11);
+}
+
+:root[data-theme="dark"] .mapping-suggestion-row {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(12, 22, 36, 0.66);
+}
+
 :root[data-theme="dark"] .toggle span,
 :root[data-theme="dark"] .repo-toggle span {
   background: #25364d;

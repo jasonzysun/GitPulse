@@ -19,6 +19,7 @@ import {
   Settings2,
   Sun,
   Trash2,
+  Wand2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -28,6 +29,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { DiagnosticsSection } from "./DiagnosticsSection";
 import {
   buildMappingKeys,
+  buildMappingSuggestions,
   DEFAULT_DAILY_SYSTEM_PROMPT,
   DEFAULT_MONTHLY_SYSTEM_PROMPT,
   mergeMappingEntries,
@@ -36,6 +38,7 @@ import {
   type AiModelInfo,
   type AppSettings,
   type MappingEntry,
+  type MappingSuggestion,
   type RepoInfo,
   type UpdateSummary,
 } from "../model";
@@ -159,6 +162,7 @@ export function SettingsDialog({
   const mappingRows = parseMappingText(settings.projectNamesText);
   const visibleMappingRows = mappingRows.length > 0 ? mappingRows : [{ key: "", displayName: "" }];
   const mappingOptions = buildMappingOptions(repos, mappingRows);
+  const mappingSuggestions = buildMappingSuggestions(repos, mappingRows);
 
   function resetAiModelFetch() {
     setAiModelOptions([]);
@@ -341,6 +345,26 @@ export function SettingsDialog({
     if (pendingDeleteIndex === null) return;
     removeMappingRow(pendingDeleteIndex);
     setPendingDeleteIndex(null);
+  }
+
+  function applyMappingSuggestion(suggestion: MappingSuggestion) {
+    updateSetting("projectNamesText", serializeMappingText([...mappingRows, {
+      key: suggestion.key,
+      displayName: suggestion.displayName,
+    }]));
+    setImportNote(`已填入建议：${suggestion.displayName}`);
+  }
+
+  function applyAllMappingSuggestions() {
+    if (mappingSuggestions.length === 0) return;
+    updateSetting("projectNamesText", serializeMappingText([
+      ...mappingRows,
+      ...mappingSuggestions.map((suggestion) => ({
+        key: suggestion.key,
+        displayName: suggestion.displayName,
+      })),
+    ]));
+    setImportNote(`已填入 ${mappingSuggestions.length} 条映射建议`);
   }
 
   async function importMappingFile() {
@@ -624,6 +648,35 @@ export function SettingsDialog({
               <section className="settings-section mapping-section">
                 <SectionTitle icon={<Settings2 size={16} />} title="项目映射" />
                 <div className="mapping-editor">
+                  {mappingSuggestions.length > 0 && (
+                    <div className="mapping-suggestion-panel" aria-label="未映射仓库建议">
+                      <div className="mapping-suggestion-head">
+                        <div>
+                          <strong>未映射仓库建议</strong>
+                          <span>{mappingSuggestions.length} 个仓库待命名</span>
+                        </div>
+                        <button type="button" className="mapping-import" onClick={applyAllMappingSuggestions}>
+                          <Wand2 size={15} />
+                          全部填入
+                        </button>
+                      </div>
+                      <div className="mapping-suggestion-list">
+                        {mappingSuggestions.map((suggestion) => (
+                          <article className="mapping-suggestion-row" key={suggestion.key}>
+                            <span className="mapping-suggestion-main">
+                              <strong>{suggestion.displayName}</strong>
+                              <em>{suggestion.repoName}{suggestion.branch ? ` · ${suggestion.branch}` : ""}</em>
+                            </span>
+                            <small>{suggestion.reason}</small>
+                            <button type="button" className="mapping-add" onClick={() => applyMappingSuggestion(suggestion)}>
+                              <Wand2 size={14} />
+                              填入
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {visibleMappingRows.map((row, index) => (
                     <div className="mapping-row" key={`${index}-${row.key}`}>
                       <Field label="项目与分支">

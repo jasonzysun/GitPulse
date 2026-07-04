@@ -450,6 +450,14 @@ export type MappingEntry = {
   displayName: string;
 };
 
+export type MappingSuggestion = {
+  key: string;
+  displayName: string;
+  repoName: string;
+  branch: string;
+  reason: string;
+};
+
 export function parseMappingText(text: string): MappingEntry[] {
   return text.split(/\r?\n/).reduce<MappingEntry[]>((rows, line) => {
     const trimmed = line.trim();
@@ -485,11 +493,75 @@ export function buildMappingKeys(repos: RepoInfo[]): string[] {
   });
 }
 
+export function buildMappingSuggestions(repos: RepoInfo[], rows: MappingEntry[]): MappingSuggestion[] {
+  const mappedKeys = new Set(rows.map((row) => row.key).filter(Boolean));
+  const seenSuggestionKeys = new Set<string>();
+  return repos.reduce<MappingSuggestion[]>((suggestions, repo) => {
+    const allKey = `${repo.name}(*)`;
+    const branchKey = `${repo.name}(${repo.branch})`;
+    if (mappedKeys.has(allKey) || mappedKeys.has(branchKey) || seenSuggestionKeys.has(allKey)) {
+      return suggestions;
+    }
+    seenSuggestionKeys.add(allKey);
+    const historicalName = findHistoricalMappingName(repo, rows);
+    suggestions.push({
+      key: allKey,
+      displayName: historicalName || humanizeRepoName(repo.name, repo.branch),
+      repoName: repo.name,
+      branch: repo.branch,
+      reason: historicalName ? "沿用同仓库历史映射" : buildMappingSuggestionReason(repo),
+    });
+    return suggestions;
+  }, []);
+}
+
 export function parseProjectNames(text: string): Record<string, string> {
   return parseMappingText(text).reduce<Record<string, string>>((result, row) => {
     if (row.key && row.displayName) result[row.key] = row.displayName;
     return result;
   }, {});
+}
+
+function findHistoricalMappingName(repo: RepoInfo, rows: MappingEntry[]) {
+  const prefix = `${repo.name}(`;
+  const matched = rows.find((row) => row.key.startsWith(prefix) && row.displayName.trim());
+  return matched?.displayName.trim() ?? "";
+}
+
+function humanizeRepoName(repoName: string, branchName: string) {
+  const baseName = repoName.replace(/\.git$/i, "").trim();
+  const displayName = humanizeWords(baseName);
+  if (!isGenericRepoName(baseName) || isDefaultBranch(branchName)) return displayName;
+  const branchDisplayName = humanizeWords(branchName);
+  return branchDisplayName ? `${branchDisplayName} ${displayName}` : displayName;
+}
+
+function humanizeWords(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[-_.]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(formatDisplayWord)
+    .join(" ");
+}
+
+function formatDisplayWord(word: string) {
+  if (/[\u4e00-\u9fff]/.test(word) || /^[A-Z0-9]{2,}$/.test(word)) return word;
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function isGenericRepoName(repoName: string) {
+  return /^(api|app|backend|client|frontend|server|service|web)$/i.test(repoName.trim());
+}
+
+function isDefaultBranch(branchName: string) {
+  return /^(main|master|dev|develop|development|trunk)$/i.test(branchName.trim());
+}
+
+function buildMappingSuggestionReason(repo: RepoInfo) {
+  if (!repo.branch || isDefaultBranch(repo.branch)) return "根据仓库名生成";
+  return `根据仓库名和 ${repo.branch} 分支生成`;
 }
 
 // 与 Rust 端 report.rs 的 TRAILING_CONNECTORS 保持一致：映射名末尾可能带连接符，统一去除。

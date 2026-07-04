@@ -66,6 +66,30 @@ test("renders mocked diagnostics in settings", async ({ page }) => {
   await expect(page.getByText("请在设置中重新选择可用目录。")).toBeVisible();
 });
 
+test("suggests project mappings for unmapped repositories", async ({ page }) => {
+  const mappingRepos = [createRepo("C:/workspace/learning-platform-api", "learning-platform-api", "main")];
+  await launchApp(page, {
+    settings: createSettings({ ...settings, projectNamesText: "" }),
+    repoCache: createRepoCache(["C:/workspace"], mappingRepos),
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "打开设置" }).click();
+  await page.getByRole("button", { name: "项目映射" }).click();
+
+  await expect(page.getByLabel("未映射仓库建议")).toBeVisible();
+  await expect(page.getByText("Learning Platform Api")).toBeVisible();
+  await page.getByRole("button", { name: "填入", exact: true }).click();
+
+  await expect(page.getByLabel("未映射仓库建议")).toBeHidden();
+
+  const savedMapping = await page.evaluate(() => {
+    const saved = window.localStorage.getItem("gitpulse-settings");
+    return saved ? JSON.parse(saved).projectNamesText : "";
+  });
+  expect(savedMapping).toContain("learning-platform-api(*) -> Learning Platform Api");
+});
+
 test("generates and exports a daily report", async ({ page }) => {
   await launchApp(page, {
     settings,
