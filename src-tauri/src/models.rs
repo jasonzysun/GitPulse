@@ -66,6 +66,13 @@ pub struct AuthorAliasGroup {
     pub aliases: Vec<String>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvidenceLinkRule {
+    pub prefix: String,
+    pub url_template: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractOptions {
@@ -91,6 +98,8 @@ pub struct ExtractOptions {
     pub detailed_output: bool,
     pub show_project_and_branch: bool,
     pub show_evidence_details: bool,
+    #[serde(default)]
+    pub evidence_link_rules: Vec<EvidenceLinkRule>,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,
@@ -213,6 +222,8 @@ pub struct MonthlyReportOptions {
     pub exclude_revert_commits: bool,
     pub exclude_bot_commits: bool,
     pub show_evidence_details: bool,
+    #[serde(default)]
+    pub evidence_link_rules: Vec<EvidenceLinkRule>,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,
@@ -257,6 +268,8 @@ pub struct PeriodReportOptions {
     pub exclude_revert_commits: bool,
     pub exclude_bot_commits: bool,
     pub show_evidence_details: bool,
+    #[serde(default)]
+    pub evidence_link_rules: Vec<EvidenceLinkRule>,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,

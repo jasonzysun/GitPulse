@@ -254,6 +254,40 @@ test("expands author aliases when generating daily reports", async ({ page }) =>
   ]);
 });
 
+test("passes evidence link rules when generating daily reports", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, showEvidenceDetails: true, evidenceLinkPrefixesText: "" }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "# 证据日报\n\n- 关联需求 #123",
+        detailedText: "",
+        warnings: [],
+        commits: [createCommit("abc1235", "feat: 关联需求 #123", "Playwright Tester")],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "打开设置" }).click();
+  await page
+    .getByLabel("证据链接前缀")
+    .fill("# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}");
+  await page.getByRole("button", { name: "关闭设置" }).click();
+  await page.getByRole("button", { name: "生成日报" }).click();
+
+  const extractCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "extract_commits"),
+  );
+  expect(extractCalls).toHaveLength(1);
+  expect(extractCalls[0].args.options.showEvidenceDetails).toBe(true);
+  expect(extractCalls[0].args.options.evidenceLinkRules).toEqual([
+    { prefix: "#", urlTemplate: "https://github.com/org/repo/issues/{id}" },
+    { prefix: "PR", urlTemplate: "https://github.com/org/repo/pull/{id}" },
+  ]);
+});
+
 test("generates and exports a weekly report", async ({ page }) => {
   await launchApp(page, {
     settings,

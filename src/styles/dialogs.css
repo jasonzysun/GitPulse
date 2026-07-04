@@ -439,6 +439,10 @@
   min-height: 74px;
 }
 
+.evidence-link-input {
+  min-height: 92px;
+}
+
 .prompt-template-editor .prompt-reset {
   justify-self: start;
 }

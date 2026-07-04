@@ -479,6 +479,17 @@ export function SettingsDialog({
                     <Toggle label="显示项目与分支" checked={settings.showProjectAndBranch} onChange={(value) => updateSetting("showProjectAndBranch", value)} />
                     <Toggle label="显示提交证据" checked={settings.showEvidenceDetails} onChange={(value) => updateSetting("showEvidenceDetails", value)} />
                   </div>
+                  <Field
+                    label="证据链接前缀"
+                    hint="可选。每行一条：前缀 -> 链接模板；支持 {id}、{key}、{prefix}，用于 #123、PR #123、JIRA-123 等编号。"
+                  >
+                    <textarea
+                      className="refinement-input evidence-link-input"
+                      value={settings.evidenceLinkPrefixesText}
+                      onChange={(event) => updateSetting("evidenceLinkPrefixesText", event.target.value)}
+                      placeholder={"# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}\nJIRA -> https://jira.example.com/browse/{key}"}
+                    />
+                  </Field>
                 </section>
               </>
             )}

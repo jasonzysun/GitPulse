@@ -1,14 +1,14 @@
 use crate::{
     docx,
     models::{
-        CommitRecord, ExtractResult, MonthlyReportResult, PeriodReportResult, RepoInfo,
-        ReportFormatTemplates,
+        CommitRecord, EvidenceLinkRule, ExtractResult, MonthlyReportResult, PeriodReportResult,
+        RepoInfo, ReportFormatTemplates,
     },
     pdf,
 };
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
@@ -18,6 +18,7 @@ pub struct ExtractReportFormat<'a> {
     pub author: &'a str,
     pub period_label: &'a str,
     pub report_kind: &'a str,
+    pub evidence_link_rules: &'a [EvidenceLinkRule],
     pub templates: &'a ReportFormatTemplates,
 }
 
@@ -73,6 +74,7 @@ pub fn render_summary_text(
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
     show_evidence_details: bool,
+    evidence_link_rules: &[EvidenceLinkRule],
 ) -> String {
     commits
         .iter()
@@ -82,6 +84,7 @@ pub fn render_summary_text(
                 project_names,
                 show_project_and_branch,
                 show_evidence_details,
+                evidence_link_rules,
             )
         })
         .collect::<Vec<_>>()
@@ -117,6 +120,7 @@ pub fn render_extract_report(
         &period_label,
         show_project_and_branch,
         show_evidence_details,
+        format.evidence_link_rules,
     );
     render_report_template(template, default_template_for(kind), &values)
 }
@@ -129,6 +133,7 @@ pub fn render_monthly_report_with_template(
     author: &str,
     month_label: &str,
     show_evidence_details: bool,
+    evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
     let period_label = resolve_period_label("monthly", month_label, start_date, end_date);
@@ -142,6 +147,7 @@ pub fn render_monthly_report_with_template(
         &period_label,
         false,
         show_evidence_details,
+        evidence_link_rules,
     );
     render_report_template(template, default_template_for("monthly"), &values)
 }
@@ -154,6 +160,7 @@ pub fn render_weekly_report_with_template(
     author: &str,
     week_label: &str,
     show_evidence_details: bool,
+    evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
     let period_label = resolve_period_label("weekly", week_label, start_date, end_date);
@@ -167,6 +174,7 @@ pub fn render_weekly_report_with_template(
         &period_label,
         false,
         show_evidence_details,
+        evidence_link_rules,
     );
     render_report_template(template, default_template_for("weekly"), &values)
 }
@@ -372,9 +380,11 @@ fn build_template_values(
     period_label: &str,
     show_project_and_branch: bool,
     show_evidence_details: bool,
+    evidence_link_rules: &[EvidenceLinkRule],
 ) -> ReportTemplateValues {
-    let groups = group_commits_by_project(commits, project_names);
-    let author_groups = group_commits_by_author_project(commits, project_names);
+    let groups = group_commits_by_project(commits, project_names, evidence_link_rules);
+    let author_groups =
+        group_commits_by_author_project(commits, project_names, evidence_link_rules);
     let group_by_author = should_group_by_author(author, &author_groups);
     ReportTemplateValues {
         period_label: period_label.to_string(),
@@ -401,6 +411,7 @@ fn build_template_values(
                 project_names,
                 show_project_and_branch,
                 show_evidence_details,
+                evidence_link_rules,
             )
         } else {
             render_flat_commit_items(commits)
@@ -429,7 +440,7 @@ fn build_template_values(
         evidence: if group_by_author {
             render_author_evidence_items(&author_groups)
         } else {
-            render_evidence_items(commits)
+            render_evidence_items(commits, evidence_link_rules)
         },
         notes: report_note(kind).to_string(),
     }
@@ -556,7 +567,10 @@ fn render_flat_commit_items(commits: &[CommitRecord]) -> String {
         .join("\n")
 }
 
-fn render_evidence_items(commits: &[CommitRecord]) -> String {
+fn render_evidence_items(
+    commits: &[CommitRecord],
+    evidence_link_rules: &[EvidenceLinkRule],
+) -> String {
     if commits.is_empty() {
         return "- 暂无提交证据。".to_string();
     }
@@ -566,7 +580,7 @@ fn render_evidence_items(commits: &[CommitRecord]) -> String {
             format!(
                 "- {}\n{}",
                 clean_commit_message(&commit.message),
-                format_evidence_block(commit)
+                format_evidence_block(commit, evidence_link_rules)
             )
         })
         .collect::<Vec<_>>()
@@ -653,6 +667,7 @@ fn render_summary_line(
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
     show_evidence_details: bool,
+    evidence_link_rules: &[EvidenceLinkRule],
 ) -> String {
     let prefix = display_prefix(&resolve_project_name(project_names, commit));
     let message = clean_commit_message(&commit.message);
@@ -665,7 +680,11 @@ fn render_summary_line(
         format!("{}{}", prefix, message)
     };
     if show_evidence_details {
-        format!("{}\n{}", line, format_evidence_block(commit))
+        format!(
+            "{}\n{}",
+            line,
+            format_evidence_block(commit, evidence_link_rules)
+        )
     } else {
         line
     }
@@ -715,6 +734,7 @@ fn resolve_project_name(project_names: &HashMap<String, String>, commit: &Commit
 fn group_commits_by_project(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
+    evidence_link_rules: &[EvidenceLinkRule],
 ) -> ProjectGroups {
     let mut groups = BTreeMap::new();
     for commit in commits {
@@ -724,7 +744,7 @@ fn group_commits_by_project(
             .or_insert_with(Vec::new)
             .push(ProjectCommitItem {
                 title: clean_commit_message(&commit.message),
-                evidence: format_evidence_text(commit),
+                evidence: format_evidence_text(commit, evidence_link_rules),
             });
     }
     groups
@@ -733,6 +753,7 @@ fn group_commits_by_project(
 fn group_commits_by_author_project(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
+    evidence_link_rules: &[EvidenceLinkRule],
 ) -> AuthorProjectGroups {
     let mut author_groups = BTreeMap::new();
     for commit in commits {
@@ -745,7 +766,7 @@ fn group_commits_by_author_project(
             .or_insert_with(Vec::new)
             .push(ProjectCommitItem {
                 title: clean_commit_message(&commit.message),
-                evidence: format_evidence_text(commit),
+                evidence: format_evidence_text(commit, evidence_link_rules),
             });
     }
     author_groups
@@ -849,23 +870,182 @@ fn demote_project_headings(lines: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-fn format_evidence_text(commit: &CommitRecord) -> String {
-    format!(
-        "来源：`{}` / `{}` / `{}` / `{}`\n原始：`{}`",
+fn format_evidence_text(commit: &CommitRecord, evidence_link_rules: &[EvidenceLinkRule]) -> String {
+    let mut lines = vec![format!(
+        "来源：`{}` / `{}` / `{}` / `{}`",
         inline_code_text(&commit.project_name),
         inline_code_text(&commit.branch_name),
         inline_code_text(&short_date(&commit.date)),
-        inline_code_text(&short_hash(&commit.hash)),
+        inline_code_text(&short_hash(&commit.hash))
+    )];
+    lines.push(format!(
+        "原始：`{}`",
         inline_code_text(&compact_message(&commit.message))
-    )
+    ));
+    let references = format_evidence_references(&commit.message, evidence_link_rules);
+    if !references.is_empty() {
+        lines.push(format!("关联：{}", references.join("、")));
+    }
+    lines.join("\n")
 }
 
-fn format_evidence_block(commit: &CommitRecord) -> String {
-    format_evidence_text(commit)
+fn format_evidence_block(
+    commit: &CommitRecord,
+    evidence_link_rules: &[EvidenceLinkRule],
+) -> String {
+    format_evidence_text(commit, evidence_link_rules)
         .lines()
         .map(|line| format!("  > {}", line))
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+#[derive(Debug, Clone)]
+struct EvidenceReference {
+    label: String,
+    prefix: String,
+    id: String,
+    key: String,
+    position: usize,
+}
+
+fn format_evidence_references(
+    message: &str,
+    evidence_link_rules: &[EvidenceLinkRule],
+) -> Vec<String> {
+    extract_evidence_references(message)
+        .iter()
+        .map(|reference| render_evidence_reference(reference, evidence_link_rules))
+        .collect()
+}
+
+fn extract_evidence_references(message: &str) -> Vec<EvidenceReference> {
+    let compact = compact_message(message);
+    let mut references = Vec::new();
+    let mut seen = HashSet::new();
+
+    let pr_pattern = Regex::new(r"(?i)\bPR\s*#(\d+)\b").unwrap();
+    for captures in pr_pattern.captures_iter(&compact) {
+        if let Some(id) = captures.get(1) {
+            let position = captures
+                .get(0)
+                .map(|value| value.start())
+                .unwrap_or(usize::MAX);
+            push_evidence_reference(
+                &mut references,
+                &mut seen,
+                "PR",
+                id.as_str(),
+                &format!("PR #{}", id.as_str()),
+                &format!("PR-{}", id.as_str()),
+                position,
+            );
+        }
+    }
+
+    let hash_pattern = Regex::new(r"#(\d+)\b").unwrap();
+    for captures in hash_pattern.captures_iter(&compact) {
+        let Some(reference_match) = captures.get(0) else {
+            continue;
+        };
+        if hash_belongs_to_pr_reference(&compact, reference_match.start()) {
+            continue;
+        }
+        if let Some(id) = captures.get(1) {
+            push_evidence_reference(
+                &mut references,
+                &mut seen,
+                "#",
+                id.as_str(),
+                &format!("#{}", id.as_str()),
+                &format!("#{}", id.as_str()),
+                reference_match.start(),
+            );
+        }
+    }
+
+    let key_pattern = Regex::new(r"\b([A-Z][A-Z0-9]{1,9})-(\d+)\b").unwrap();
+    for captures in key_pattern.captures_iter(&compact) {
+        let (Some(prefix), Some(id), Some(label)) =
+            (captures.get(1), captures.get(2), captures.get(0))
+        else {
+            continue;
+        };
+        push_evidence_reference(
+            &mut references,
+            &mut seen,
+            prefix.as_str(),
+            id.as_str(),
+            label.as_str(),
+            label.as_str(),
+            label.start(),
+        );
+    }
+
+    references.sort_by_key(|reference| reference.position);
+    references
+}
+
+fn push_evidence_reference(
+    references: &mut Vec<EvidenceReference>,
+    seen: &mut HashSet<String>,
+    prefix: &str,
+    id: &str,
+    label: &str,
+    key: &str,
+    position: usize,
+) {
+    let dedupe_key = format!("{}:{}", prefix.to_ascii_uppercase(), id);
+    if !seen.insert(dedupe_key) {
+        return;
+    }
+    references.push(EvidenceReference {
+        label: label.to_string(),
+        prefix: prefix.to_string(),
+        id: id.to_string(),
+        key: key.to_string(),
+        position,
+    });
+}
+
+fn hash_belongs_to_pr_reference(message: &str, hash_start: usize) -> bool {
+    message
+        .get(..hash_start)
+        .unwrap_or_default()
+        .trim_end()
+        .rsplit(|ch: char| !ch.is_ascii_alphanumeric())
+        .find(|part| !part.is_empty())
+        .is_some_and(|part| part.eq_ignore_ascii_case("PR"))
+}
+
+fn render_evidence_reference(
+    reference: &EvidenceReference,
+    evidence_link_rules: &[EvidenceLinkRule],
+) -> String {
+    let Some(rule) = evidence_link_rules
+        .iter()
+        .find(|rule| same_evidence_prefix(&rule.prefix, &reference.prefix))
+    else {
+        return reference.label.clone();
+    };
+    let url = build_evidence_reference_url(rule, reference);
+    if url.is_empty() {
+        reference.label.clone()
+    } else {
+        format!("[{}]({})", reference.label, url)
+    }
+}
+
+fn same_evidence_prefix(left: &str, right: &str) -> bool {
+    left.trim().eq_ignore_ascii_case(right.trim())
+}
+
+fn build_evidence_reference_url(rule: &EvidenceLinkRule, reference: &EvidenceReference) -> String {
+    rule.url_template
+        .trim()
+        .replace("{id}", &reference.id)
+        .replace("{key}", &reference.key)
+        .replace("{prefix}", &reference.prefix)
 }
 
 fn short_date(date: &str) -> String {
@@ -1166,6 +1346,7 @@ mod tests {
             "tester",
             "2026-W24",
             false,
+            &[],
             default_template_for("weekly"),
         );
 
@@ -1187,12 +1368,56 @@ mod tests {
             "tester",
             "2026-W24",
             true,
+            &[],
             default_template_for("weekly"),
         );
 
         assert!(report.contains("- 添加证据详情"));
         assert!(report.contains("  > 来源：`repo-a` / `feature/report` / `2026-06-10` / `abc123d`"));
         assert!(report.contains("  > 原始：`feat: 添加证据详情`"));
+    }
+
+    #[test]
+    fn render_reports_link_issue_references_in_evidence_details() {
+        let commits = vec![commit(
+            "repo-a",
+            "feature/report",
+            "feat: 对齐工单证据 #123 PR #456 JIRA-789 GH-321",
+        )];
+        let rules = vec![
+            EvidenceLinkRule {
+                prefix: "#".to_string(),
+                url_template: "https://github.com/org/repo/issues/{id}".to_string(),
+            },
+            EvidenceLinkRule {
+                prefix: "PR".to_string(),
+                url_template: "https://github.com/org/repo/pull/{id}".to_string(),
+            },
+            EvidenceLinkRule {
+                prefix: "JIRA".to_string(),
+                url_template: "https://jira.example.com/browse/{key}".to_string(),
+            },
+            EvidenceLinkRule {
+                prefix: "GH".to_string(),
+                url_template: "https://github.com/org/repo/issues/{id}".to_string(),
+            },
+        ];
+
+        let report = render_weekly_report_with_template(
+            &commits,
+            &HashMap::new(),
+            "2026-06-08",
+            "2026-06-14",
+            "tester",
+            "2026-W24",
+            true,
+            &rules,
+            default_template_for("weekly"),
+        );
+
+        assert!(report.contains(
+            "关联：[#123](https://github.com/org/repo/issues/123)、[PR #456](https://github.com/org/repo/pull/456)、[JIRA-789](https://jira.example.com/browse/JIRA-789)、[GH-321](https://github.com/org/repo/issues/321)"
+        ));
     }
 
     #[test]
@@ -1212,6 +1437,7 @@ mod tests {
             "tester",
             "2026-W24",
             false,
+            &[],
             template,
         );
 
@@ -1237,6 +1463,7 @@ mod tests {
             "",
             "2026-W24",
             false,
+            &[],
             default_template_for("weekly"),
         );
 
@@ -1268,6 +1495,7 @@ mod tests {
                 author: "",
                 period_label: "",
                 report_kind: "daily",
+                evidence_link_rules: &[],
                 templates: &templates,
             },
         );
@@ -1300,6 +1528,7 @@ mod tests {
                 author: "tester",
                 period_label: "",
                 report_kind: "daily",
+                evidence_link_rules: &[],
                 templates: &templates,
             },
         );
@@ -1314,6 +1543,7 @@ mod tests {
                 author: "tester",
                 period_label: "双周同步",
                 report_kind: "custom",
+                evidence_link_rules: &[],
                 templates: &templates,
             },
         );
@@ -1347,6 +1577,7 @@ mod tests {
                 author: "tester",
                 period_label: "",
                 report_kind: "daily",
+                evidence_link_rules: &[],
                 templates: &templates,
             },
         );

@@ -125,6 +125,11 @@ export type AuthorAliasGroup = {
   aliases: string[];
 };
 
+export type EvidenceLinkRule = {
+  prefix: string;
+  urlTemplate: string;
+};
+
 export type AiModelInfo = {
   id: string;
 };
@@ -156,6 +161,7 @@ export type AppSettings = {
   themeMode: ThemeMode;
   author: string;
   authorAliasesText: string;
+  evidenceLinkPrefixesText: string;
   disabledRepos: string[];
   extractAllBranches: boolean;
   excludeMergeCommits: boolean;
@@ -223,6 +229,7 @@ export const defaultSettings: AppSettings = {
   themeMode: "system",
   author: "",
   authorAliasesText: "",
+  evidenceLinkPrefixesText: "",
   disabledRepos: [],
   extractAllBranches: false,
   excludeMergeCommits: true,
@@ -297,6 +304,7 @@ export function loadSettingsState(): LoadedSettingsState {
     : [];
   parsed.aiApiKey = typeof parsed.aiApiKey === "string" ? parsed.aiApiKey : "";
   parsed.authorAliasesText = typeof parsed.authorAliasesText === "string" ? parsed.authorAliasesText : "";
+  parsed.evidenceLinkPrefixesText = typeof parsed.evidenceLinkPrefixesText === "string" ? parsed.evidenceLinkPrefixesText : "";
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
@@ -655,6 +663,23 @@ export function parseAuthorAliases(text: string): AuthorAliasGroup[] {
   }, []);
 }
 
+export function parseEvidenceLinkRules(text: string): EvidenceLinkRule[] {
+  const seen = new Set<string>();
+  return text.split(/\r?\n/).reduce<EvidenceLinkRule[]>((rules, line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("//")) return rules;
+    const separatorIndex = line.indexOf("->");
+    if (separatorIndex < 0) return rules;
+    const prefix = line.slice(0, separatorIndex).trim();
+    const urlTemplate = line.slice(separatorIndex + 2).trim();
+    const key = prefix.toLowerCase();
+    if (!prefix || !urlTemplate || seen.has(key)) return rules;
+    seen.add(key);
+    rules.push({ prefix, urlTemplate });
+    return rules;
+  }, []);
+}
+
 export function buildAuthorFilter(author: string, groups: AuthorAliasGroup[]): string {
   const authors = splitAuthorInput(author);
   if (authors.length === 0) return "";
@@ -718,6 +743,7 @@ export function buildExtractOptions(
 ) {
   const range = dateRange ?? getTodayRange();
   const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
+  const evidenceLinkRules = parseEvidenceLinkRules(settings.evidenceLinkPrefixesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
@@ -736,6 +762,7 @@ export function buildExtractOptions(
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
     showEvidenceDetails: settings.showEvidenceDetails,
+    evidenceLinkRules,
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
@@ -752,6 +779,7 @@ export function buildMonthlyOptions(
   indexedRepos: RepoInfo[] = [],
 ) {
   const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
+  const evidenceLinkRules = parseEvidenceLinkRules(settings.evidenceLinkPrefixesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
@@ -766,6 +794,7 @@ export function buildMonthlyOptions(
     excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
+    evidenceLinkRules,
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
@@ -785,6 +814,7 @@ export function buildPeriodReportOptions(
   indexedRepos: RepoInfo[] = [],
 ) {
   const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
+  const evidenceLinkRules = parseEvidenceLinkRules(settings.evidenceLinkPrefixesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
@@ -803,6 +833,7 @@ export function buildPeriodReportOptions(
     excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
+    evidenceLinkRules,
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),

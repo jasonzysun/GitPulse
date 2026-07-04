@@ -33,6 +33,7 @@ where
         &report_author,
         &dates.2,
         options.show_evidence_details,
+        &options.evidence_link_rules,
         &options.report_format_templates.monthly,
     );
 
@@ -74,6 +75,7 @@ where
             &report_author,
             &options.period_label,
             options.show_evidence_details,
+            &options.evidence_link_rules,
             &options.report_format_templates.weekly,
         ),
         "monthly" => report::render_monthly_report_with_template(
@@ -84,6 +86,7 @@ where
             &report_author,
             &options.period_label,
             options.show_evidence_details,
+            &options.evidence_link_rules,
             &options.report_format_templates.monthly,
         ),
         _ => return Err(format!("未知报告类型：{}", options.report_kind)),
@@ -127,6 +130,7 @@ where
             author: &report_author,
             period_label: &options.period_label,
             report_kind: &options.report_kind,
+            evidence_link_rules: &options.evidence_link_rules,
             templates: &options.report_format_templates,
         },
     );
@@ -468,6 +472,7 @@ fn monthly_extract_options(
         detailed_output: false,
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
+        evidence_link_rules: options.evidence_link_rules.clone(),
         project_names: options.project_names.clone(),
         report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
@@ -495,6 +500,7 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         detailed_output: false,
         show_project_and_branch: true,
         show_evidence_details: options.show_evidence_details,
+        evidence_link_rules: options.evidence_link_rules.clone(),
         project_names: options.project_names.clone(),
         report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
@@ -782,6 +788,7 @@ mod tests {
             detailed_output: false,
             show_project_and_branch: true,
             show_evidence_details: false,
+            evidence_link_rules: Vec::new(),
             project_names: Default::default(),
             report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),
@@ -835,6 +842,7 @@ mod tests {
             exclude_revert_commits: true,
             exclude_bot_commits: true,
             show_evidence_details: true,
+            evidence_link_rules: Vec::new(),
             project_names: Default::default(),
             report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),

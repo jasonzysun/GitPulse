@@ -59,6 +59,7 @@ export function createSettings(overrides: Record<string, unknown> = {}) {
     themeMode: "light",
     author: "Playwright Tester",
     authorAliasesText: "",
+    evidenceLinkPrefixesText: "",
     disabledRepos: [],
     extractAllBranches: false,
     excludeMergeCommits: true,
