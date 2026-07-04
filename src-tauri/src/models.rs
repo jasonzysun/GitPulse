@@ -59,6 +59,13 @@ pub struct CommitRecord {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthorAliasGroup {
+    pub display_name: String,
+    pub aliases: Vec<String>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractOptions {
@@ -66,6 +73,10 @@ pub struct ExtractOptions {
     #[serde(default)]
     pub indexed_repos: Vec<RepoInfo>,
     pub author: String,
+    #[serde(default)]
+    pub author_display_name: String,
+    #[serde(default)]
+    pub author_aliases: Vec<AuthorAliasGroup>,
     pub start_date: String,
     pub end_date: String,
     #[serde(default)]
@@ -192,6 +203,10 @@ pub struct MonthlyReportOptions {
     pub output_dir: String,
     pub output_enabled: bool,
     pub author: String,
+    #[serde(default)]
+    pub author_display_name: String,
+    #[serde(default)]
+    pub author_aliases: Vec<AuthorAliasGroup>,
     pub disabled_repos: Vec<String>,
     pub extract_all_branches: bool,
     pub exclude_merge_commits: bool,
@@ -228,6 +243,10 @@ pub struct PeriodReportOptions {
     pub output_dir: String,
     pub output_enabled: bool,
     pub author: String,
+    #[serde(default)]
+    pub author_display_name: String,
+    #[serde(default)]
+    pub author_aliases: Vec<AuthorAliasGroup>,
     pub start_date: String,
     pub end_date: String,
     pub period_label: String,

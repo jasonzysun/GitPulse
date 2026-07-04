@@ -6,15 +6,12 @@
 use crate::ai;
 use crate::git_ops;
 use crate::models::{
-    CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
-    PeriodReportResult, RepoInfo,
+    AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
+    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{
-    mpsc, Arc, Mutex,
-};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 
 pub fn generate_monthly_report_sync<F>(
@@ -27,18 +24,19 @@ where
     let dates = report::previous_month_range();
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
+    let report_author = report_author(&options.author_display_name, &options.author);
     let mut report_text = report::render_monthly_report_with_template(
         &commits,
         &options.project_names,
         &dates.0,
         &dates.1,
-        &options.author,
+        &report_author,
         &dates.2,
         options.show_evidence_details,
         &options.report_format_templates.monthly,
     );
 
-    report_text = apply_ai_if_enabled(report_text, &options, &dates, &mut warnings);
+    report_text = apply_ai_if_enabled(report_text, &options, &dates, &report_author, &mut warnings);
     let output_file = save_monthly_if_enabled(&options, &dates.2, &report_text)?;
     let project_count = count_projects(&commits, &options.project_names);
     Ok(report::build_monthly_result(
@@ -66,13 +64,14 @@ where
     );
     let extract_options = period_extract_options(&options);
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
+    let report_author = report_author(&options.author_display_name, &options.author);
     let mut report_text = match options.report_kind.as_str() {
         "weekly" => report::render_weekly_report_with_template(
             &commits,
             &options.project_names,
             &options.start_date,
             &options.end_date,
-            &options.author,
+            &report_author,
             &options.period_label,
             options.show_evidence_details,
             &options.report_format_templates.weekly,
@@ -82,7 +81,7 @@ where
             &options.project_names,
             &options.start_date,
             &options.end_date,
-            &options.author,
+            &report_author,
             &options.period_label,
             options.show_evidence_details,
             &options.report_format_templates.monthly,
@@ -90,7 +89,8 @@ where
         _ => return Err(format!("未知报告类型：{}", options.report_kind)),
     };
 
-    report_text = apply_ai_to_period_report(report_text, &options, &dates, &mut warnings);
+    report_text =
+        apply_ai_to_period_report(report_text, &options, &dates, &report_author, &mut warnings);
     let output_file = save_period_if_enabled(&options, &report_text)?;
     let project_count = count_projects(&commits, &options.project_names);
     Ok(report::build_period_result(
@@ -104,11 +104,15 @@ where
     ))
 }
 
-pub fn extract_commits_sync<F>(options: ExtractOptions, on_progress: F) -> Result<ExtractResult, String>
+pub fn extract_commits_sync<F>(
+    options: ExtractOptions,
+    on_progress: F,
+) -> Result<ExtractResult, String>
 where
     F: FnMut(CommitExtractProgress),
 {
     let (repos, commits, warnings) = collect_commits(&options, on_progress)?;
+    let report_author = report_author(&options.author_display_name, &options.author);
     let mut result = report::build_extract_result(
         repos,
         commits,
@@ -120,13 +124,13 @@ where
         report::ExtractReportFormat {
             start_date: &options.start_date,
             end_date: &options.end_date,
-            author: &options.author,
+            author: &report_author,
             period_label: &options.period_label,
             report_kind: &options.report_kind,
             templates: &options.report_format_templates,
         },
     );
-    apply_ai_to_extract_result(&mut result, &options);
+    apply_ai_to_extract_result(&mut result, &options, &report_author);
     Ok(result)
 }
 
@@ -195,6 +199,7 @@ where
         &mut on_progress,
     )?;
     normalize_commits(&mut commits);
+    apply_author_aliases(&mut commits, &options.author_aliases);
 
     emit_commit_progress(
         &mut on_progress,
@@ -449,6 +454,8 @@ fn monthly_extract_options(
         root_dirs: options.root_dirs.clone(),
         indexed_repos: options.indexed_repos.clone(),
         author: options.author.clone(),
+        author_display_name: options.author_display_name.clone(),
+        author_aliases: options.author_aliases.clone(),
         start_date: start.to_string(),
         end_date: end.to_string(),
         period_label: start.to_string(),
@@ -474,6 +481,8 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         root_dirs: options.root_dirs.clone(),
         indexed_repos: options.indexed_repos.clone(),
         author: options.author.clone(),
+        author_display_name: options.author_display_name.clone(),
+        author_aliases: options.author_aliases.clone(),
         start_date: options.start_date.clone(),
         end_date: options.end_date.clone(),
         period_label: options.period_label.clone(),
@@ -494,7 +503,11 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
     }
 }
 
-fn apply_ai_to_extract_result(result: &mut ExtractResult, options: &ExtractOptions) {
+fn apply_ai_to_extract_result(
+    result: &mut ExtractResult,
+    options: &ExtractOptions,
+    report_author: &str,
+) {
     if !options.ai.enabled {
         return;
     }
@@ -512,7 +525,7 @@ fn apply_ai_to_extract_result(result: &mut ExtractResult, options: &ExtractOptio
         base_report,
         &options.start_date,
         &options.end_date,
-        &options.author,
+        report_author,
         &options.refinement_instruction,
         &options.system_prompt,
         &options.ai,
@@ -534,6 +547,7 @@ fn apply_ai_if_enabled(
     report_text: String,
     options: &MonthlyReportOptions,
     dates: &(String, String, String),
+    report_author: &str,
     warnings: &mut Vec<String>,
 ) -> String {
     if !options.ai.enabled {
@@ -544,7 +558,7 @@ fn apply_ai_if_enabled(
         &report_text,
         &dates.0,
         &dates.1,
-        &options.author,
+        report_author,
         &options.refinement_instruction,
         &options.system_prompt,
         &options.ai,
@@ -559,6 +573,7 @@ fn apply_ai_to_period_report(
     report_text: String,
     options: &PeriodReportOptions,
     dates: &(String, String, String),
+    report_author: &str,
     warnings: &mut Vec<String>,
 ) -> String {
     if !options.ai.enabled {
@@ -570,7 +585,7 @@ fn apply_ai_to_period_report(
             &report_text,
             &dates.0,
             &dates.1,
-            &options.author,
+            report_author,
             &options.refinement_instruction,
             &options.system_prompt,
             &options.ai,
@@ -579,7 +594,7 @@ fn apply_ai_to_period_report(
             &report_text,
             &dates.0,
             &dates.1,
-            &options.author,
+            report_author,
             &options.refinement_instruction,
             &options.system_prompt,
             &options.ai,
@@ -623,6 +638,60 @@ fn count_projects(
         .len()
 }
 
+fn apply_author_aliases(commits: &mut [CommitRecord], groups: &[AuthorAliasGroup]) {
+    if groups.is_empty() {
+        return;
+    }
+    for commit in commits {
+        if let Some(display_name) =
+            resolve_author_alias_display(&commit.author, &commit.author_email, groups)
+        {
+            commit.author = display_name;
+        }
+    }
+}
+
+fn resolve_author_alias_display(
+    author: &str,
+    email: &str,
+    groups: &[AuthorAliasGroup],
+) -> Option<String> {
+    for group in groups {
+        let display_name = group.display_name.trim();
+        if display_name.is_empty() {
+            continue;
+        }
+        if author_identity_matches(display_name, author, email)
+            || group
+                .aliases
+                .iter()
+                .any(|alias| author_identity_matches(alias, author, email))
+        {
+            return Some(display_name.to_string());
+        }
+    }
+    None
+}
+
+fn author_identity_matches(candidate: &str, author: &str, email: &str) -> bool {
+    let candidate = normalize_author_identity(candidate);
+    !candidate.is_empty()
+        && (candidate == normalize_author_identity(author)
+            || candidate == normalize_author_identity(email))
+}
+
+fn normalize_author_identity(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn report_author(display_name: &str, author_filter: &str) -> String {
+    let display_name = display_name.trim();
+    if !display_name.is_empty() {
+        return display_name.to_string();
+    }
+    author_filter.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -661,6 +730,35 @@ mod tests {
     }
 
     #[test]
+    fn apply_author_aliases_unifies_author_display_names() {
+        let mut commits = vec![
+            commit_by_author(
+                "repo-a",
+                "one",
+                "2026-06-01 10:00:00 +0800",
+                "zqqq",
+                "zqqq@company.com",
+            ),
+            commit_by_author(
+                "repo-a",
+                "two",
+                "2026-06-02 10:00:00 +0800",
+                "Golden",
+                "golden@example.com",
+            ),
+        ];
+        let aliases = vec![AuthorAliasGroup {
+            display_name: "GoldenZqqq".to_string(),
+            aliases: vec!["zqqq".to_string(), "golden@example.com".to_string()],
+        }];
+
+        apply_author_aliases(&mut commits, &aliases);
+
+        assert_eq!(commits[0].author, "GoldenZqqq");
+        assert_eq!(commits[1].author, "GoldenZqqq");
+    }
+
+    #[test]
     fn resolve_report_repos_prefers_indexed_repos_and_deduplicates_paths() {
         let options = ExtractOptions {
             root_dirs: vec!["missing-root".to_string()],
@@ -670,6 +768,8 @@ mod tests {
                 repo("zeta-copy", "C:\\repo\\zeta"),
             ],
             author: "tester".to_string(),
+            author_display_name: String::new(),
+            author_aliases: Vec::new(),
             start_date: "2026-06-01".to_string(),
             end_date: "2026-06-01".to_string(),
             period_label: "2026-06-01".to_string(),
@@ -723,6 +823,8 @@ mod tests {
             output_dir: output_dir.to_string_lossy().to_string(),
             output_enabled: true,
             author: "Smoke Tester".to_string(),
+            author_display_name: String::new(),
+            author_aliases: Vec::new(),
             start_date: "2026-06-10".to_string(),
             end_date: "2026-06-10".to_string(),
             period_label: "2026-W24".to_string(),
@@ -760,13 +862,23 @@ mod tests {
     }
 
     fn commit(repo_path: &str, hash: &str, date: &str) -> CommitRecord {
+        commit_by_author(repo_path, hash, date, "tester", "tester@example.com")
+    }
+
+    fn commit_by_author(
+        repo_path: &str,
+        hash: &str,
+        date: &str,
+        author: &str,
+        email: &str,
+    ) -> CommitRecord {
         CommitRecord {
             repo_path: repo_path.to_string(),
             project_name: repo_path.to_string(),
             branch_name: "main".to_string(),
             hash: hash.to_string(),
-            author: "tester".to_string(),
-            author_email: "tester@example.com".to_string(),
+            author: author.to_string(),
+            author_email: email.to_string(),
             date: date.to_string(),
             message: "feat: demo".to_string(),
         }

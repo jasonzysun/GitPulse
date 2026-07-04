@@ -220,6 +220,40 @@ test("generates daily reports for all authors when author is blank", async ({ pa
   expect(extractCalls[0].args.options.author).toBe("");
 });
 
+test("expands author aliases when generating daily reports", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, author: "GoldenZqqq", authorAliasesText: "" }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "# 别名日报\n\n- 汇总多个 Git 身份提交",
+        detailedText: "",
+        warnings: [],
+        commits: [createCommit("abc1234", "feat: 汇总多个 Git 身份提交", "zqqq")],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "打开设置" }).click();
+  await page.getByLabel("作者身份别名").fill("GoldenZqqq -> zqqq, golden@example.com");
+  await page.getByRole("button", { name: "关闭设置" }).click();
+  await page.getByRole("button", { name: "生成日报" }).click();
+
+  const extractCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "extract_commits"),
+  );
+  expect(extractCalls).toHaveLength(1);
+  expect(extractCalls[0].args.options.author).toContain("GoldenZqqq");
+  expect(extractCalls[0].args.options.author).toContain("zqqq");
+  expect(extractCalls[0].args.options.author).toContain("golden@example.com");
+  expect(extractCalls[0].args.options.authorDisplayName).toBe("GoldenZqqq");
+  expect(extractCalls[0].args.options.authorAliases).toEqual([
+    { displayName: "GoldenZqqq", aliases: ["zqqq", "golden@example.com"] },
+  ]);
+});
+
 test("generates and exports a weekly report", async ({ page }) => {
   await launchApp(page, {
     settings,

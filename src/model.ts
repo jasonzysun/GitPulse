@@ -120,6 +120,11 @@ export type GitIdentity = {
   userEmail: string;
 };
 
+export type AuthorAliasGroup = {
+  displayName: string;
+  aliases: string[];
+};
+
 export type AiModelInfo = {
   id: string;
 };
@@ -150,6 +155,7 @@ export type AppSettings = {
   outputEnabled: boolean;
   themeMode: ThemeMode;
   author: string;
+  authorAliasesText: string;
   disabledRepos: string[];
   extractAllBranches: boolean;
   excludeMergeCommits: boolean;
@@ -216,6 +222,7 @@ export const defaultSettings: AppSettings = {
   outputEnabled: false,
   themeMode: "system",
   author: "",
+  authorAliasesText: "",
   disabledRepos: [],
   extractAllBranches: false,
   excludeMergeCommits: true,
@@ -289,6 +296,7 @@ export function loadSettingsState(): LoadedSettingsState {
     ? parsed.disabledRepos.filter(isNonEmptyString).map(stripWindowsVerbatimPrefix)
     : [];
   parsed.aiApiKey = typeof parsed.aiApiKey === "string" ? parsed.aiApiKey : "";
+  parsed.authorAliasesText = typeof parsed.authorAliasesText === "string" ? parsed.authorAliasesText : "";
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
@@ -633,6 +641,72 @@ export function upsertRepoMapping(
   return serializeMappingText(rows);
 }
 
+export function parseAuthorAliases(text: string): AuthorAliasGroup[] {
+  return text.split(/\r?\n/).reduce<AuthorAliasGroup[]>((groups, line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return groups;
+    const separatorIndex = line.indexOf("->");
+    if (separatorIndex < 0) return groups;
+    const displayName = line.slice(0, separatorIndex).trim();
+    const aliases = splitAuthorInput(line.slice(separatorIndex + 2));
+    if (!displayName || aliases.length === 0) return groups;
+    groups.push({ displayName, aliases });
+    return groups;
+  }, []);
+}
+
+export function buildAuthorFilter(author: string, groups: AuthorAliasGroup[]): string {
+  const authors = splitAuthorInput(author);
+  if (authors.length === 0) return "";
+  const expanded = new Map<string, string>();
+  for (const authorName of authors) {
+    addAuthorToken(expanded, authorName);
+    const group = findAuthorAliasGroup(authorName, groups);
+    if (!group) continue;
+    addAuthorToken(expanded, group.displayName);
+    for (const alias of group.aliases) addAuthorToken(expanded, alias);
+  }
+  return [...expanded.values()].join(", ");
+}
+
+export function buildAuthorDisplayName(author: string, groups: AuthorAliasGroup[]): string {
+  const authors = splitAuthorInput(author);
+  if (authors.length === 0) return "";
+  return authors
+    .map((authorName) => findAuthorAliasGroup(authorName, groups)?.displayName ?? authorName)
+    .filter((authorName, index, all) => all.findIndex((item) => item.toLowerCase() === authorName.toLowerCase()) === index)
+    .join(", ");
+}
+
+function splitAuthorInput(value: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of value.split(/[\s,，]+/)) {
+    const token = part.trim();
+    if (!token) continue;
+    const key = token.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(token);
+  }
+  return result;
+}
+
+function addAuthorToken(tokens: Map<string, string>, value: string) {
+  const token = value.trim();
+  if (!token) return;
+  const key = token.toLowerCase();
+  if (!tokens.has(key)) tokens.set(key, token);
+}
+
+function findAuthorAliasGroup(authorName: string, groups: AuthorAliasGroup[]) {
+  const key = authorName.trim().toLowerCase();
+  return groups.find((group) => (
+    group.displayName.trim().toLowerCase() === key
+    || group.aliases.some((alias) => alias.trim().toLowerCase() === key)
+  ));
+}
+
 export function buildExtractOptions(
   settings: AppSettings,
   projectNames: Record<string, string>,
@@ -643,10 +717,13 @@ export function buildExtractOptions(
   reportKind: ExtractReportKind = "daily",
 ) {
   const range = dateRange ?? getTodayRange();
+  const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
-    author: settings.author,
+    author: buildAuthorFilter(settings.author, authorAliasGroups),
+    authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
+    authorAliases: authorAliasGroups,
     startDate: range.startDate,
     endDate: range.endDate,
     periodLabel: reportKind === "custom" ? `${range.startDate} ~ ${range.endDate}` : range.startDate,
@@ -674,12 +751,15 @@ export function buildMonthlyOptions(
   extraInstruction = "",
   indexedRepos: RepoInfo[] = [],
 ) {
+  const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
-    author: settings.author,
+    author: buildAuthorFilter(settings.author, authorAliasGroups),
+    authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
+    authorAliases: authorAliasGroups,
     extractAllBranches: settings.extractAllBranches,
     excludeMergeCommits: settings.excludeMergeCommits,
     excludeRevertCommits: settings.excludeRevertCommits,
@@ -704,12 +784,15 @@ export function buildPeriodReportOptions(
   extraInstruction = "",
   indexedRepos: RepoInfo[] = [],
 ) {
+  const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
   return {
     rootDirs: settings.rootDirs,
     indexedRepos,
     outputDir: settings.outputDir,
     outputEnabled: settings.outputEnabled,
-    author: settings.author,
+    author: buildAuthorFilter(settings.author, authorAliasGroups),
+    authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
+    authorAliases: authorAliasGroups,
     startDate: range.startDate,
     endDate: range.endDate,
     periodLabel,

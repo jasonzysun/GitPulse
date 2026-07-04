@@ -435,6 +435,10 @@
   gap: 8px;
 }
 
+.author-alias-input {
+  min-height: 74px;
+}
+
 .prompt-template-editor .prompt-reset {
   justify-self: start;
 }

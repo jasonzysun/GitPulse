@@ -452,6 +452,17 @@ export function SettingsDialog({
                       onChange={(event) => updateSetting("author", event.target.value)}
                     />
                   </Field>
+                  <Field
+                    label="作者身份别名"
+                    hint="每行一组：展示姓名 -> Git name 或 email；多个别名用逗号分隔。提取时会自动合并匹配，报告中显示展示姓名。"
+                  >
+                    <textarea
+                      className="refinement-input author-alias-input"
+                      value={settings.authorAliasesText}
+                      onChange={(event) => updateSetting("authorAliasesText", event.target.value)}
+                      placeholder="张三 -> zhangsan, zhangsan@company.com"
+                    />
+                  </Field>
                   <p className="mapping-hint">日报默认使用今天；周报取本周；月报可在首页选择月份。其他日期范围请切换到「自定义」。</p>
                 </section>
 
