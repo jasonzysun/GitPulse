@@ -97,6 +97,8 @@ pub struct ExtractOptions {
     pub exclude_bot_commits: bool,
     pub detailed_output: bool,
     pub show_project_and_branch: bool,
+    #[serde(default = "default_commit_item_prefix_mode")]
+    pub commit_item_prefix_mode: String,
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
@@ -243,6 +245,8 @@ pub struct MonthlyReportOptions {
     pub exclude_merge_commits: bool,
     pub exclude_revert_commits: bool,
     pub exclude_bot_commits: bool,
+    #[serde(default = "default_commit_item_prefix_mode")]
+    pub commit_item_prefix_mode: String,
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
@@ -289,6 +293,8 @@ pub struct PeriodReportOptions {
     pub exclude_merge_commits: bool,
     pub exclude_revert_commits: bool,
     pub exclude_bot_commits: bool,
+    #[serde(default = "default_commit_item_prefix_mode")]
+    pub commit_item_prefix_mode: String,
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
@@ -316,6 +322,10 @@ pub struct PeriodReportResult {
 
 fn default_extract_report_kind() -> String {
     "daily".to_string()
+}
+
+fn default_commit_item_prefix_mode() -> String {
+    "mapped-project".to_string()
 }
 
 fn default_daily_report_template() -> String {

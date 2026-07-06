@@ -157,6 +157,7 @@ export type DiagnosticResult = {
 };
 
 export type ThemeMode = "system" | "light" | "dark";
+export type CommitItemPrefixMode = "mapped-project" | "repo-branch-and-mapped" | "repo-branch" | "none";
 
 export type AppSettings = {
   onboardingDone: boolean;
@@ -174,6 +175,7 @@ export type AppSettings = {
   excludeBotCommits: boolean;
   detailedOutput: boolean;
   showProjectAndBranch: boolean;
+  commitItemPrefixMode: CommitItemPrefixMode;
   showEvidenceDetails: boolean;
   projectNamesText: string;
   aiEnabled: boolean;
@@ -242,6 +244,7 @@ export const defaultSettings: AppSettings = {
   excludeBotCommits: true,
   detailedOutput: false,
   showProjectAndBranch: true,
+  commitItemPrefixMode: "mapped-project",
   showEvidenceDetails: false,
   projectNamesText: "",
   aiEnabled: false,
@@ -313,6 +316,7 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
+  parsed.commitItemPrefixMode = normalizeCommitItemPrefixMode(parsed.commitItemPrefixMode);
   parsed.reportPurposePreset = normalizeReportPurposePreset(parsed.reportPurposePreset);
   parsed.reportTemplateProfile = normalizeReportTemplateProfile(parsed.reportTemplateProfile);
   parsed.excludeMergeCommits = parsed.excludeMergeCommits !== false;
@@ -766,6 +770,7 @@ export function buildExtractOptions(
     excludeBotCommits: settings.excludeBotCommits,
     detailedOutput: settings.detailedOutput,
     showProjectAndBranch: settings.showProjectAndBranch,
+    commitItemPrefixMode: settings.commitItemPrefixMode,
     showEvidenceDetails: settings.showEvidenceDetails,
     evidenceLinkRules,
     projectNames,
@@ -799,6 +804,7 @@ export function buildMonthlyOptions(
     excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
+    commitItemPrefixMode: settings.commitItemPrefixMode,
     evidenceLinkRules,
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
@@ -838,6 +844,7 @@ export function buildPeriodReportOptions(
     excludeBotCommits: settings.excludeBotCommits,
     disabledRepos: settings.disabledRepos,
     showEvidenceDetails: settings.showEvidenceDetails,
+    commitItemPrefixMode: settings.commitItemPrefixMode,
     evidenceLinkRules,
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
@@ -1118,6 +1125,18 @@ function normalizeThemeMode(value: unknown): ThemeMode {
     return value;
   }
   return defaultSettings.themeMode;
+}
+
+function normalizeCommitItemPrefixMode(value: unknown): CommitItemPrefixMode {
+  if (
+    value === "mapped-project"
+    || value === "repo-branch-and-mapped"
+    || value === "repo-branch"
+    || value === "none"
+  ) {
+    return value;
+  }
+  return defaultSettings.commitItemPrefixMode;
 }
 
 function normalizeReportTemplateProfile(value: unknown): ReportTemplateProfile {

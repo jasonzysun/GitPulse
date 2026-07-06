@@ -498,9 +498,22 @@ export function SettingsDialog({
                     <Toggle label="排除回滚提交" checked={settings.excludeRevertCommits} onChange={(value) => updateSetting("excludeRevertCommits", value)} />
                     <Toggle label="排除 Bot 提交" checked={settings.excludeBotCommits} onChange={(value) => updateSetting("excludeBotCommits", value)} />
                     <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
-                    <Toggle label="显示项目与分支" checked={settings.showProjectAndBranch} onChange={(value) => updateSetting("showProjectAndBranch", value)} />
                     <Toggle label="显示提交证据" checked={settings.showEvidenceDetails} onChange={(value) => updateSetting("showEvidenceDetails", value)} />
                   </div>
+                  <Field
+                    label="日报条目前缀"
+                    hint="控制 {commitItems} 的每条输出。推荐使用映射项目名，例如：柏科注安工程师 - 接入题目纠错反馈模块。"
+                  >
+                    <select
+                      value={settings.commitItemPrefixMode}
+                      onChange={(event) => updateSetting("commitItemPrefixMode", event.target.value as AppSettings["commitItemPrefixMode"])}
+                    >
+                      <option value="mapped-project">映射项目名</option>
+                      <option value="repo-branch-and-mapped">仓库与分支 + 映射项目名</option>
+                      <option value="repo-branch">仓库与分支</option>
+                      <option value="none">不显示前缀</option>
+                    </select>
+                  </Field>
                   <Field
                     label="证据链接前缀"
                     hint="可选。每行一条：前缀 -> 链接模板；支持 {id}、{key}、{prefix}，用于 #123、PR #123、JIRA-123 等编号。"

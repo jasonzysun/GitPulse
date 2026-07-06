@@ -44,6 +44,7 @@ pub fn build_extract_result(
     warnings: Vec<String>,
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    commit_item_prefix_mode: &str,
     show_evidence_details: bool,
     detailed_output: bool,
     format: ExtractReportFormat,
@@ -52,6 +53,7 @@ pub fn build_extract_result(
         &commits,
         project_names,
         show_project_and_branch,
+        commit_item_prefix_mode,
         show_evidence_details,
         &format,
     );
@@ -73,16 +75,22 @@ pub fn render_summary_text(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    commit_item_prefix_mode: &str,
     show_evidence_details: bool,
     evidence_link_rules: &[EvidenceLinkRule],
 ) -> String {
+    if commits.is_empty() {
+        return "- 未检索到提交记录。".to_string();
+    }
+    let prefix_mode =
+        CommitItemPrefixMode::from_settings(commit_item_prefix_mode, show_project_and_branch);
     commits
         .iter()
         .map(|commit| {
             render_summary_line(
                 commit,
                 project_names,
-                show_project_and_branch,
+                prefix_mode,
                 show_evidence_details,
                 evidence_link_rules,
             )
@@ -95,6 +103,7 @@ pub fn render_extract_report(
     commits: &[CommitRecord],
     project_names: &HashMap<String, String>,
     show_project_and_branch: bool,
+    commit_item_prefix_mode: &str,
     show_evidence_details: bool,
     format: &ExtractReportFormat,
 ) -> String {
@@ -119,6 +128,7 @@ pub fn render_extract_report(
         format.author,
         &period_label,
         show_project_and_branch,
+        commit_item_prefix_mode,
         show_evidence_details,
         format.evidence_link_rules,
     );
@@ -133,6 +143,7 @@ pub fn render_monthly_report_with_template(
     author: &str,
     month_label: &str,
     show_evidence_details: bool,
+    commit_item_prefix_mode: &str,
     evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
@@ -146,6 +157,7 @@ pub fn render_monthly_report_with_template(
         author,
         &period_label,
         false,
+        commit_item_prefix_mode,
         show_evidence_details,
         evidence_link_rules,
     );
@@ -160,6 +172,7 @@ pub fn render_weekly_report_with_template(
     author: &str,
     week_label: &str,
     show_evidence_details: bool,
+    commit_item_prefix_mode: &str,
     evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
@@ -173,6 +186,7 @@ pub fn render_weekly_report_with_template(
         author,
         &period_label,
         false,
+        commit_item_prefix_mode,
         show_evidence_details,
         evidence_link_rules,
     );
@@ -345,6 +359,28 @@ fn render_detailed_report(summary_text: &str, commits: &[CommitRecord]) -> Strin
 /// 用户无需手动维护，同时兼容历史上已手动加了 "-" 的映射。
 const TRAILING_CONNECTORS: [char; 8] = ['-', '_', '：', ':', '；', ';', '、', ' '];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CommitItemPrefixMode {
+    MappedProject,
+    RepoBranchAndMapped,
+    RepoBranch,
+    None,
+}
+
+impl CommitItemPrefixMode {
+    fn from_settings(value: &str, legacy_show_project_and_branch: bool) -> Self {
+        match value.trim() {
+            "mapped-project" => Self::MappedProject,
+            "repo-branch-and-mapped" => Self::RepoBranchAndMapped,
+            "repo-branch" => Self::RepoBranch,
+            "none" => Self::None,
+            "" if legacy_show_project_and_branch => Self::RepoBranchAndMapped,
+            "" => Self::MappedProject,
+            _ => Self::MappedProject,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ProjectCommitItem {
     title: String,
@@ -379,6 +415,7 @@ fn build_template_values(
     author: &str,
     period_label: &str,
     show_project_and_branch: bool,
+    commit_item_prefix_mode: &str,
     show_evidence_details: bool,
     evidence_link_rules: &[EvidenceLinkRule],
 ) -> ReportTemplateValues {
@@ -405,11 +442,16 @@ fn build_template_values(
         },
         commit_items: if group_by_author {
             render_author_commit_items(&author_groups, show_evidence_details)
-        } else if show_project_and_branch || show_evidence_details {
+        } else if should_render_structured_commit_items(
+            commit_item_prefix_mode,
+            show_project_and_branch,
+            show_evidence_details,
+        ) {
             render_summary_text(
                 commits,
                 project_names,
                 show_project_and_branch,
+                commit_item_prefix_mode,
                 show_evidence_details,
                 evidence_link_rules,
             )
@@ -665,20 +707,13 @@ const DEFAULT_CUSTOM_REPORT_TEMPLATE: &str = "# {periodLabel}工作报告\n\n- �
 fn render_summary_line(
     commit: &CommitRecord,
     project_names: &HashMap<String, String>,
-    show_project_and_branch: bool,
+    prefix_mode: CommitItemPrefixMode,
     show_evidence_details: bool,
     evidence_link_rules: &[EvidenceLinkRule],
 ) -> String {
-    let prefix = display_prefix(&resolve_project_name(project_names, commit));
+    let prefix = commit_item_prefix(prefix_mode, project_names, commit);
     let message = clean_commit_message(&commit.message);
-    let line = if show_project_and_branch {
-        format!(
-            "{}({}) - {}{}",
-            commit.project_name, commit.branch_name, prefix, message
-        )
-    } else {
-        format!("{}{}", prefix, message)
-    };
+    let line = format!("{}{}", prefix, message);
     if show_evidence_details {
         format!(
             "{}\n{}",
@@ -687,6 +722,33 @@ fn render_summary_line(
         )
     } else {
         line
+    }
+}
+
+fn should_render_structured_commit_items(
+    commit_item_prefix_mode: &str,
+    show_project_and_branch: bool,
+    show_evidence_details: bool,
+) -> bool {
+    show_evidence_details
+        || CommitItemPrefixMode::from_settings(commit_item_prefix_mode, show_project_and_branch)
+            != CommitItemPrefixMode::None
+}
+
+fn commit_item_prefix(
+    mode: CommitItemPrefixMode,
+    project_names: &HashMap<String, String>,
+    commit: &CommitRecord,
+) -> String {
+    let mapped_project = resolve_project_name(project_names, commit);
+    let repo_branch = format!("{}({})", commit.project_name, commit.branch_name);
+    match mode {
+        CommitItemPrefixMode::MappedProject => display_prefix(&mapped_project),
+        CommitItemPrefixMode::RepoBranchAndMapped => {
+            format!("{}{}", display_prefix(&repo_branch), display_prefix(&mapped_project))
+        }
+        CommitItemPrefixMode::RepoBranch => display_prefix(&repo_branch),
+        CommitItemPrefixMode::None => String::new(),
     }
 }
 
@@ -1346,6 +1408,7 @@ mod tests {
             "tester",
             "2026-W24",
             false,
+            "mapped-project",
             &[],
             default_template_for("weekly"),
         );
@@ -1368,6 +1431,7 @@ mod tests {
             "tester",
             "2026-W24",
             true,
+            "mapped-project",
             &[],
             default_template_for("weekly"),
         );
@@ -1411,6 +1475,7 @@ mod tests {
             "tester",
             "2026-W24",
             true,
+            "mapped-project",
             &rules,
             default_template_for("weekly"),
         );
@@ -1437,6 +1502,7 @@ mod tests {
             "tester",
             "2026-W24",
             false,
+            "mapped-project",
             &[],
             template,
         );
@@ -1463,6 +1529,7 @@ mod tests {
             "",
             "2026-W24",
             false,
+            "mapped-project",
             &[],
             default_template_for("weekly"),
         );
@@ -1488,6 +1555,7 @@ mod tests {
             &commits,
             &HashMap::new(),
             false,
+            "mapped-project",
             false,
             &ExtractReportFormat {
                 start_date: "2026-06-14",
@@ -1521,6 +1589,7 @@ mod tests {
             &commits,
             &HashMap::new(),
             false,
+            "mapped-project",
             false,
             &ExtractReportFormat {
                 start_date: "2026-06-14",
@@ -1536,6 +1605,7 @@ mod tests {
             &commits,
             &HashMap::new(),
             false,
+            "mapped-project",
             false,
             &ExtractReportFormat {
                 start_date: "2026-06-01",
@@ -1556,6 +1626,63 @@ mod tests {
     }
 
     #[test]
+    fn render_daily_commit_items_can_use_mapped_project_without_repo_branch() {
+        let commits = vec![commit(
+            "cse-frontend",
+            "master",
+            "feat: 接入注安题目纠错反馈模块",
+        )];
+        let mut project_names = HashMap::new();
+        project_names.insert(
+            "cse-frontend(*)".to_string(),
+            "柏科注安工程师".to_string(),
+        );
+        let templates = ReportFormatTemplates {
+            daily: "{commitItems}".to_string(),
+            ..ReportFormatTemplates::default()
+        };
+
+        let mapped_only = render_extract_report(
+            &commits,
+            &project_names,
+            false,
+            "mapped-project",
+            false,
+            &ExtractReportFormat {
+                start_date: "2026-06-14",
+                end_date: "2026-06-14",
+                author: "tester",
+                period_label: "",
+                report_kind: "daily",
+                evidence_link_rules: &[],
+                templates: &templates,
+            },
+        );
+        let repo_and_mapped = render_extract_report(
+            &commits,
+            &project_names,
+            true,
+            "repo-branch-and-mapped",
+            false,
+            &ExtractReportFormat {
+                start_date: "2026-06-14",
+                end_date: "2026-06-14",
+                author: "tester",
+                period_label: "",
+                report_kind: "daily",
+                evidence_link_rules: &[],
+                templates: &templates,
+            },
+        );
+
+        assert!(mapped_only.contains("柏科注安工程师 - 接入注安题目纠错反馈模块"));
+        assert!(!mapped_only.contains("cse-frontend(master)"));
+        assert!(repo_and_mapped.contains(
+            "cse-frontend(master) - 柏科注安工程师 - 接入注安题目纠错反馈模块"
+        ));
+    }
+
+    #[test]
     fn build_extract_result_keeps_template_when_detailed_output_is_enabled() {
         let commits = vec![commit("repo-a", "main", "feat: 保留详细日志")];
         let templates = ReportFormatTemplates {
@@ -1569,6 +1696,7 @@ mod tests {
             Vec::new(),
             &HashMap::new(),
             false,
+            "mapped-project",
             false,
             true,
             ExtractReportFormat {
