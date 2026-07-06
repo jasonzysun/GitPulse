@@ -29,10 +29,12 @@ jobs:
       matrix:
         include:
           - os: macos-14
-            label: macOS (universal .dmg)
+            label: macOS (universal)
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
-            build_args: --target universal-apple-darwin --bundles dmg
-            artifacts: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            build_args: --target universal-apple-darwin --bundles app
+            artifacts: >-
+              src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+              src-tauri/target/universal-apple-darwin/release/bundle/macos/*.zip
           - os: ubuntu-22.04
             label: Linux (AppImage)
             rust_targets: ""
@@ -41,6 +43,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Resolve release tag
         id: tag
@@ -93,6 +97,40 @@ jobs:
       - name: Build app (${{ matrix.label }})
         run: npx tauri build ${{ matrix.build_args }}
 
+      - name: Package macOS app zip
+        if: matrix.os == 'macos-14'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.tag.outputs.name }}"
+          version="${tag#v}"
+          app_dir="src-tauri/target/universal-apple-darwin/release/bundle/macos"
+          app_path="$app_dir/GitPulse.app"
+          zip_path="$app_dir/GitPulse_${version}_universal.app.zip"
+
+          if [ ! -d "$app_path" ]; then
+            echo "::error::macOS app bundle not found: $app_path"
+            exit 1
+          fi
+
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$zip_path"
+
+      - name: Try building macOS dmg
+        if: matrix.os == 'macos-14'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg_dir="src-tauri/target/universal-apple-darwin/release/bundle/dmg"
+          mkdir -p "$dmg_dir"
+          rm -f "$dmg_dir"/*.dmg
+
+          if npx tauri build --target universal-apple-darwin --bundles dmg; then
+            exit 0
+          fi
+
+          rm -f "$dmg_dir"/*.dmg
+          echo "::warning::macOS DMG bundling failed; uploaded app zip will be used as the fallback installer."
+
       # 等待本地 release:win 创建出对应 Release，再追加资产（消除时序竞争）
       - name: Wait for GitHub Release
         env:
@@ -116,5 +154,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          shopt -s nullglob
           tag="${{ steps.tag.outputs.name }}"
-          gh release upload "$tag" ${{ matrix.artifacts }} --clobber
+          artifacts=(${{ matrix.artifacts }})
+
+          if [ "${#artifacts[@]}" -eq 0 ]; then
+            echo "::error::No installers matched: ${{ matrix.artifacts }}"
+            exit 1
+          fi
+
+          printf 'Uploading %s\n' "${artifacts[@]}"
+          gh release upload "$tag" "${artifacts[@]}" --clobber

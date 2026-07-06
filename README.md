@@ -71,10 +71,11 @@
 前往 **[Releases](https://github.com/GoldenZqqq/GitPulse/releases)** 下载对应平台的安装包：
 
 - **Windows** — `.exe`（NSIS 安装包），安装后可在应用内一键检查更新
-- **macOS** — `.dmg`（通用包，同时支持 Apple Silicon 与 Intel）
+- **macOS** — `.dmg` 或 `.app.zip`（通用包，同时支持 Apple Silicon 与 Intel）
 - **Linux** — `.AppImage`（单文件，`chmod +x` 后直接运行）
 
-> **macOS 首次打开**：当前 macOS 包未做 Apple 签名，首次启动可能被 Gatekeeper 拦截。请**右键点按** GitPulse.app 选「打开」，或在终端执行：
+> **macOS 首次打开**：当前 macOS 包未做 Apple 签名，首次启动可能被 Gatekeeper 拦截。若下载 `.app.zip`，请先解压并将 GitPulse.app 拖入「应用程序」。
+> 然后**右键点按** GitPulse.app 选「打开」，或在终端执行：
 >
 > ```bash
 > xattr -dr com.apple.quarantine /Applications/GitPulse.app
