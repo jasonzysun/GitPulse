@@ -60,7 +60,7 @@ test("renders mocked diagnostics in settings", async ({ page }) => {
 
   await expect(page.getByText("本地数据边界")).toBeVisible();
   await expect(page.getByText("GitPulse 只读取你选择的本机目录和 Git 元数据")).toBeVisible();
-  await expect(page.getByText("AI 润色关闭时，报告草稿、提交记录和项目映射不会发送到外部 AI 服务。")).toBeVisible();
+  await expect(page.getByText("未配置或未点击 AI 润色时，报告草稿、提交记录和项目映射不会发送到外部 AI 服务。")).toBeVisible();
   await expect(page.getByText("1 异常")).toBeVisible();
   await expect(page.getByText("1 提醒")).toBeVisible();
   await expect(page.getByText("1 正常")).toBeVisible();
@@ -150,13 +150,15 @@ test("generates and exports a daily report", async ({ page }) => {
   await page.getByRole("button", { name: "生成日报" }).click();
 
   await expect(page.getByText("完成浏览器级诊断校验")).toBeVisible();
-  await expect(page.getByText(/日报 · \d{4}-\d{2}-\d{2}/)).toBeVisible();
+  await openAssistTab(page, /交付/);
   await expect(page.getByLabel("报告交付质量提示")).toBeVisible();
   await expect(page.getByText("2 条提交")).toBeVisible();
   await expect(page.getByText("1 个项目")).toBeVisible();
-  await expect(page.getByText("本地模板")).toBeVisible();
+  await expect(page.getByText("AI 待配置")).toBeVisible();
   await expect(page.getByText("证据未显示")).toBeVisible();
   await expect(page.getByText("可导出")).toBeVisible();
+  await openAssistTab(page, /最近/);
+  await expect(page.getByText(/日报 · \d{4}-\d{2}-\d{2}/)).toBeVisible();
 
   await page.locator("button.preview-save-button").click();
 
@@ -314,6 +316,7 @@ test("generates and exports a weekly report", async ({ page }) => {
   await page.getByRole("button", { name: "生成周报" }).click();
 
   await expect(page.getByText("接入 Playwright 汶览器级端到端护栏")).toBeVisible();
+  await openAssistTab(page, /最近/);
   await expect(page.getByText(/周报 · 2026-W27/)).toBeVisible();
   await expect(page.getByText(/输出文件：.*weekly_report_2026-W27\.md/)).toBeVisible();
 
@@ -358,6 +361,7 @@ test("generates and exports a monthly report", async ({ page }) => {
   await page.getByRole("button", { name: "生成月报" }).click();
 
   await expect(page.getByText("完成报告逻辑拆分与导出能力加固")).toBeVisible();
+  await openAssistTab(page, /最近/);
   await expect(page.getByText(/月报 · 2026-06/)).toBeVisible();
   await expect(page.getByText(/输出文件：.*monthly_report_2026-06\.md/)).toBeVisible();
 
@@ -396,6 +400,7 @@ test("opens and clears report history", async ({ page }) => {
   });
 
   await expectWorkbench(page);
+  await openAssistTab(page, /最近/);
   await page.getByRole("button", { name: /周报 · 2026-W27/ }).click();
   await expect(page.getByText("处理诊断网络检查")).toBeVisible();
 
@@ -436,6 +441,7 @@ test("filters report history by type date status and search", async ({ page }) =
   });
 
   await expectWorkbench(page);
+  await openAssistTab(page, /最近/);
   await page.getByLabel("筛选报告类型").selectOption("weekly");
   await expect(page.getByRole("button", { name: /周报 · 2026-W24/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /月报 · 2026-07/ })).toHaveCount(0);
@@ -468,4 +474,8 @@ function createCommit(hash: string, message: string, author = "Playwright Tester
     date: "2026-07-02 10:00:00 +0800",
     message,
   };
+}
+
+async function openAssistTab(page: Parameters<typeof expectWorkbench>[0], name: RegExp) {
+  await page.getByRole("tab", { name }).click();
 }

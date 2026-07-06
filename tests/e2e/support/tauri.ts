@@ -67,6 +67,7 @@ export function createSettings(overrides: Record<string, unknown> = {}) {
     excludeBotCommits: true,
     detailedOutput: false,
     showProjectAndBranch: true,
+    commitItemPrefixMode: "mapped-project",
     showEvidenceDetails: false,
     projectNamesText: "",
     aiEnabled: false,
