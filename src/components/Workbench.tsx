@@ -87,6 +87,8 @@ type Props = {
   onOpenSettings: () => void;
 };
 
+type AssistPanel = "repos" | "history" | "quality";
+
 export function Workbench(props: Props) {
   const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
@@ -94,6 +96,7 @@ export function Workbench(props: Props) {
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
+  const [activeAssistPanel, setActiveAssistPanel] = useState<AssistPanel>("repos");
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -185,6 +188,8 @@ export function Workbench(props: Props) {
       enabledRepoCount,
     })
     : null;
+  const hasQualityPanel = Boolean(props.previewText && props.commitCount > 0);
+  const visibleAssistPanel = activeAssistPanel === "quality" && !hasQualityPanel ? "repos" : activeAssistPanel;
 
   return (
     <section className="workbench">
@@ -397,100 +402,145 @@ export function Workbench(props: Props) {
               {isPreviewExpanded ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
             </button>
           </div>
-          {!isPreviewExpanded && props.previewText && props.commitCount > 0 && (
-            <ReportQualityPanel
-              commitCount={props.commitCount}
-              projectCount={props.projectCount}
-              enabledRepoCount={enabledRepoCount}
-              totalRepoCount={props.repos.length}
-              aiEnabled={props.aiEnabled}
-              aiConfigured={props.aiConfigured}
-              showEvidenceDetails={props.showEvidenceDetails}
-              canExport={props.canExport}
-            />
-          )}
-          {!isPreviewExpanded && (
-            <ReportHistoryPanel
-              entries={props.reportHistory}
-              activeHistoryId={props.activeHistoryId}
-              isBusy={props.isBusy}
-              onOpen={props.onOpenHistory}
-              onCopy={props.onCopyHistory}
-              onRegenerate={props.onRegenerateHistory}
-              onClear={props.onClearHistory}
-            />
-          )}
         </section>
 
-        <section className="repo-drawer">
-          <PanelTitle
-            icon={<TerminalSquare size={17} />}
-            title="仓库索引"
-            meta={repoMeta}
-            action={(
-              <button
-                className="repo-refresh-button"
-                type="button"
-                onClick={props.isRepoScanning ? props.onCancelRepoScan : props.onRefreshRepos}
-                disabled={props.isBusy && !props.isRepoScanning}
-                aria-label={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
-                title={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
-              >
-                {props.isRepoScanning ? <XCircle size={14} /> : <RefreshCw size={14} />}
-                {props.isRepoScanning ? "取消扫描" : "重新扫描"}
-              </button>
-            )}
-          />
-          {props.isRepoScanning && props.scanProgress && (
-            <div className="repo-scan-progress" role="status" aria-live="polite">
-              <div>
-                <Loader2 className="spin" size={14} />
-                <span>{scanProgressText}</span>
-              </div>
-              {props.scanProgress.currentPath && (
-                <span className="repo-scan-path" title={props.scanProgress.currentPath}>
-                  {props.scanProgress.currentPath}
-                </span>
-              )}
-            </div>
-          )}
-          <div className="repo-list">
-            {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
-            {props.repos.map((repo) => {
-              const enabled = !props.disabledRepos.includes(repo.path);
-              const displayName = resolveRepoDisplayName(repo, props.projectNames);
-              const isMapped = displayName !== repo.name;
-              return (
-                <article className={`repo-row ${enabled ? "" : "disabled"}`} key={repo.path}>
-                  <label
-                    className="repo-toggle"
-                    title={enabled ? "已纳入报告，点击排除该仓库" : "已排除，点击重新纳入报告"}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      onChange={(event) => props.onToggleRepo(repo.path, event.target.checked)}
-                    />
-                    <span aria-hidden="true" />
-                  </label>
-                  <button
-                    type="button"
-                    className="repo-info"
-                    onClick={() => props.onEditRepo(repo)}
-                    title="点击编辑项目映射名称"
-                  >
-                    <strong className="repo-display-name">{displayName}</strong>
-                    <span className="repo-meta">
-                      {isMapped && <em className="repo-origin">{repo.name}</em>}
-                      <em className="repo-branch" title={repo.branch}>{repo.branch}</em>
-                    </span>
-                    <span className="repo-path">{repo.path}</span>
-                  </button>
-                </article>
-              );
-            })}
+        <aside className="assist-rail" aria-label="辅助工作区">
+          <div className="assist-tabs" role="tablist" aria-label="辅助面板">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={visibleAssistPanel === "repos"}
+              className={visibleAssistPanel === "repos" ? "active" : ""}
+              onClick={() => setActiveAssistPanel("repos")}
+            >
+              <TerminalSquare size={14} />
+              仓库
+              <span>{enabledRepoCount}/{props.repos.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={visibleAssistPanel === "history"}
+              className={visibleAssistPanel === "history" ? "active" : ""}
+              onClick={() => setActiveAssistPanel("history")}
+            >
+              <History size={14} />
+              最近
+              <span>{props.reportHistory.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={visibleAssistPanel === "quality"}
+              className={visibleAssistPanel === "quality" ? "active" : ""}
+              disabled={!hasQualityPanel}
+              onClick={() => setActiveAssistPanel("quality")}
+            >
+              <Sparkles size={14} />
+              交付
+              <span>{hasQualityPanel ? "可查" : "待生成"}</span>
+            </button>
           </div>
-        </section>
+
+          <div className="assist-panel">
+            {visibleAssistPanel === "repos" && (
+              <section className="repo-drawer" aria-label="仓库索引">
+                <PanelTitle
+                  icon={<TerminalSquare size={17} />}
+                  title="仓库索引"
+                  meta={repoMeta}
+                  action={(
+                    <button
+                      className="repo-refresh-button"
+                      type="button"
+                      onClick={props.isRepoScanning ? props.onCancelRepoScan : props.onRefreshRepos}
+                      disabled={props.isBusy && !props.isRepoScanning}
+                      aria-label={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
+                      title={props.isRepoScanning ? "取消仓库扫描" : "重新扫描仓库索引"}
+                    >
+                      {props.isRepoScanning ? <XCircle size={14} /> : <RefreshCw size={14} />}
+                      {props.isRepoScanning ? "取消扫描" : "重新扫描"}
+                    </button>
+                  )}
+                />
+                {props.isRepoScanning && props.scanProgress && (
+                  <div className="repo-scan-progress" role="status" aria-live="polite">
+                    <div>
+                      <Loader2 className="spin" size={14} />
+                      <span>{scanProgressText}</span>
+                    </div>
+                    {props.scanProgress.currentPath && (
+                      <span className="repo-scan-path" title={props.scanProgress.currentPath}>
+                        {props.scanProgress.currentPath}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="repo-list">
+                  {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
+                  {props.repos.map((repo) => {
+                    const enabled = !props.disabledRepos.includes(repo.path);
+                    const displayName = resolveRepoDisplayName(repo, props.projectNames);
+                    const isMapped = displayName !== repo.name;
+                    return (
+                      <article className={`repo-row ${enabled ? "" : "disabled"}`} key={repo.path}>
+                        <label
+                          className="repo-toggle"
+                          title={enabled ? "已纳入报告，点击排除该仓库" : "已排除，点击重新纳入报告"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            onChange={(event) => props.onToggleRepo(repo.path, event.target.checked)}
+                          />
+                          <span aria-hidden="true" />
+                        </label>
+                        <button
+                          type="button"
+                          className="repo-info"
+                          onClick={() => props.onEditRepo(repo)}
+                          title="点击编辑项目映射名称"
+                        >
+                          <strong className="repo-display-name">{displayName}</strong>
+                          <span className="repo-meta">
+                            {isMapped && <em className="repo-origin">{repo.name}</em>}
+                            <em className="repo-branch" title={repo.branch}>{repo.branch}</em>
+                          </span>
+                          <span className="repo-path">{repo.path}</span>
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
+            {visibleAssistPanel === "history" && (
+              <ReportHistoryPanel
+                entries={props.reportHistory}
+                activeHistoryId={props.activeHistoryId}
+                isBusy={props.isBusy}
+                onOpen={props.onOpenHistory}
+                onCopy={props.onCopyHistory}
+                onRegenerate={props.onRegenerateHistory}
+                onClear={props.onClearHistory}
+              />
+            )}
+
+            {visibleAssistPanel === "quality" && hasQualityPanel && (
+              <ReportQualityPanel
+                commitCount={props.commitCount}
+                projectCount={props.projectCount}
+                enabledRepoCount={enabledRepoCount}
+                totalRepoCount={props.repos.length}
+                aiEnabled={props.aiEnabled}
+                aiConfigured={props.aiConfigured}
+                showEvidenceDetails={props.showEvidenceDetails}
+                canExport={props.canExport}
+              />
+            )}
+          </div>
+        </aside>
       </div>
 
       {(props.warnings.length > 0 || props.lastOutputFile || emptyReportAdvice) && (

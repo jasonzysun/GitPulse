@@ -45,7 +45,7 @@
 .mapping-input:focus,
 .refinement-input:focus {
   border-color: var(--primary);
-  background: #ffffff;
+  background-color: #ffffff;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.82),
     0 0 0 3px rgba(63, 140, 255, 0.13);

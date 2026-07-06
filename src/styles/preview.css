@@ -513,10 +513,12 @@
   position: relative;
   display: grid;
   min-height: 0;
+  overflow: hidden;
 }
 
 .preview-shell .preview,
 .report-canvas.preview-expanded .preview-shell .preview {
+  height: 100%;
   min-height: 0;
   margin: 0;
 }
@@ -647,6 +649,49 @@
   border-top: 1px solid var(--canvas-line);
 }
 
+.assist-panel .repo-drawer,
+.assist-panel .report-history-panel,
+.assist-panel .report-quality-panel {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.assist-panel .repo-drawer {
+  padding: 0;
+}
+
+.assist-panel .report-history-panel,
+.assist-panel .report-quality-panel {
+  padding-top: 0;
+}
+
+.assist-panel .report-history-panel {
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.assist-panel .report-quality-panel {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.assist-panel .history-list {
+  max-height: none;
+}
+
+.assist-panel .report-quality-grid {
+  grid-template-columns: 1fr;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.assist-panel .report-quality-item {
+  min-height: 64px;
+}
+
 .history-clear-button,
 .history-actions button {
   display: inline-flex;
@@ -738,10 +783,9 @@
 .history-filter-bar select {
   appearance: none;
   padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526174' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 9px center;
-  background-size: 13px;
+  background:
+    url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526174' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") right 9px center / 13px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.92));
 }
 
 .history-search-field input:focus,
@@ -778,7 +822,9 @@
 
 .history-list {
   display: grid;
+  align-content: start;
   gap: 6px;
+  grid-auto-rows: max-content;
   max-height: 150px;
   min-height: 0;
   overflow-y: auto;
