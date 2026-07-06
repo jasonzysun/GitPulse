@@ -905,9 +905,10 @@ function LocalDataBoundarySection({ settings, repos }: { settings: AppSettings; 
   const rootDirSummary = settings.rootDirs.length > 0
     ? `${settings.rootDirs.length} 个仓库根目录，当前索引 ${repos.length} 个仓库`
     : "尚未配置仓库根目录";
-  const aiBoundary = settings.aiEnabled
-    ? `开启 AI 润色时，仅当前报告草稿、系统提示词和附加润色指令会发送到 ${formatAiDestination(settings)}。`
-    : "AI 润色关闭时，报告草稿、提交记录和项目映射不会发送到外部 AI 服务。";
+  const aiReady = isAiConnectionConfigured(settings);
+  const aiBoundary = aiReady
+    ? `使用 AI 润色时，仅当前报告草稿、系统提示词和附加润色指令会发送到 ${formatAiDestination(settings)}。`
+    : "未配置或未点击 AI 润色时，报告草稿、提交记录和项目映射不会发送到外部 AI 服务。";
 
   return (
     <section className="settings-section local-boundary-section">
@@ -931,11 +932,16 @@ function LocalDataBoundarySection({ settings, repos }: { settings: AppSettings; 
         <BoundaryItem
           title="AI 发送范围"
           body={aiBoundary}
-          detail="关闭 AI 时，生成报告仍可完全在本机完成。"
+          detail="生成报告始终可完全在本机完成；只有手动润色当前报告时才会调用 AI。"
         />
       </div>
     </section>
   );
+}
+
+function isAiConnectionConfigured(settings: AppSettings) {
+  if (settings.aiProvider === "codex-oauth") return Boolean(settings.aiModel.trim());
+  return Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
 }
 
 function BoundaryItem({ title, body, detail }: { title: string; body: string; detail: string }) {
@@ -970,7 +976,7 @@ function formatCredentialBoundary(settings: AppSettings) {
   if (apiKey) {
     return "当前输入的 API Key 会保存到系统凭据库，避免明文写入普通设置。";
   }
-  return "尚未配置 API Key；未开启 AI 时不需要任何外部服务凭据。";
+  return "尚未配置 API Key；不使用 AI 润色时不需要任何外部服务凭据。";
 }
 
 function ThemeModeButton({

@@ -11,7 +11,7 @@ pub fn ai(options: &DiagnosticOptions) -> DiagnosticItem {
             "ai",
             "AI 润色",
             DiagnosticSeverity::Ok,
-            "AI 润色未开启，本地报告模板可正常使用。",
+            "AI 润色未配置，本地报告模板可正常使用。",
             "",
         );
     }
@@ -36,7 +36,7 @@ pub fn ai(options: &DiagnosticOptions) -> DiagnosticItem {
             "AI 润色",
             DiagnosticSeverity::Error,
             issues.join("；"),
-            "在「AI 润色」补齐配置，或关闭 AI 润色后使用本地模板生成。",
+            "在「AI 润色」补齐配置，或直接使用本地模板生成。",
         )
     }
 }

@@ -40,7 +40,7 @@ export function useDiagnosticsPanel({ open, active, settings, repos }: Params) {
           outputDir: settings.outputDir,
           outputEnabled: settings.outputEnabled,
           author: settings.author,
-          aiEnabled: settings.aiEnabled,
+          aiEnabled: shouldCheckAiSettings(settings),
           aiProvider: settings.aiProvider,
           aiBaseUrl: settings.aiBaseUrl,
           aiModel: settings.aiModel,
@@ -64,4 +64,9 @@ export function useDiagnosticsPanel({ open, active, settings, repos }: Params) {
     ranAt,
     refresh,
   };
+}
+
+function shouldCheckAiSettings(settings: AppSettings) {
+  return settings.aiProvider === "codex-oauth"
+    || Boolean(settings.aiModel.trim() || settings.aiApiKey.trim());
 }

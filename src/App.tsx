@@ -48,8 +48,8 @@ import {
   settingsForPersistence,
   updateReportHistoryEntry,
   upsertRepoMapping,
+  validateAiConnectionSettings,
   validateExtractSettings,
-  validateAiSettings,
   validateOutputSettings,
   validatePeriodReportSettings,
   validateRequiredSettings,
@@ -478,7 +478,7 @@ function App() {
       const result = await invoke<ReportEnhanceResult>("enhance_report", {
         options: buildReportEnhanceOptions(settings, activePreview, range, baseReport, extraInstruction),
       });
-      const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
+      const aiEnhanced = !hasAiWarning(result.warnings);
       const outputFile = await saveActivePreviewText(activePreview, range, periodLabel, result.reportText);
       setActivePreviewText(activePreview, result.reportText);
       setWarnings(result.warnings);
@@ -496,8 +496,7 @@ function App() {
       setStatus(hasAiWarning(result.warnings) ? "AI 润色失败，已保留当前报告" : "AI 润色已完成");
     }, () => {
       if (!baseReport.trim()) throw new Error("当前报告为空，请先生成报告再润色");
-      if (!settings.aiEnabled) throw new Error("请先在设置中开启 AI 润色");
-      validateAiSettings(settings);
+      validateAiConnectionSettings(settings);
       validateOutputSettings(settings);
     });
   }
@@ -720,7 +719,6 @@ function App() {
         onMonthlyMonthChange={changeMonthlyMonth}
         monthlyRange={monthlyRange}
         customRange={customRange}
-        aiEnabled={settings.aiEnabled}
         aiConfigured={aiConfigured}
         showEvidenceDetails={settings.showEvidenceDetails}
         onExtract={extractCommits}

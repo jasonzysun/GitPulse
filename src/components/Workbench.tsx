@@ -62,7 +62,6 @@ type Props = {
   onMonthlyMonthChange: (month: string) => void;
   monthlyRange: DateRange;
   customRange: DateRange;
-  aiEnabled: boolean;
   aiConfigured: boolean;
   showEvidenceDetails: boolean;
   onExtract: () => void;
@@ -90,7 +89,7 @@ type Props = {
 type AssistPanel = "repos" | "history" | "quality";
 
 export function Workbench(props: Props) {
-  const previewMeta = props.aiEnabled ? (props.aiConfigured ? "AI 润色" : "AI 待配置") : "Markdown 渲染";
+  const previewMeta = props.aiConfigured ? "AI 可润色" : "Markdown 渲染";
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
@@ -533,7 +532,6 @@ export function Workbench(props: Props) {
                 projectCount={props.projectCount}
                 enabledRepoCount={enabledRepoCount}
                 totalRepoCount={props.repos.length}
-                aiEnabled={props.aiEnabled}
                 aiConfigured={props.aiConfigured}
                 showEvidenceDetails={props.showEvidenceDetails}
                 canExport={props.canExport}

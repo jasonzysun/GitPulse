@@ -23,7 +23,6 @@ type Props = {
   projectCount: number;
   enabledRepoCount: number;
   totalRepoCount: number;
-  aiEnabled: boolean;
   aiConfigured: boolean;
   showEvidenceDetails: boolean;
   canExport: boolean;
@@ -34,7 +33,6 @@ export function ReportQualityPanel({
   projectCount,
   enabledRepoCount,
   totalRepoCount,
-  aiEnabled,
   aiConfigured,
   showEvidenceDetails,
   canExport,
@@ -44,7 +42,6 @@ export function ReportQualityPanel({
     projectCount,
     enabledRepoCount,
     totalRepoCount,
-    aiEnabled,
     aiConfigured,
     showEvidenceDetails,
     canExport,
@@ -83,7 +80,6 @@ function buildQualityItems({
   projectCount,
   enabledRepoCount,
   totalRepoCount,
-  aiEnabled,
   aiConfigured,
   showEvidenceDetails,
   canExport,
@@ -107,11 +103,9 @@ function buildQualityItems({
     },
     {
       id: "ai",
-      label: aiEnabled ? (aiConfigured ? "AI 可润色" : "AI 待配置") : "本地模板",
-      detail: aiEnabled
-        ? (aiConfigured ? "适合把技术提交改成汇报口径。" : "配置后可自动补强表达。")
-        : "可交付，重要报告建议再人工润色。",
-      tone: aiEnabled ? (aiConfigured ? "ok" : "warning") : "neutral",
+      label: aiConfigured ? "AI 可润色" : "AI 待配置",
+      detail: aiConfigured ? "适合把技术提交改成汇报口径。" : "配置后可按需补强表达。",
+      tone: aiConfigured ? "ok" : "neutral",
       icon: Sparkles,
     },
     {

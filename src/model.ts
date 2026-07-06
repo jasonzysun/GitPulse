@@ -772,7 +772,7 @@ export function buildExtractOptions(
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "daily"),
-    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
+    ai: buildAiOptions(settings, aiEnabled),
   };
 }
 
@@ -804,7 +804,7 @@ export function buildMonthlyOptions(
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, "monthly"),
-    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
+    ai: buildAiOptions(settings, aiEnabled),
   };
 }
 
@@ -843,7 +843,7 @@ export function buildPeriodReportOptions(
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
-    ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
+    ai: buildAiOptions(settings, aiEnabled),
   };
 }
 
@@ -865,7 +865,7 @@ export function buildReportEnhanceOptions(
     authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind === "custom" ? "daily" : kind),
-    ai: buildAiOptions(settings),
+    ai: buildAiOptions(settings, true),
   };
 }
 
@@ -877,21 +877,18 @@ export function validateRequiredSettings(settings: AppSettings) {
 export function validateMonthlySettings(settings: AppSettings) {
   validateWorkspaceSettings(settings);
   validateOutputSettings(settings);
-  validateAiSettings(settings);
 }
 
 export function validatePeriodReportSettings(settings: AppSettings, range: DateRange) {
   validateWorkspaceSettings(settings);
   validateDateRange(range.startDate, range.endDate);
   validateOutputSettings(settings);
-  validateAiSettings(settings);
 }
 
 export function validateExtractSettings(settings: AppSettings, dateRange?: DateRange) {
   validateWorkspaceSettings(settings);
   const range = dateRange ?? getTodayRange();
   validateDateRange(range.startDate, range.endDate);
-  validateAiSettings(settings);
 }
 
 export function validateWorkspaceSettings(settings: AppSettings) {
@@ -904,11 +901,15 @@ export function validateOutputSettings(settings: AppSettings) {
 
 export function validateAiSettings(settings: AppSettings) {
   if (!settings.aiEnabled) return;
-  if (!settings.aiModel.trim()) throw new Error("启用 AI 润色时请输入模型名");
+  validateAiConnectionSettings(settings);
+}
+
+export function validateAiConnectionSettings(settings: AppSettings) {
+  if (!settings.aiModel.trim()) throw new Error("使用 AI 润色前请先在设置中填写模型名");
   if (settings.aiProvider === "codex-oauth") return;
-  if (!settings.aiBaseUrl.trim()) throw new Error("启用 AI 润色时请输入 Base URL");
+  if (!settings.aiBaseUrl.trim()) throw new Error("使用 AI 润色前请先在设置中填写 Base URL");
   const aiApiKey = settings.aiApiKey.trim();
-  if (!aiApiKey) throw new Error("启用 AI 润色时请输入 API Key");
+  if (!aiApiKey) throw new Error("使用 AI 润色前请先在设置中填写 API Key");
   validateAiKeyReference(aiApiKey);
 }
 
@@ -917,9 +918,9 @@ export function validateDateRange(startDate: string, endDate: string) {
   if (startDate > endDate) throw new Error("开始日期不能晚于结束日期");
 }
 
-function buildAiOptions(settings: AppSettings) {
+function buildAiOptions(settings: AppSettings, enabled = settings.aiEnabled) {
   return {
-    enabled: settings.aiEnabled,
+    enabled,
     provider: settings.aiProvider,
     baseUrl: settings.aiBaseUrl,
     model: settings.aiModel,
