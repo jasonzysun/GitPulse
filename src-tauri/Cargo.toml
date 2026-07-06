@@ -1,6 +1,6 @@
 [package]
 name = "gitpulse"
-version = "0.3.8"
+version = "0.3.9"
 description = "Local Git work report generator"
 authors = ["GoldenZqqq"]
 edition = "2021"
