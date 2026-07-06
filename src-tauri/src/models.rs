@@ -138,6 +138,28 @@ pub struct AiModelInfo {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ReportEnhanceOptions {
+    pub base_report: String,
+    pub start_date: String,
+    pub end_date: String,
+    pub report_kind: String,
+    pub author: String,
+    #[serde(default)]
+    pub author_display_name: String,
+    pub refinement_instruction: String,
+    pub system_prompt: String,
+    pub ai: AiConfig,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportEnhanceResult {
+    pub report_text: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DiagnosticOptions {
     pub root_dirs: Vec<String>,
     pub output_dir: String,

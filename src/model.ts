@@ -77,6 +77,11 @@ export type PeriodReportResult = {
   commitCount: number;
 };
 
+export type ReportEnhanceResult = {
+  reportText: string;
+  warnings: string[];
+};
+
 export type PreviewMode = "summary" | "weekly" | "custom" | "monthly";
 
 export type ReportExportFormat = "markdown" | "docx" | "pdf";
@@ -839,6 +844,28 @@ export function buildPeriodReportOptions(
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
     ai: aiEnabled ? buildAiOptions(settings) : { ...buildAiOptions(settings), enabled: false },
+  };
+}
+
+export function buildReportEnhanceOptions(
+  settings: AppSettings,
+  mode: PreviewMode,
+  range: DateRange,
+  baseReport: string,
+  extraInstruction = "",
+) {
+  const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
+  const kind = mode === "summary" ? "daily" : mode;
+  return {
+    baseReport,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    reportKind: kind,
+    author: buildAuthorFilter(settings.author, authorAliasGroups),
+    authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
+    refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
+    systemPrompt: buildReportSystemPrompt(settings, kind === "custom" ? "daily" : kind),
+    ai: buildAiOptions(settings),
   };
 }
 

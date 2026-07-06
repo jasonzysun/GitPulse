@@ -7,7 +7,8 @@ use crate::ai;
 use crate::git_ops;
 use crate::models::{
     AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
+    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult,
+    RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -105,6 +106,55 @@ where
         project_count,
         commits.len(),
     ))
+}
+
+pub fn enhance_report_sync(options: ReportEnhanceOptions) -> Result<ReportEnhanceResult, String> {
+    let base_report = options.base_report;
+    if base_report.trim().is_empty() {
+        return Err("当前报告为空，请先生成报告再润色".to_string());
+    }
+
+    let report_author = report_author(&options.author_display_name, &options.author);
+    let result = match options.report_kind.as_str() {
+        "weekly" => ai::enhance_weekly_report(
+            &base_report,
+            &options.start_date,
+            &options.end_date,
+            &report_author,
+            &options.refinement_instruction,
+            &options.system_prompt,
+            &options.ai,
+        ),
+        "monthly" => ai::enhance_monthly_report(
+            &base_report,
+            &options.start_date,
+            &options.end_date,
+            &report_author,
+            &options.refinement_instruction,
+            &options.system_prompt,
+            &options.ai,
+        ),
+        _ => ai::enhance_daily_report(
+            &base_report,
+            &options.start_date,
+            &options.end_date,
+            &report_author,
+            &options.refinement_instruction,
+            &options.system_prompt,
+            &options.ai,
+        ),
+    };
+
+    let mut warnings = Vec::new();
+    let report_text = result.unwrap_or_else(|err| {
+        warnings.push(format!("AI 润色失败，已保留当前报告：{}", err));
+        base_report
+    });
+
+    Ok(ReportEnhanceResult {
+        report_text,
+        warnings,
+    })
 }
 
 pub fn extract_commits_sync<F>(

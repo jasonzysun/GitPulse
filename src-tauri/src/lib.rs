@@ -14,6 +14,7 @@ use crate::models::{
     AiConfig, AiModelInfo, DiagnosticOptions, DiagnosticResult,
     ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
     MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo, RepoScanProgress,
+    ReportEnhanceOptions, ReportEnhanceResult,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -110,6 +111,13 @@ async fn generate_period_report(
     })
     .await
     .map_err(|err| format!("生成报告任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn enhance_report(options: ReportEnhanceOptions) -> Result<ReportEnhanceResult, String> {
+    async_runtime::spawn_blocking(move || commit_pipeline::enhance_report_sync(options))
+        .await
+        .map_err(|err| format!("AI 润色任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -271,6 +279,7 @@ pub fn run() {
             extract_commits,
             generate_monthly_report,
             generate_period_report,
+            enhance_report,
             list_ai_models,
             run_diagnostics,
             get_secure_ai_api_key,
