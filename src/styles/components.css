@@ -18,10 +18,11 @@
 .refinement-input {
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--ink);
   background: rgba(255, 255, 255, 0.88);
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, background 0.14s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 .field input {
@@ -30,8 +31,13 @@
 }
 
 .field select {
+  appearance: none;
   height: 37px;
-  padding: 0 9px;
+  padding: 0 34px 0 11px;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23526174' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 14px;
 }
 
 .field input:focus,
@@ -40,7 +46,30 @@
 .refinement-input:focus {
   border-color: var(--primary);
   background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(63, 140, 255, 0.13);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 0 0 3px rgba(63, 140, 255, 0.13);
+}
+
+.field input[type="date"],
+.field input[type="month"],
+.field input[type="week"] {
+  color-scheme: light;
+}
+
+.field input[type="date"]::-webkit-calendar-picker-indicator,
+.field input[type="month"]::-webkit-calendar-picker-indicator,
+.field input[type="week"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.68;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.field input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.field input[type="month"]::-webkit-calendar-picker-indicator:hover,
+.field input[type="week"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: translateY(-1px);
 }
 
 .path-input {

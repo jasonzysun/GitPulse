@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
+import { AppMessageHost, type AppMessage, type AppMessageTone } from "./components/AppMessageHost";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { RepoMappingDialog } from "./components/RepoMappingDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -15,6 +16,7 @@ import {
   type GitIdentity,
   type LoadedSettingsState,
   type PeriodReportResult,
+  type ReportEnhanceResult,
   type ReportExportFormat,
   type PreviewMode,
   type ReportHistoryEntry,
@@ -24,6 +26,7 @@ import {
   STORAGE_KEY,
   buildExtractOptions,
   buildPeriodReportOptions,
+  buildReportEnhanceOptions,
   clearReportHistory,
   clearRepoIndexCache,
   countCommitProjects,
@@ -46,6 +49,7 @@ import {
   updateReportHistoryEntry,
   upsertRepoMapping,
   validateExtractSettings,
+  validateAiSettings,
   validateOutputSettings,
   validatePeriodReportSettings,
   validateRequiredSettings,
@@ -58,12 +62,6 @@ import "./styles/preview.css";
 import "./styles/dialogs.css";
 import "./styles/onboarding.css";
 import "./styles/theme.css";
-
-type CopyNotice = {
-  id: number;
-  message: string;
-  tone: "success" | "error";
-};
 
 function App() {
   const [loadedSettings] = useState<LoadedSettingsState>(loadSettingsState);
@@ -81,14 +79,14 @@ function App() {
   const [reportHistory, setReportHistory] = useState<ReportHistoryEntry[]>(loadReportHistory);
   const [activeHistoryId, setActiveHistoryId] = useState("");
   const [activePreview, setActivePreview] = useState<PreviewMode>("summary");
-  const [status, setStatus] = useState(
+  const [status, setStatusText] = useState(
     loadedSettings.recoveredCorruptedSettings
       ? "本地设置损坏，已恢复默认配置"
       : loadedSettings.recoveredLegacyApiKey
         ? "已迁移旧配置中的 AI 密钥引用"
         : "就绪",
   );
-  const [copyNotice, setCopyNotice] = useState<CopyNotice | null>(null);
+  const [appMessage, setAppMessage] = useState<AppMessage | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [isRepoScanning, setIsRepoScanning] = useState(false);
@@ -119,6 +117,22 @@ function App() {
     settings.aiProvider === "codex-oauth"
       ? Boolean(settings.aiModel.trim())
       : Boolean(settings.aiBaseUrl.trim() && settings.aiModel.trim() && settings.aiApiKey.trim());
+  const dismissAppMessage = useCallback(() => setAppMessage(null), []);
+
+  function showMessage(message: string, tone: AppMessageTone = inferMessageTone(message), duration?: number) {
+    setAppMessage({
+      id: Date.now(),
+      message,
+      tone,
+      duration: duration ?? (tone === "loading" ? 1800 : 2800),
+    });
+  }
+
+  function setStatus(message: string, options: { notify?: boolean; tone?: AppMessageTone; duration?: number } = {}) {
+    setStatusText(message);
+    const shouldNotify = options.notify ?? shouldNotifyStatus(message);
+    if (shouldNotify) showMessage(message, options.tone ?? inferMessageTone(message), options.duration);
+  }
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsForPersistence(settings)));
@@ -144,12 +158,6 @@ function App() {
     // Only run on startup; later key edits are handled by updateSetting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!copyNotice) return;
-    const timer = window.setTimeout(() => setCopyNotice(null), 2200);
-    return () => window.clearTimeout(timer);
-  }, [copyNotice]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -438,61 +446,59 @@ function App() {
     }, () => validatePeriodReportSettings(settings, getMonthRange(monthValue)));
   }
 
+  function setActivePreviewText(mode: PreviewMode, text: string) {
+    if (mode === "monthly") {
+      setMonthlyReport(text);
+    } else if (mode === "weekly") {
+      setWeeklyReport(text);
+    } else if (mode === "custom") {
+      setCustomReport(text);
+    } else {
+      setSummaryText(text);
+    }
+  }
+
+  async function saveActivePreviewText(mode: PreviewMode, range: DateRange, periodLabel: string, content: string) {
+    if (!settings.outputEnabled) return "";
+    const baseName = activePreviewBaseName(mode, range, periodLabel);
+    return invoke<string>("save_report_file", {
+      outputDir: settings.outputDir,
+      baseName,
+      format: "markdown",
+      content,
+    });
+  }
+
   async function polishReport(extraInstruction = "") {
+    const range = activePreviewRange(activePreview, dailyRange, weeklyRange, monthlyRange, customRange);
+    const periodLabel = activePreviewPeriodLabel(activePreview, dailyDate, weeklyWeek, monthlyLabel || monthlyMonth, customRange);
+    const baseReport = previewText;
     setExtractProgress(null);
-    await runTask("AI 正在润色", async () => {
-      if (activePreview === "weekly") {
-        const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "weekly", weeklyRange, weeklyWeek, true, extraInstruction, repos),
-        });
-        const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
-        setWeeklyReport(result.reportText);
-        setWarnings(result.warnings);
-        setLastOutputFile(result.outputFile);
-        setCommitCount(result.commitCount);
-        setProjectCount(result.projectCount);
-        rememberHistory(buildHistoryEntry("weekly", weeklyRange, result.periodLabel, result.reportText, result.commitCount, result.projectCount, aiEnhanced, result.outputFile));
-        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
-      } else if (activePreview === "monthly") {
-        const result = await invoke<PeriodReportResult>("generate_period_report", {
-          options: buildPeriodReportOptions(settings, projectNames, "monthly", monthlyRange, formatMonthLabel(monthlyMonth), true, extraInstruction, repos),
-        });
-        const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
-        setMonthlyMonth(result.periodLabel);
-        setMonthlyReport(result.reportText);
-        setMonthlyLabel(result.periodLabel);
-        setWarnings(result.warnings);
-        setLastOutputFile(result.outputFile);
-        setCommitCount(result.commitCount);
-        setProjectCount(result.projectCount);
-        rememberHistory(buildHistoryEntry("monthly", monthlyRange, result.periodLabel, result.reportText, result.commitCount, result.projectCount, aiEnhanced, result.outputFile));
-        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
-      } else {
-        const range = activePreview === "custom" ? customRange : dailyRange;
-        const result = await invoke<ExtractResult>("extract_commits", {
-          options: buildExtractOptions(settings, projectNames, range, true, extraInstruction, repos, activePreview === "custom" ? "custom" : "daily"),
-        });
-        const reportText = result.detailedText || result.summaryText;
-        const mode = activePreview === "custom" ? "custom" : "summary";
-        const periodLabel = mode === "custom" ? `${range.startDate} ~ ${range.endDate}` : range.startDate;
-        const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
-        const projectTotal = countCommitProjects(result.commits, projectNames);
-        if (activePreview === "custom") {
-          setCustomReport(reportText);
-        } else {
-          setSummaryText(reportText);
-        }
-        setWarnings(result.warnings);
-        setLastOutputFile("");
-        setCommitCount(result.commits.length);
-        setProjectCount(projectTotal);
-        rememberHistory(buildHistoryEntry(mode, range, periodLabel, reportText, result.commits.length, projectTotal, aiEnhanced));
-        setStatus(hasAiWarning(result.warnings) ? "AI 润色失败" : "AI 润色已完成");
-      }
+    await runTask("AI 正在润色当前报告", async () => {
+      const result = await invoke<ReportEnhanceResult>("enhance_report", {
+        options: buildReportEnhanceOptions(settings, activePreview, range, baseReport, extraInstruction),
+      });
+      const aiEnhanced = settings.aiEnabled && !hasAiWarning(result.warnings);
+      const outputFile = await saveActivePreviewText(activePreview, range, periodLabel, result.reportText);
+      setActivePreviewText(activePreview, result.reportText);
+      setWarnings(result.warnings);
+      setLastOutputFile(outputFile);
+      rememberHistory(buildHistoryEntry(
+        activePreview,
+        range,
+        periodLabel,
+        result.reportText,
+        commitCount,
+        projectCount,
+        aiEnhanced,
+        outputFile,
+      ));
+      setStatus(hasAiWarning(result.warnings) ? "AI 润色失败，已保留当前报告" : "AI 润色已完成");
     }, () => {
-      if (activePreview === "weekly") return validatePeriodReportSettings(settings, weeklyRange);
-      if (activePreview === "monthly") return validatePeriodReportSettings(settings, monthlyRange);
-      return validateExtractSettings(settings, activePreview === "custom" ? customRange : dailyRange);
+      if (!baseReport.trim()) throw new Error("当前报告为空，请先生成报告再润色");
+      if (!settings.aiEnabled) throw new Error("请先在设置中开启 AI 润色");
+      validateAiSettings(settings);
+      validateOutputSettings(settings);
     });
   }
 
@@ -500,11 +506,9 @@ function App() {
     if (!previewText) return;
     try {
       await navigator.clipboard.writeText(previewText);
-      setStatus("内容已复制到剪贴板");
-      setCopyNotice({ id: Date.now(), message: "已复制到剪贴板", tone: "success" });
+      setStatus("内容已复制到剪贴板", { tone: "success", notify: true });
     } catch {
-      setStatus("复制失败，请重试");
-      setCopyNotice({ id: Date.now(), message: "复制失败，请重试", tone: "error" });
+      setStatus("复制失败，请重试", { tone: "error", notify: true });
     }
   }
 
@@ -561,11 +565,9 @@ function App() {
   async function copyReportHistory(entry: ReportHistoryEntry) {
     try {
       await navigator.clipboard.writeText(entry.reportText);
-      setStatus(`已复制历史报告：${entry.title}`);
-      setCopyNotice({ id: Date.now(), message: "已复制历史报告", tone: "success" });
+      setStatus(`已复制历史报告：${entry.title}`, { tone: "success", notify: true });
     } catch {
-      setStatus("复制历史报告失败，请重试");
-      setCopyNotice({ id: Date.now(), message: "复制失败，请重试", tone: "error" });
+      setStatus("复制历史报告失败，请重试", { tone: "error", notify: true });
     }
   }
 
@@ -591,13 +593,13 @@ function App() {
 
   async function runTask(label: string, task: () => Promise<void>, validate = () => validateRequiredSettings(settings)) {
     setIsBusy(true);
-    setStatus(label);
+    setStatus(label, { tone: "loading", notify: true, duration: 1600 });
     setWarnings([]);
     try {
       validate();
       await task();
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus(error instanceof Error ? error.message : String(error), { tone: "error", notify: true, duration: 4200 });
     } finally {
       setIsBusy(false);
     }
@@ -669,7 +671,7 @@ function App() {
         return { ...current, aiApiKeySaved: true };
       });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
+      setStatus(error instanceof Error ? error.message : String(error), { tone: "error", notify: true, duration: 4200 });
     }
   }
 
@@ -689,12 +691,12 @@ function App() {
 
   return (
     <main className="app-root">
+      <AppMessageHost message={appMessage} onDismiss={dismissAppMessage} />
       <Workbench
         repos={repos}
         projectNames={projectNames}
         previewText={previewText}
         activePreview={activePreview}
-        copyNotice={copyNotice}
         status={status}
         warnings={warnings}
         isBusy={isBusy}
@@ -767,6 +769,54 @@ function App() {
       />
     </main>
   );
+}
+
+function activePreviewRange(
+  mode: PreviewMode,
+  dailyRange: DateRange,
+  weeklyRange: DateRange,
+  monthlyRange: DateRange,
+  customRange: DateRange,
+) {
+  if (mode === "weekly") return weeklyRange;
+  if (mode === "monthly") return monthlyRange;
+  if (mode === "custom") return customRange;
+  return dailyRange;
+}
+
+function activePreviewPeriodLabel(
+  mode: PreviewMode,
+  dailyDate: string,
+  weeklyWeek: string,
+  monthlyMonth: string,
+  customRange: DateRange,
+) {
+  if (mode === "weekly") return weeklyWeek;
+  if (mode === "monthly") return formatMonthLabel(monthlyMonth);
+  if (mode === "custom") return `${customRange.startDate} ~ ${customRange.endDate}`;
+  return dailyDate;
+}
+
+function activePreviewBaseName(mode: PreviewMode, range: DateRange, periodLabel: string) {
+  if (mode === "monthly") return `monthly_report_${periodLabel}`;
+  if (mode === "weekly") return `weekly_report_${periodLabel}`;
+  return `git_commits_${range.startDate}_to_${range.endDate}`;
+}
+
+function shouldNotifyStatus(message: string) {
+  const trimmed = message.trim();
+  if (!trimmed || trimmed === "就绪") return false;
+  if (trimmed.startsWith("正在扫描仓库：") || trimmed.startsWith("正在提取提交：")) return false;
+  return true;
+}
+
+function inferMessageTone(message: string): AppMessageTone {
+  if (message.includes("失败") || message.includes("错误") || message.includes("无效") || message.includes("无法")) return "error";
+  if (message.includes("请选择") || message.includes("请输入") || message.includes("请先") || message.includes("不能为空")) return "warning";
+  if (message.includes("取消") || message.includes("未写入") || message.includes("未读取") || message.includes("待配置")) return "warning";
+  if (message.startsWith("正在")) return "loading";
+  if (message.includes("已") || message.includes("完成") || message.includes("生成")) return "success";
+  return "info";
 }
 
 function hasAiWarning(warnings: string[]) {

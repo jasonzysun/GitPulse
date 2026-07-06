@@ -31,6 +31,45 @@
   background: rgba(3, 8, 15, 0.58);
 }
 
+:root[data-theme="dark"] .app-message {
+  border-color: rgba(109, 168, 255, 0.3);
+  color: #d9eaff;
+  background:
+    linear-gradient(180deg, rgba(20, 31, 48, 0.98), rgba(12, 22, 36, 0.98)),
+    var(--paper);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+:root[data-theme="dark"] .app-message button:hover {
+  background: rgba(109, 168, 255, 0.14);
+}
+
+:root[data-theme="dark"] .app-message.success {
+  border-color: rgba(90, 214, 159, 0.28);
+  color: #9ee8c7;
+  background:
+    linear-gradient(180deg, rgba(20, 47, 39, 0.98), rgba(13, 35, 29, 0.98)),
+    var(--paper);
+}
+
+:root[data-theme="dark"] .app-message.warning {
+  border-color: rgba(244, 201, 120, 0.34);
+  color: #f4c978;
+  background:
+    linear-gradient(180deg, rgba(54, 39, 18, 0.98), rgba(38, 27, 13, 0.98)),
+    var(--paper);
+}
+
+:root[data-theme="dark"] .app-message.error {
+  border-color: rgba(255, 122, 126, 0.34);
+  color: #ffb3b6;
+  background:
+    linear-gradient(180deg, rgba(54, 23, 27, 0.98), rgba(36, 15, 18, 0.98)),
+    var(--paper);
+}
+
 :root[data-theme="dark"] .field input,
 :root[data-theme="dark"] .field select,
 :root[data-theme="dark"] .mapping-input,
@@ -38,7 +77,12 @@
   border-color: var(--line) !important;
   color: var(--ink) !important;
   background-color: rgba(10, 18, 31, 0.86) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color-scheme: dark;
+}
+
+:root[data-theme="dark"] .field select {
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b7c5d8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="dark"] .field input:focus,
@@ -46,6 +90,9 @@
 :root[data-theme="dark"] .mapping-input:focus,
 :root[data-theme="dark"] .refinement-input:focus {
   background-color: rgba(12, 22, 36, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(109, 168, 255, 0.16);
 }
 
 :root[data-theme="dark"] input,
@@ -272,6 +319,40 @@
   background: rgba(63, 140, 255, 0.28);
 }
 
+:root[data-theme="dark"] .model-menu-toggle {
+  color: #90a2b8;
+}
+
+:root[data-theme="dark"] .model-combobox.open .model-menu-toggle {
+  border-color: rgba(109, 168, 255, 0.24);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.16);
+}
+
+:root[data-theme="dark"] .model-options {
+  border-color: rgba(109, 168, 255, 0.24);
+  background:
+    linear-gradient(180deg, rgba(18, 29, 46, 0.98), rgba(10, 18, 31, 0.98)),
+    var(--paper);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.44),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+:root[data-theme="dark"] .model-options button {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .model-options button:hover,
+:root[data-theme="dark"] .model-options button.selected {
+  color: #d9eaff;
+  background: rgba(109, 168, 255, 0.14);
+}
+
+:root[data-theme="dark"] .model-options-empty {
+  color: #90a2b8;
+}
+
 :root[data-theme="dark"] .model-fetch-note {
   border-color: rgba(109, 168, 255, 0.28);
   color: #d9eaff;
@@ -430,19 +511,6 @@
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
 
-:root[data-theme="dark"] .copy-toast {
-  border-color: rgba(109, 168, 255, 0.32);
-  color: var(--primary-dark);
-  background: rgba(16, 24, 39, 0.96);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36);
-}
-
-:root[data-theme="dark"] .copy-toast.error {
-  border-color: rgba(244, 201, 120, 0.34);
-  color: #f4c978;
-  background: rgba(45, 30, 12, 0.96);
-}
-
 :root[data-theme="dark"] .settings-trigger {
   color: var(--primary-dark) !important;
   background: rgba(20, 31, 48, 0.88) !important;
@@ -467,7 +535,8 @@
 :root[data-theme="dark"] .period-range-button {
   border-color: rgba(109, 168, 255, 0.22);
   color: var(--ink);
-  background: rgba(10, 18, 31, 0.86);
+  background: linear-gradient(180deg, rgba(15, 26, 43, 0.96), rgba(10, 18, 31, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color-scheme: dark;
 }
 
@@ -475,7 +544,19 @@
 :root[data-theme="dark"] .period-range-button:focus-visible {
   border-color: var(--primary);
   background: rgba(12, 22, 36, 0.96);
-  box-shadow: 0 0 0 3px rgba(109, 168, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(109, 168, 255, 0.16);
+}
+
+:root[data-theme="dark"] .report-period-control input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .report-period-control input[type="month"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .report-period-control input[type="week"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .history-filter-bar input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .field input[type="date"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .field input[type="month"]::-webkit-calendar-picker-indicator,
+:root[data-theme="dark"] .field input[type="week"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.25);
 }
 
 :root[data-theme="dark"] .period-range-button:hover:not(:disabled) {
@@ -559,8 +640,13 @@
 :root[data-theme="dark"] .history-filter-reset {
   border-color: rgba(109, 168, 255, 0.2);
   color: var(--ink);
-  background: rgba(10, 18, 31, 0.82);
+  background: linear-gradient(180deg, rgba(15, 26, 43, 0.92), rgba(10, 18, 31, 0.86));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color-scheme: dark;
+}
+
+:root[data-theme="dark"] .history-filter-bar select {
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23b7c5d8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 :root[data-theme="dark"] .history-search-field input:focus,
@@ -568,7 +654,9 @@
 :root[data-theme="dark"] .history-filter-bar input[type="date"]:focus {
   border-color: var(--primary);
   background: rgba(12, 22, 36, 0.96);
-  box-shadow: 0 0 0 3px rgba(109, 168, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(109, 168, 255, 0.16);
 }
 
 :root[data-theme="dark"] .history-filter-reset:hover {

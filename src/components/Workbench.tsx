@@ -1,7 +1,6 @@
 import {
   AlertCircle,
   CalendarDays,
-  CheckCircle2,
   ChevronDown,
   Clipboard,
   FileDown,
@@ -40,7 +39,6 @@ type Props = {
   repos: RepoInfo[];
   previewText: string;
   activePreview: PreviewMode;
-  copyNotice: { id: number; message: string; tone: "success" | "error" } | null;
   status: string;
   warnings: string[];
   isBusy: boolean;
@@ -380,12 +378,6 @@ export function Workbench(props: Props) {
               </div>
             </div>
           </div>
-          {props.copyNotice && (
-            <div className={`copy-toast ${props.copyNotice.tone}`} role="status" aria-live="polite" key={props.copyNotice.id}>
-              {props.copyNotice.tone === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
-              {props.copyNotice.message}
-            </div>
-          )}
           <div className="preview-shell">
             {props.isBusy ? (
               <div className="preview-loading">

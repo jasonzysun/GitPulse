@@ -349,7 +349,110 @@
 .model-picker {
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
   gap: 8px;
+}
+
+.model-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.model-combobox input {
+  padding-right: 42px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.model-menu-toggle {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  transition: color 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+.model-menu-toggle svg {
+  transition: transform 0.16s ease;
+}
+
+.model-combobox.open .model-menu-toggle {
+  border-color: rgba(63, 140, 255, 0.18);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.1);
+}
+
+.model-combobox.open .model-menu-toggle svg {
+  transform: rotate(180deg);
+}
+
+.model-options {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 228px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(63, 140, 255, 0.22);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 251, 255, 0.96)),
+    var(--paper);
+  box-shadow:
+    0 16px 38px rgba(24, 35, 52, 0.16),
+    0 0 0 1px rgba(255, 255, 255, 0.76) inset;
+}
+
+.model-options button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 720;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+
+.model-options button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-options button:hover,
+.model-options button.selected {
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.12);
+}
+
+.model-options button svg {
+  color: var(--primary);
+}
+
+.model-options-empty {
+  padding: 10px 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.45;
 }
 
 .model-fetch-button {

@@ -2,6 +2,7 @@ import {
   Activity,
   AlertCircle,
   Bot,
+  ChevronDown,
   CheckCircle2,
   Download,
   ExternalLink,
@@ -109,6 +110,7 @@ export function SettingsDialog({
   const [showAiApiKey, setShowAiApiKey] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>("workspace");
   const [aiModelOptions, setAiModelOptions] = useState<string[]>([]);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [modelFetchStatus, setModelFetchStatus] = useState<ModelFetchStatus>(EMPTY_MODEL_FETCH_STATUS);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [codexAuth, setCodexAuth] = useState<{ authenticated: boolean; email?: string }>({ authenticated: false });
@@ -118,6 +120,7 @@ export function SettingsDialog({
   const codexPollTimer = useRef<number | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);
   const lastSettingsRef = useRef(settings);
+  const modelPickerRef = useRef<HTMLDivElement | null>(null);
   const [promptEditTarget, setPromptEditTarget] = useState<"daily" | "monthly">("daily");
   const diagnostics = useDiagnosticsPanel({
     open,
@@ -131,6 +134,7 @@ export function SettingsDialog({
       setShowAiApiKey(false);
       setActiveTab("workspace");
       setAiModelOptions([]);
+      setModelMenuOpen(false);
       setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
       setPendingDeleteIndex(null);
       setCodexFlow(null);
@@ -157,6 +161,15 @@ export function SettingsDialog({
     if (open && settings.aiProvider === "codex-oauth") void refreshCodexStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, settings.aiProvider]);
+  useEffect(() => {
+    if (!modelMenuOpen) return;
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (modelPickerRef.current?.contains(event.target as Node)) return;
+      setModelMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [modelMenuOpen]);
   if (!open) return null;
 
   const mappingRows = parseMappingText(settings.projectNamesText);
@@ -166,6 +179,7 @@ export function SettingsDialog({
 
   function resetAiModelFetch() {
     setAiModelOptions([]);
+    setModelMenuOpen(false);
     setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
   }
 
@@ -192,6 +206,11 @@ export function SettingsDialog({
 
   function updateAiModel(model: string) {
     updateSetting("aiModel", model);
+  }
+
+  function selectAiModel(model: string) {
+    updateAiModel(model);
+    setModelMenuOpen(false);
   }
 
   function resetSystemPrompt() {
@@ -232,14 +251,17 @@ export function SettingsDialog({
       const modelIds = [...new Set(models.map((model) => model.id.trim()).filter(Boolean))];
       if (modelIds.length === 0) {
         setAiModelOptions([]);
+        setModelMenuOpen(false);
         setModelFetchStatus({ type: "error", message: "没有读取到可用模型，请检查服务返回内容" });
         return;
       }
       setAiModelOptions(modelIds);
       if (!settings.aiModel.trim()) updateAiModel(modelIds[0]);
+      setModelMenuOpen(true);
       setModelFetchStatus({ type: "success", message: `已获取 ${modelIds.length} 个模型，点击模型框即可下拉选择` });
     } catch (error) {
       setAiModelOptions([]);
+      setModelMenuOpen(false);
       setModelFetchStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
     }
   }
@@ -570,13 +592,53 @@ export function SettingsDialog({
                   </>
                 )}
                 <Field label="模型" hint="可手动输入；也可以根据当前 Base URL 与 API Key 获取模型列表后选择。">
-                  <div className="model-picker">
-                    <input
-                      value={settings.aiModel}
-                      onChange={(event) => updateAiModel(event.target.value)}
-                      list="ai-model-options"
-                      placeholder="例如：gpt-4.1-mini"
-                    />
+                  <div className="model-picker" ref={modelPickerRef}>
+                    <div className={`model-combobox ${modelMenuOpen ? "open" : ""}`}>
+                      <input
+                        value={settings.aiModel}
+                        onChange={(event) => updateAiModel(event.target.value)}
+                        onFocus={() => setModelMenuOpen(true)}
+                        placeholder="例如：gpt-4.1-mini"
+                        role="combobox"
+                        aria-controls="ai-model-options"
+                        aria-expanded={modelMenuOpen}
+                        aria-haspopup="listbox"
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className="model-menu-toggle"
+                        onClick={() => setModelMenuOpen((current) => !current)}
+                        aria-label={modelMenuOpen ? "收起模型列表" : "展开模型列表"}
+                        aria-expanded={modelMenuOpen}
+                      >
+                        <ChevronDown size={16} />
+                      </button>
+                      {modelMenuOpen && (
+                        <div className="model-options" id="ai-model-options" role="listbox">
+                          {aiModelOptions.length > 0 ? (
+                            aiModelOptions.map((model) => (
+                              <button
+                                key={model}
+                                type="button"
+                                className={settings.aiModel === model ? "selected" : ""}
+                                role="option"
+                                aria-selected={settings.aiModel === model}
+                                onClick={() => selectAiModel(model)}
+                              >
+                                <span>{model}</span>
+                                {settings.aiModel === model && <CheckCircle2 size={14} />}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="model-options-empty" role="status">
+                              先点击右侧获取模型，或直接输入模型名
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="model-fetch-button"
@@ -588,11 +650,6 @@ export function SettingsDialog({
                       {modelFetchStatus.type === "loading" ? "获取中" : "获取模型"}
                     </button>
                   </div>
-                  <datalist id="ai-model-options">
-                    {aiModelOptions.map((model) => (
-                      <option key={model} value={model} />
-                    ))}
-                  </datalist>
                   {modelFetchStatus.message && (
                     <p className={`model-fetch-note ${modelFetchStatus.type}`}>
                       {modelFetchStatus.type === "loading" && <Loader2 className="spin" size={14} />}
