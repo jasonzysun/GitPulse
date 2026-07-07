@@ -456,7 +456,7 @@ export function SettingsDialog({
             {activeTab === "workspace" && (
               <>
                 <section className="settings-section">
-                  <SectionTitle icon={<FolderGit2 size={16} />} title="工作区" />
+                  <SectionTitle icon={<FolderGit2 size={16} />} title="基础配置" />
                   <RootDirField
                     label="仓库根目录"
                     dirs={settings.rootDirs}
@@ -474,58 +474,69 @@ export function SettingsDialog({
                       onChange={(event) => updateSetting("author", event.target.value)}
                     />
                   </Field>
-                  <Field
-                    label="作者身份别名"
-                    hint="每行一组：展示姓名 -> Git name 或 email；多个别名用逗号分隔。提取时会自动合并匹配，报告中显示展示姓名。"
-                  >
-                    <textarea
-                      className="refinement-input author-alias-input"
-                      value={settings.authorAliasesText}
-                      onChange={(event) => updateSetting("authorAliasesText", event.target.value)}
-                      placeholder="张三 -> zhangsan, zhangsan@company.com"
-                    />
-                  </Field>
+                  <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
+                  {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={onChooseOutputDir} />}
                   <p className="mapping-hint">日报默认使用今天；周报取本周；月报可在首页选择月份。其他日期范围请切换到「自定义」。</p>
                 </section>
 
-                <section className="settings-section">
-                  <SectionTitle icon={<Settings2 size={16} />} title="输出与提取" />
-                  <Toggle label="输出到文件" checked={settings.outputEnabled} onChange={(value) => updateSetting("outputEnabled", value)} />
-                  {settings.outputEnabled && <PathInput label="输出目录" value={settings.outputDir} onBrowse={onChooseOutputDir} />}
-                  <div className="settings-toggle-grid">
-                    <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
-                    <Toggle label="排除合并提交" checked={settings.excludeMergeCommits} onChange={(value) => updateSetting("excludeMergeCommits", value)} />
-                    <Toggle label="排除回滚提交" checked={settings.excludeRevertCommits} onChange={(value) => updateSetting("excludeRevertCommits", value)} />
-                    <Toggle label="排除 Bot 提交" checked={settings.excludeBotCommits} onChange={(value) => updateSetting("excludeBotCommits", value)} />
-                    <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
-                    <Toggle label="显示提交证据" checked={settings.showEvidenceDetails} onChange={(value) => updateSetting("showEvidenceDetails", value)} />
-                  </div>
-                  <Field
-                    label="日报条目前缀"
-                    hint="控制 {commitItems} 的每条输出。推荐使用映射项目名，例如：柏科注安工程师 - 接入题目纠错反馈模块。"
-                  >
-                    <select
-                      value={settings.commitItemPrefixMode}
-                      onChange={(event) => updateSetting("commitItemPrefixMode", event.target.value as AppSettings["commitItemPrefixMode"])}
+                <details className="settings-section advanced-settings-section">
+                  <summary>
+                    <span className="advanced-settings-title">
+                      <Settings2 size={16} />
+                      <span>
+                        <strong>高级提取设置</strong>
+                        <small>分支、过滤、作者别名、证据和日报条目前缀</small>
+                      </span>
+                    </span>
+                    <ChevronDown size={16} />
+                  </summary>
+                  <div className="advanced-settings-content">
+                    <Field
+                      label="作者身份别名"
+                      hint="每行一组：展示姓名 -> Git name 或 email；多个别名用逗号分隔。提取时会自动合并匹配，报告中显示展示姓名。"
                     >
-                      <option value="mapped-project">映射项目名</option>
-                      <option value="repo-branch-and-mapped">仓库与分支 + 映射项目名</option>
-                      <option value="repo-branch">仓库与分支</option>
-                      <option value="none">不显示前缀</option>
-                    </select>
-                  </Field>
-                  <Field
-                    label="证据链接前缀"
-                    hint="可选。每行一条：前缀 -> 链接模板；支持 {id}、{key}、{prefix}，用于 #123、PR #123、JIRA-123 等编号。"
-                  >
-                    <textarea
-                      className="refinement-input evidence-link-input"
-                      value={settings.evidenceLinkPrefixesText}
-                      onChange={(event) => updateSetting("evidenceLinkPrefixesText", event.target.value)}
-                      placeholder={"# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}\nJIRA -> https://jira.example.com/browse/{key}"}
-                    />
-                  </Field>
-                </section>
+                      <textarea
+                        className="refinement-input author-alias-input"
+                        value={settings.authorAliasesText}
+                        onChange={(event) => updateSetting("authorAliasesText", event.target.value)}
+                        placeholder="张三 -> zhangsan, zhangsan@company.com"
+                      />
+                    </Field>
+                    <div className="settings-toggle-grid">
+                      <Toggle label="提取所有分支" checked={settings.extractAllBranches} onChange={(value) => updateSetting("extractAllBranches", value)} />
+                      <Toggle label="排除合并提交" checked={settings.excludeMergeCommits} onChange={(value) => updateSetting("excludeMergeCommits", value)} />
+                      <Toggle label="排除回滚提交" checked={settings.excludeRevertCommits} onChange={(value) => updateSetting("excludeRevertCommits", value)} />
+                      <Toggle label="排除 Bot 提交" checked={settings.excludeBotCommits} onChange={(value) => updateSetting("excludeBotCommits", value)} />
+                      <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
+                      <Toggle label="显示提交证据" checked={settings.showEvidenceDetails} onChange={(value) => updateSetting("showEvidenceDetails", value)} />
+                    </div>
+                    <Field
+                      label="日报条目前缀"
+                      hint="控制 {commitItems} 的每条输出。推荐使用映射项目名，例如：柏科注安工程师 - 接入题目纠错反馈模块。"
+                    >
+                      <select
+                        value={settings.commitItemPrefixMode}
+                        onChange={(event) => updateSetting("commitItemPrefixMode", event.target.value as AppSettings["commitItemPrefixMode"])}
+                      >
+                        <option value="mapped-project">映射项目名</option>
+                        <option value="repo-branch-and-mapped">仓库与分支 + 映射项目名</option>
+                        <option value="repo-branch">仓库与分支</option>
+                        <option value="none">不显示前缀</option>
+                      </select>
+                    </Field>
+                    <Field
+                      label="证据链接前缀"
+                      hint="可选。每行一条：前缀 -> 链接模板；支持 {id}、{key}、{prefix}，用于 #123、PR #123、JIRA-123 等编号。"
+                    >
+                      <textarea
+                        className="refinement-input evidence-link-input"
+                        value={settings.evidenceLinkPrefixesText}
+                        onChange={(event) => updateSetting("evidenceLinkPrefixesText", event.target.value)}
+                        placeholder={"# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}\nJIRA -> https://jira.example.com/browse/{key}"}
+                      />
+                    </Field>
+                  </div>
+                </details>
               </>
             )}
 

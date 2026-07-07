@@ -193,6 +193,88 @@
   margin-bottom: 0;
 }
 
+.advanced-settings-section {
+  padding: 0;
+  overflow: hidden;
+}
+
+.advanced-settings-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 14px;
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  transition: background 0.14s ease;
+}
+
+.advanced-settings-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-settings-section summary:hover {
+  background: rgba(63, 140, 255, 0.06);
+}
+
+.advanced-settings-section summary > svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.16s ease, color 0.16s ease;
+}
+
+.advanced-settings-section[open] summary {
+  border-bottom: 1px solid rgba(220, 230, 240, 0.9);
+  background: rgba(237, 246, 255, 0.58);
+}
+
+.advanced-settings-section[open] summary > svg {
+  color: var(--primary-dark);
+  transform: rotate(180deg);
+}
+
+.advanced-settings-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.advanced-settings-title > svg {
+  flex: none;
+  color: var(--primary-dark);
+}
+
+.advanced-settings-title span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.advanced-settings-title strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 860;
+  line-height: 18px;
+}
+
+.advanced-settings-title small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.advanced-settings-content {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
 .theme-mode-control {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -304,6 +304,23 @@
   background: rgba(12, 22, 36, 0.72);
 }
 
+:root[data-theme="dark"] .advanced-settings-section summary:hover {
+  background: rgba(63, 140, 255, 0.1);
+}
+
+:root[data-theme="dark"] .advanced-settings-section[open] summary {
+  border-bottom-color: rgba(52, 74, 103, 0.9);
+  background: rgba(63, 140, 255, 0.12);
+}
+
+:root[data-theme="dark"] .advanced-settings-title strong {
+  color: #e5f0ff;
+}
+
+:root[data-theme="dark"] .advanced-settings-title small {
+  color: #9fb4d0;
+}
+
 :root[data-theme="dark"] .report-format-presets button:hover,
 :root[data-theme="dark"] .report-variable-grid button:hover {
   border-color: rgba(109, 168, 255, 0.34);

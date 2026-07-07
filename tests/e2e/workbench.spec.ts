@@ -208,8 +208,10 @@ test("keeps export setup visible when output is not configured", async ({ page }
 
   await expect(page.getByRole("dialog", { name: "应用设置" })).toBeVisible();
   await expect(page.getByRole("status").getByText("请先开启输出到文件并选择输出目录")).toBeVisible();
-  await expect(page.getByText("输出与提取")).toBeVisible();
+  await expect(page.getByText("基础配置")).toBeVisible();
   await expect(page.getByText("输出到文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("高级提取设置")).toBeVisible();
+  await expect(page.getByLabel("作者身份别名")).toBeHidden();
 
   const saveCalls = await page.evaluate(() =>
     window.__mockTauri.calls.filter((call) => call.cmd === "save_report_file"),
@@ -313,6 +315,7 @@ test("expands author aliases when generating daily reports", async ({ page }) =>
 
   await expectWorkbench(page);
   await page.getByRole("button", { name: "打开设置" }).click();
+  await page.getByText("高级提取设置").click();
   await page.getByLabel("作者身份别名").fill("GoldenZqqq -> zqqq, golden@example.com");
   await page.getByRole("button", { name: "关闭设置" }).click();
   await page.getByRole("button", { name: "生成日报" }).click();
@@ -347,6 +350,7 @@ test("passes evidence link rules when generating daily reports", async ({ page }
 
   await expectWorkbench(page);
   await page.getByRole("button", { name: "打开设置" }).click();
+  await page.getByText("高级提取设置").click();
   await page
     .getByLabel("证据链接前缀")
     .fill("# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}");
