@@ -63,7 +63,10 @@ type Props = {
   monthlyRange: DateRange;
   customRange: DateRange;
   aiConfigured: boolean;
+  extractAllBranches: boolean;
   showEvidenceDetails: boolean;
+  outputEnabled: boolean;
+  outputDir: string;
   onExtract: () => void;
   onGenerateWeekly: () => void;
   onGenerateCustom: (range: DateRange) => void;
@@ -167,6 +170,14 @@ export function Workbench(props: Props) {
         : "生成日报";
   const generateButtonIcon = props.activePreview === "monthly" ? <FileDown size={15} /> : props.activePreview === "weekly" || props.activePreview === "custom" ? <CalendarDays size={15} /> : <GitBranch size={15} />;
   const enabledRepoCount = props.repos.filter((repo) => !props.disabledRepos.includes(repo.path)).length;
+  const activeRangeLabel = formatActiveRange(props.activePreview, props.dailyDate, props.weeklyRange, props.monthlyRange, props.customRange);
+  const exportConfigured = props.canExport;
+  const exportButtonLabel = exportConfigured ? "导出" : "设置导出";
+  const exportButtonTitle = exportConfigured
+    ? "导出为 Markdown"
+    : props.outputEnabled
+      ? "请选择输出目录后再导出报告"
+      : "请先开启输出到文件并选择输出目录";
   const repoMeta = enabledRepoCount === props.repos.length
     ? `${props.repos.length} repos`
     : `${enabledRepoCount}/${props.repos.length} repos`;
@@ -331,47 +342,51 @@ export function Workbench(props: Props) {
                     )}
                   </div>
                 )}
-                {(props.previewText && props.canExport) && (
-                  <div className="export-split">
-                    <button className="preview-save-button" type="button" onClick={() => handleExport("markdown")} disabled={props.isBusy} title="导出为 Markdown">
+                {props.previewText && (
+                  <div className={`export-split ${exportConfigured ? "has-menu" : "needs-setup"}`}>
+                    <button className="preview-save-button" type="button" onClick={() => handleExport("markdown")} disabled={props.isBusy} title={exportButtonTitle}>
                       <FileDown size={15} />
-                      导出
+                      {exportButtonLabel}
                     </button>
-                    <button
-                      className="export-split-toggle"
-                      type="button"
-                      onClick={() => setExportMenuOpen((current) => !current)}
-                      disabled={props.isBusy}
-                      aria-expanded={exportMenuOpen}
-                      aria-label="选择导出格式"
-                      title="选择导出格式"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                    {exportMenuOpen && (
-                      <div className="export-popover" role="menu" aria-label="导出格式">
-                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("markdown")}>
-                          <FileText size={15} />
-                          <span>
-                            <strong>Markdown</strong>
-                            <em>.md · 适合复制和继续编辑</em>
-                          </span>
+                    {exportConfigured && (
+                      <>
+                        <button
+                          className="export-split-toggle"
+                          type="button"
+                          onClick={() => setExportMenuOpen((current) => !current)}
+                          disabled={props.isBusy}
+                          aria-expanded={exportMenuOpen}
+                          aria-label="选择导出格式"
+                          title="选择导出格式"
+                        >
+                          <ChevronDown size={14} />
                         </button>
-                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("docx")}>
-                          <FileText size={15} />
-                          <span>
-                            <strong>Word 文档</strong>
-                            <em>.docx · 适合提交和归档</em>
-                          </span>
-                        </button>
-                        <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("pdf")}>
-                          <FileText size={15} />
-                          <span>
-                            <strong>PDF</strong>
-                            <em>.pdf · 适合发送和留档</em>
-                          </span>
-                        </button>
-                      </div>
+                        {exportMenuOpen && (
+                          <div className="export-popover" role="menu" aria-label="导出格式">
+                            <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("markdown")}>
+                              <FileText size={15} />
+                              <span>
+                                <strong>Markdown</strong>
+                                <em>.md · 适合复制和继续编辑</em>
+                              </span>
+                            </button>
+                            <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("docx")}>
+                              <FileText size={15} />
+                              <span>
+                                <strong>Word 文档</strong>
+                                <em>.docx · 适合提交和归档</em>
+                              </span>
+                            </button>
+                            <button type="button" className="export-option" role="menuitem" onClick={() => handleExport("pdf")}>
+                              <FileText size={15} />
+                              <span>
+                                <strong>PDF</strong>
+                                <em>.pdf · 适合发送和留档</em>
+                              </span>
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -381,6 +396,17 @@ export function Workbench(props: Props) {
                 </button>
               </div>
             </div>
+            <GenerationScopeStrip
+              activePreview={props.activePreview}
+              rangeLabel={activeRangeLabel}
+              author={props.author}
+              enabledRepoCount={enabledRepoCount}
+              totalRepoCount={props.repos.length}
+              extractAllBranches={props.extractAllBranches}
+              showEvidenceDetails={props.showEvidenceDetails}
+              outputEnabled={props.outputEnabled}
+              outputDir={props.outputDir}
+            />
           </div>
           <div className="preview-shell">
             {props.isBusy ? (
@@ -930,6 +956,64 @@ function ReportPeriodControl({
   );
 }
 
+function GenerationScopeStrip({
+  activePreview,
+  rangeLabel,
+  author,
+  enabledRepoCount,
+  totalRepoCount,
+  extractAllBranches,
+  showEvidenceDetails,
+  outputEnabled,
+  outputDir,
+}: {
+  activePreview: PreviewMode;
+  rangeLabel: string;
+  author: string;
+  enabledRepoCount: number;
+  totalRepoCount: number;
+  extractAllBranches: boolean;
+  showEvidenceDetails: boolean;
+  outputEnabled: boolean;
+  outputDir: string;
+}) {
+  const exportConfigured = outputEnabled && Boolean(outputDir.trim());
+  return (
+    <div className="generation-scope-strip" aria-label="当前生成范围">
+      <ScopeItem label="周期" value={`${getHistoryKindLabel(activePreview)} · ${rangeLabel}`} />
+      <ScopeItem label="作者" value={formatAuthorValue(author)} />
+      <ScopeItem label="仓库" value={formatRepoScope(enabledRepoCount, totalRepoCount)} tone={enabledRepoCount === 0 ? "attention" : "default"} />
+      <ScopeItem label="分支" value={extractAllBranches ? "全部分支" : "当前分支"} />
+      <ScopeItem label="证据" value={showEvidenceDetails ? "显示" : "未显示"} />
+      <ScopeItem
+        label="导出"
+        value={formatOutputScope(outputEnabled, outputDir)}
+        tone={exportConfigured ? "default" : "attention"}
+        title={exportConfigured ? outputDir : "需要在设置中开启输出并选择目录"}
+      />
+    </div>
+  );
+}
+
+function ScopeItem({
+  label,
+  value,
+  tone = "default",
+  title,
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "attention";
+  title?: string;
+}) {
+  return (
+    <span className={`generation-scope-item ${tone}`} title={title}>
+      <span className="generation-scope-label">{label}</span>
+      <span className="generation-scope-value">{value}</span>
+    </span>
+  );
+}
+
 function getHistoryKindLabel(mode: PreviewMode) {
   if (mode === "monthly") return "月报";
   if (mode === "weekly") return "周报";
@@ -984,6 +1068,29 @@ function formatAuthorScope(author: string) {
   if (!trimmed) return "全部作者";
   if (trimmed.includes(",")) return `多作者：${trimmed}`;
   return `作者：${trimmed}`;
+}
+
+function formatAuthorValue(author: string) {
+  const trimmed = author.trim();
+  if (!trimmed) return "全部作者";
+  if (!trimmed.includes(",")) return trimmed;
+  return trimmed
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join("、");
+}
+
+function formatRepoScope(enabledRepoCount: number, totalRepoCount: number) {
+  if (totalRepoCount === 0) return "未扫描";
+  if (enabledRepoCount === totalRepoCount) return `${totalRepoCount} 个仓库`;
+  return `${enabledRepoCount}/${totalRepoCount} 个仓库`;
+}
+
+function formatOutputScope(outputEnabled: boolean, outputDir: string) {
+  if (!outputEnabled) return "未开启";
+  if (!outputDir.trim()) return "待选目录";
+  return "已配置";
 }
 
 function formatHistoryRange(entry: ReportHistoryEntry) {

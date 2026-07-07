@@ -512,7 +512,17 @@ function App() {
   }
 
   async function saveReport(format: ReportExportFormat = "markdown") {
-    if (!previewText || !settings.outputEnabled) return;
+    if (!previewText) return;
+    if (!settings.outputEnabled || !settings.outputDir.trim()) {
+      setSettingsOpen(true);
+      setStatus(
+        settings.outputEnabled
+          ? "请选择输出目录后再导出报告"
+          : "请先开启输出到文件并选择输出目录",
+        { tone: "warning", notify: true, duration: 4200 },
+      );
+      return;
+    }
     let baseName: string;
     if (activePreview === "monthly") {
       baseName = `monthly_report_${monthlyLabel || formatMonthLabel(monthlyMonth)}`;
@@ -720,7 +730,10 @@ function App() {
         monthlyRange={monthlyRange}
         customRange={customRange}
         aiConfigured={aiConfigured}
+        extractAllBranches={settings.extractAllBranches}
         showEvidenceDetails={settings.showEvidenceDetails}
+        outputEnabled={settings.outputEnabled}
+        outputDir={settings.outputDir}
         onExtract={extractCommits}
         onGenerateWeekly={generateWeeklyReport}
         onGenerateCustom={generateCustomReport}

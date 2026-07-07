@@ -147,18 +147,27 @@ test("generates and exports a daily report", async ({ page }) => {
   });
 
   await expectWorkbench(page);
+  const scope = page.getByLabel("当前生成范围");
+  await expect(scope).toBeVisible();
+  await expect(scope.getByText("Playwright Tester")).toBeVisible();
+  await expect(scope.getByText("1 个仓库")).toBeVisible();
+  await expect(scope.getByText("当前分支")).toBeVisible();
+  await expect(scope.getByText("未显示")).toBeVisible();
+  await expect(scope.getByText("已配置")).toBeVisible();
+
   await page.getByRole("button", { name: "生成日报" }).click();
 
   await expect(page.getByText("完成浏览器级诊断校验")).toBeVisible();
   await openAssistTab(page, /交付/);
-  await expect(page.getByLabel("报告交付质量提示")).toBeVisible();
+  const qualityPanel = page.getByLabel("报告交付质量提示");
+  await expect(qualityPanel).toBeVisible();
   await expect(page.getByText("2 条提交")).toBeVisible();
   await expect(page.getByText("1 个项目")).toBeVisible();
   await expect(page.getByText("AI 待配置")).toBeVisible();
-  await expect(page.getByText("证据未显示")).toBeVisible();
+  await expect(qualityPanel.getByText("证据未显示")).toBeVisible();
   await expect(page.getByText("可导出")).toBeVisible();
   await openAssistTab(page, /最近/);
-  await expect(page.getByText(/日报 · \d{4}-\d{2}-\d{2}/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /日报 · \d{4}-\d{2}-\d{2}/ })).toBeVisible();
 
   await page.locator("button.preview-save-button").click();
 
@@ -170,6 +179,42 @@ test("generates and exports a daily report", async ({ page }) => {
   );
   expect(saveCalls).toHaveLength(1);
   expect(saveCalls[0].args.format).toBe("markdown");
+});
+
+test("keeps export setup visible when output is not configured", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, outputEnabled: false, outputDir: "" }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "# 今日工作报告\n\n- 补齐未配置导出时的操作入口",
+        detailedText: "",
+        warnings: [],
+        commits: [createCommit("abc1236", "fix: 补齐未配置导出时的操作入口")],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "生成日报" }).click();
+
+  await expect(page.getByText("补齐未配置导出时的操作入口")).toBeVisible();
+  const scope = page.getByLabel("当前生成范围");
+  await expect(scope.getByText("未开启")).toBeVisible();
+  await expect(page.getByRole("button", { name: "设置导出" })).toBeVisible();
+
+  await page.getByRole("button", { name: "设置导出" }).click();
+
+  await expect(page.getByRole("dialog", { name: "应用设置" })).toBeVisible();
+  await expect(page.getByRole("status").getByText("请先开启输出到文件并选择输出目录")).toBeVisible();
+  await expect(page.getByText("输出与提取")).toBeVisible();
+  await expect(page.getByText("输出到文件", { exact: true })).toBeVisible();
+
+  const saveCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "save_report_file"),
+  );
+  expect(saveCalls).toHaveLength(0);
 });
 
 test("shows actionable guidance for empty daily reports", async ({ page }) => {
@@ -362,7 +407,7 @@ test("generates and exports a monthly report", async ({ page }) => {
 
   await expect(page.getByText("完成报告逻辑拆分与导出能力加固")).toBeVisible();
   await openAssistTab(page, /最近/);
-  await expect(page.getByText(/月报 · 2026-06/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /月报 · 2026-06/ })).toBeVisible();
   await expect(page.getByText(/输出文件：.*monthly_report_2026-06\.md/)).toBeVisible();
 
   await page.locator("button.preview-save-button").click();
