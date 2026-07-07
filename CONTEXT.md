@@ -1,0 +1,67 @@
+# GitPulse Context
+
+GitPulse helps developers turn local Git activity into trustworthy work reports. This glossary defines the product language used when planning, grilling, and reviewing changes.
+
+## Language
+
+**Workspace Directory**:
+The folder a user chooses as the starting point for discovering Git repositories. One workspace directory can contain zero, one, or many repositories.
+_Avoid_: root path, scan folder, code folder
+
+**Repository**:
+A local Git project found under a workspace directory and eligible for report generation. A repository has a current branch and can be enabled or disabled for a report.
+_Avoid_: project, repo item
+
+**Repository Index**:
+The remembered list of discovered repositories for the current workspace directory set. It represents the user's current selectable source set, not the final report.
+_Avoid_: scan result, repo cache
+
+**Author Scope**:
+The person or people whose commits should be included in a report. Empty author scope means all authors, not an unknown author.
+_Avoid_: user filter, owner
+
+**Report Period**:
+The date span used to select commits for a report. Daily, weekly, monthly, and custom reports are different report types that all have a report period.
+_Avoid_: date filter, time range
+
+**Report Draft**:
+The locally generated report text before optional AI polishing. A report draft must remain useful even when AI polishing is unavailable.
+_Avoid_: raw output, summary text
+
+**AI Polishing**:
+An optional rewriting step that improves a report draft without inventing unsupported outcomes. AI polishing may fail without blocking local report generation.
+_Avoid_: AI generation, cloud report
+
+**Project Name Mapping**:
+A user-maintained rule that turns repository and branch names into a display name for reports. A mapping can target one branch or all branches of a repository.
+_Avoid_: alias, rename rule
+
+**Evidence Detail**:
+Trace information that links report items back to their original commit context. Evidence detail supports verification and should not be rewritten into unsupported claims.
+_Avoid_: source note, commit detail
+
+**Exported Report**:
+A report saved outside the app for submission, sharing, or archiving. Exporting is separate from generating or polishing a report.
+_Avoid_: saved output, generated file
+
+## Flagged Ambiguities
+
+**Project**:
+In product language, prefer **Repository** for a local Git source and **Project Name Mapping** for the display name shown in a report. Use "project" only in user-facing prose where it naturally means the work area represented by commits.
+
+**Generate**:
+Use "generate a report draft" for local commit-to-report creation. Use "AI polishing" for optional rewriting so we do not imply that AI owns the source of truth.
+
+## Example Dialogue
+
+Developer: "I selected two workspace directories, but one repository is missing."
+
+Domain expert: "Then the repository index is stale or the workspace directory does not contain that repository. Refresh the repository index before changing the report period."
+
+Developer: "The weekly report has no commits. Should AI polishing fix it?"
+
+Domain expert: "No. First check author scope, report period, and whether the repository is enabled. AI polishing only rewrites an existing report draft; it does not create evidence."
+
+Developer: "The report says `api-service(main)` but the user wants a Chinese name."
+
+Domain expert: "Add or update a project name mapping. Keep evidence detail tied to the original repository, branch, date, and commit."

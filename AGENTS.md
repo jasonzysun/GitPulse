@@ -41,6 +41,14 @@ cargo test
 - `src-tauri/src/ai.rs`: optional OpenAI-compatible and Anthropic Native report polishing
 - `src-tauri/src/models.rs`: shared Rust command models
 
+## Trellis + Grill Me Workflow
+
+- Trellis is initialized in `.trellis/`; use it for unclear, cross-layer, UX-sensitive, security-sensitive, release, or multi-step work.
+- Lightweight local edits may stay on the normal short path, but still follow the project rules in this file and `.trellis/spec/` when relevant.
+- For planning pressure tests, use `grill-with-docs`: challenge fuzzy terms against `CONTEXT.md`, ask one question at a time, recommend an answer, and update `CONTEXT.md` as product language is settled.
+- Codex is configured for Trellis inline mode; the main Codex session should read the active task artifacts and edit directly instead of assuming Trellis sub-agents are required.
+- See `docs/trellis-grill-workflow.md` for the practical Claude Code / Codex workflow.
+
 ## Notes
 
 - Do not reintroduce Python runtime dependencies on `main`.

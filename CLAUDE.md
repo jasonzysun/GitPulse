@@ -28,6 +28,10 @@ cargo test
 - `src-tauri/src/ai.rs`: optional OpenAI-compatible and Anthropic Native polishing
 - `src-tauri/src/lib.rs`: Tauri commands
 
+## Trellis + Grill Me
+
+Trellis is initialized in `.trellis/`. For unclear or multi-step work, create a Trellis task, use grill-style questioning during planning, and keep settled product language in `CONTEXT.md`. Practical usage notes live in `docs/trellis-grill-workflow.md`.
+
 ## Important
 
 The Python/Tkinter implementation is no longer on `main`. It is preserved on `codex/legacy-python-desktop`.
