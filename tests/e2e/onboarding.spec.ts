@@ -39,3 +39,31 @@ test("completes onboarding with mocked workspace scan", async ({ page }) => {
   await expect(page.getByRole("button", { name: "全部作者" })).toBeVisible();
   await expect(page.locator(".repo-display-name").filter({ hasText: "gitpulse" })).toBeVisible();
 });
+
+test("explains when onboarding workspace contains no git repositories", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({
+      onboardingDone: false,
+      rootDirs: [],
+      outputEnabled: false,
+      outputDir: "",
+      author: "",
+    }),
+    dialogResponses: [["C:/empty-workspace"]],
+    scanRepos: [],
+    gitIdentity: {
+      userName: "Playwright Tester",
+      userEmail: "playwright@example.com",
+    },
+  });
+
+  await page.getByRole("button", { name: "开始配置" }).click();
+  await page.getByRole("button", { name: /点击选择文件夹|继续添加目录/ }).click();
+
+  await expect(page.getByText("暂未发现 Git 仓库")).toBeVisible();
+  await expect(page.getByText("目录本身或子目录需要包含 `.git`。")).toBeVisible();
+  await expect(page.getByText("公司同步盘或权限受限目录可能需要换到本地路径。")).toBeVisible();
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByLabel("Git 作者")).toHaveValue("Playwright Tester");
+});

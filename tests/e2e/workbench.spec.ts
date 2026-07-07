@@ -217,6 +217,32 @@ test("keeps export setup visible when output is not configured", async ({ page }
   expect(saveCalls).toHaveLength(0);
 });
 
+test("guides users when workspace has no indexed repositories", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, rootDirs: [] }),
+    scanRepos: [],
+    dialogResponses: [["C:/empty-workspace"]],
+  });
+
+  await expectWorkbench(page);
+  const emptyState = page.getByLabel("仓库索引为空");
+  await expect(emptyState).toBeVisible();
+  await expect(emptyState.getByText("先添加仓库根目录")).toBeVisible();
+  await expect(emptyState.getByText("选择存放代码项目的文件夹后，GitPulse 会扫描其中的本地 Git 仓库。")).toBeVisible();
+  await expect(emptyState.getByText("多个工作区可分次添加。")).toBeVisible();
+
+  await emptyState.getByRole("button", { name: "添加目录" }).click();
+  await expect(emptyState.getByText("还没有扫描到 Git 仓库")).toBeVisible();
+  await expect(emptyState.getByText("确认项目目录内存在 `.git`。")).toBeVisible();
+  await emptyState.getByRole("button", { name: "重新扫描" }).click();
+
+  const scanCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "scan_repos"),
+  );
+  expect(scanCalls).toHaveLength(1);
+  expect(scanCalls[0].args.rootDirs).toEqual(["C:/empty-workspace"]);
+});
+
 test("shows actionable guidance for empty daily reports", async ({ page }) => {
   await launchApp(page, {
     settings,

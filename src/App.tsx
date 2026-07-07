@@ -716,6 +716,7 @@ function App() {
         summaryText={activePreview === "weekly" ? weeklyReport : activePreview === "custom" ? customReport : summaryText}
         reportHistory={reportHistory}
         activeHistoryId={activeHistoryId}
+        rootDirs={settings.rootDirs}
         repoCount={repos.length}
         commitCount={commitCount}
         projectCount={projectCount}
@@ -751,6 +752,7 @@ function App() {
         onEditRepo={setEditingRepo}
         onRefreshRepos={scanWorkspace}
         onCancelRepoScan={cancelRepoScan}
+        onAddRootDirs={addRootDirs}
         onPreviewChange={changePreview}
         onOpenSettings={() => setSettingsOpen(true)}
       />

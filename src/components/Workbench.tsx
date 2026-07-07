@@ -5,6 +5,7 @@ import {
   Clipboard,
   FileDown,
   FileText,
+  FolderPlus,
   GitBranch,
   History,
   Loader2,
@@ -87,6 +88,8 @@ type Props = {
   onCancelRepoScan: () => void;
   onPreviewChange: (preview: PreviewMode) => void;
   onOpenSettings: () => void;
+  rootDirs: string[];
+  onAddRootDirs: () => void;
 };
 
 type AssistPanel = "repos" | "history" | "quality";
@@ -502,7 +505,16 @@ export function Workbench(props: Props) {
                   </div>
                 )}
                 <div className="repo-list">
-                  {props.repos.length === 0 && <p className="empty-state">暂无仓库索引。</p>}
+                  {props.repos.length === 0 && (
+                    <RepoEmptyState
+                      hasRootDirs={props.rootDirs.length > 0}
+                      isBusy={props.isBusy}
+                      isRepoScanning={props.isRepoScanning}
+                      onAddRootDirs={props.onAddRootDirs}
+                      onRefreshRepos={props.onRefreshRepos}
+                      onOpenSettings={props.onOpenSettings}
+                    />
+                  )}
                   {props.repos.map((repo) => {
                     const enabled = !props.disabledRepos.includes(repo.path);
                     const displayName = resolveRepoDisplayName(repo, props.projectNames);
@@ -752,6 +764,68 @@ function HistoryFilterBar({
         </button>
       )}
     </div>
+  );
+}
+
+function RepoEmptyState({
+  hasRootDirs,
+  isBusy,
+  isRepoScanning,
+  onAddRootDirs,
+  onRefreshRepos,
+  onOpenSettings,
+}: {
+  hasRootDirs: boolean;
+  isBusy: boolean;
+  isRepoScanning: boolean;
+  onAddRootDirs: () => void;
+  onRefreshRepos: () => void;
+  onOpenSettings: () => void;
+}) {
+  const scanningDisabled = isBusy || isRepoScanning;
+  return (
+    <section className="repo-empty-state" aria-label="仓库索引为空">
+      <div className="repo-empty-icon" aria-hidden="true">
+        <TerminalSquare size={18} />
+      </div>
+      <div className="repo-empty-copy">
+        <strong>{hasRootDirs ? "还没有扫描到 Git 仓库" : "先添加仓库根目录"}</strong>
+        <p>
+          {hasRootDirs
+            ? "已配置目录，但当前索引为空。通常是目录层级不对、目录下没有 .git，或扫描还没有重新执行。"
+            : "选择存放代码项目的文件夹后，GitPulse 会扫描其中的本地 Git 仓库。"}
+        </p>
+      </div>
+      {hasRootDirs ? (
+        <ul className="repo-empty-checks">
+          <li>确认选择的是包含项目的上层目录。</li>
+          <li>确认项目目录内存在 `.git`。</li>
+          <li>移动或新增仓库后请重新扫描。</li>
+        </ul>
+      ) : (
+        <ul className="repo-empty-checks">
+          <li>可以选择 `D:\workspace` 这类项目集合目录。</li>
+          <li>多个工作区可分次添加。</li>
+        </ul>
+      )}
+      <div className="repo-empty-actions">
+        <button type="button" onClick={onAddRootDirs} disabled={isBusy}>
+          <FolderPlus size={14} />
+          {hasRootDirs ? "添加其他目录" : "添加目录"}
+        </button>
+        {hasRootDirs ? (
+          <button type="button" onClick={onRefreshRepos} disabled={scanningDisabled}>
+            <RefreshCw size={14} />
+            重新扫描
+          </button>
+        ) : (
+          <button type="button" onClick={onOpenSettings}>
+            <Settings2 size={14} />
+            打开设置
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

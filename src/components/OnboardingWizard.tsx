@@ -1,4 +1,5 @@
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -33,6 +34,7 @@ export function OnboardingWizard({ settings, repos, isBusy, updateSetting, onAdd
   const [step, setStep] = useState(0);
 
   const rootReady = settings.rootDirs.length > 0;
+  const hasRepos = repos.length > 0;
   const canAdvance = step === 0 || (step === 1 ? rootReady : true);
 
   function goNext() {
@@ -110,22 +112,31 @@ export function OnboardingWizard({ settings, repos, isBusy, updateSetting, onAdd
                   {settings.rootDirs.length > 0 ? "继续添加目录" : "点击选择文件夹，例如 D:\\workspace"}
                 </span>
               </button>
-              {rootReady && (
-                <p className={`onboarding-feedback ${isBusy ? "" : repos.length > 0 ? "ok" : "warn"}`}>
-                  {isBusy ? (
-                    <>
-                      <Loader2 className="spin" size={14} />
-                      正在扫描仓库……
-                    </>
-                  ) : repos.length > 0 ? (
-                    <>
-                      <Check size={14} />
-                      已发现 {repos.length} 个 Git 仓库
-                    </>
-                  ) : (
-                    "这些目录下暂未发现 Git 仓库，可继续添加或进入下一步"
-                  )}
+              {rootReady && isBusy && (
+                <p className="onboarding-feedback">
+                  <Loader2 className="spin" size={14} />
+                  正在扫描仓库……
                 </p>
+              )}
+              {rootReady && !isBusy && hasRepos && (
+                <p className="onboarding-feedback ok">
+                  <Check size={14} />
+                  已发现 {repos.length} 个 Git 仓库
+                </p>
+              )}
+              {rootReady && !isBusy && !hasRepos && (
+                <div className="onboarding-empty-workspace" role="status" aria-live="polite">
+                  <div className="onboarding-empty-title">
+                    <AlertCircle size={15} />
+                    <strong>暂未发现 Git 仓库</strong>
+                  </div>
+                  <p>请确认选择的是代码工作区，或包含多个项目的上层目录。</p>
+                  <ul>
+                    <li>目录本身或子目录需要包含 `.git`。</li>
+                    <li>如果仓库在更深层目录，可继续添加那个上层目录。</li>
+                    <li>公司同步盘或权限受限目录可能需要换到本地路径。</li>
+                  </ul>
+                </div>
               )}
             </StepBody>
           )}
