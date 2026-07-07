@@ -219,6 +219,46 @@ test("keeps export setup visible when output is not configured", async ({ page }
   expect(saveCalls).toHaveLength(0);
 });
 
+test("renders generation scope with dark theme surfaces", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({ ...settings, themeMode: "dark", outputEnabled: false, outputDir: "" }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    extractResults: [
+      {
+        repos,
+        summaryText: "# 暗色模式日报\n\n- 验证范围条暗色背景",
+        detailedText: "",
+        warnings: [],
+        commits: [createCommit("abc1237", "fix: 验证范围条暗色背景")],
+      },
+    ],
+  });
+
+  await expectWorkbench(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(page.getByLabel("当前生成范围").getByText("未开启")).toBeVisible();
+  await page.getByRole("button", { name: "生成日报" }).click();
+  await expect(page.getByRole("button", { name: "设置导出" })).toBeVisible();
+
+  const colors = await page.evaluate(() => {
+    const strip = document.querySelector(".generation-scope-strip");
+    const item = document.querySelector(".generation-scope-item");
+    const attention = document.querySelector(".generation-scope-item.attention");
+    const setupButton = document.querySelector(".export-split.needs-setup .preview-save-button");
+    return {
+      attentionBackground: attention ? getComputedStyle(attention).backgroundColor : "",
+      itemBackground: item ? getComputedStyle(item).backgroundColor : "",
+      setupButtonBackground: setupButton ? getComputedStyle(setupButton).backgroundColor : "",
+      stripBackground: strip ? getComputedStyle(strip).backgroundColor : "",
+    };
+  });
+
+  expect(cssRgbBrightness(colors.stripBackground)).toBeLessThan(80);
+  expect(cssRgbBrightness(colors.itemBackground)).toBeLessThan(90);
+  expect(cssRgbBrightness(colors.attentionBackground)).toBeLessThan(110);
+  expect(cssRgbBrightness(colors.setupButtonBackground)).toBeLessThan(110);
+});
+
 test("guides users when workspace has no indexed repositories", async ({ page }) => {
   await launchApp(page, {
     settings: createSettings({ ...settings, rootDirs: [] }),
@@ -553,4 +593,10 @@ function createCommit(hash: string, message: string, author = "Playwright Tester
 
 async function openAssistTab(page: Parameters<typeof expectWorkbench>[0], name: RegExp) {
   await page.getByRole("tab", { name }).click();
+}
+
+function cssRgbBrightness(value: string) {
+  const channels = value.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number) ?? [];
+  expect(channels).toHaveLength(3);
+  return (channels[0] + channels[1] + channels[2]) / 3;
 }

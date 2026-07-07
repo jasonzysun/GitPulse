@@ -594,6 +594,34 @@
   background: rgba(20, 31, 48, 0.78);
 }
 
+:root[data-theme="dark"] .generation-scope-strip {
+  border-color: rgba(109, 168, 255, 0.22);
+  background: rgba(15, 26, 43, 0.74);
+}
+
+:root[data-theme="dark"] .generation-scope-item {
+  border-color: rgba(109, 168, 255, 0.18);
+  color: #dbeafe;
+  background: rgba(20, 31, 48, 0.86);
+}
+
+:root[data-theme="dark"] .generation-scope-item.attention {
+  border-color: rgba(245, 158, 11, 0.42);
+  background: rgba(68, 44, 14, 0.72);
+}
+
+:root[data-theme="dark"] .generation-scope-label {
+  color: #9fb4d0;
+}
+
+:root[data-theme="dark"] .generation-scope-value {
+  color: #e5f0ff;
+}
+
+:root[data-theme="dark"] .generation-scope-item.attention .generation-scope-value {
+  color: #f8d18b;
+}
+
 :root[data-theme="dark"] .report-period-control input,
 :root[data-theme="dark"] .period-range-button {
   border-color: rgba(109, 168, 255, 0.22);
@@ -775,6 +803,18 @@
 :root[data-theme="dark"] .export-split-toggle:hover:not(:disabled) {
   border-color: rgba(109, 168, 255, 0.42);
   background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .export-split.needs-setup .preview-save-button {
+  border-color: rgba(245, 158, 11, 0.46);
+  color: #f8d18b;
+  background: rgba(68, 44, 14, 0.62);
+}
+
+:root[data-theme="dark"] .export-split.needs-setup .preview-save-button:hover:not(:disabled) {
+  border-color: rgba(245, 158, 11, 0.62);
+  color: #ffe0a3;
+  background: rgba(88, 58, 18, 0.74);
 }
 
 :root[data-theme="dark"] .export-popover {
