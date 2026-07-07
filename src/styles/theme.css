@@ -18,6 +18,12 @@
   background: rgba(20, 31, 48, 0.78);
 }
 
+:root[data-theme="dark"] .metric-card {
+  border-color: rgba(52, 74, 103, 0.9);
+  background: rgba(20, 31, 48, 0.78);
+  box-shadow: none;
+}
+
 :root[data-theme="dark"] .context-chip {
   border-color: rgba(109, 168, 255, 0.28);
   background: rgba(63, 140, 255, 0.16);
@@ -574,6 +580,30 @@
   box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 }
 
+:root[data-theme="dark"] .polish-split-toggle {
+  border-color: rgba(52, 211, 153, 0.5);
+  border-left-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(5, 150, 105, 0.8));
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+:root[data-theme="dark"] .polish-split-toggle:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(5, 150, 105, 0.9), rgba(4, 120, 87, 0.9));
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+:root[data-theme="dark"] .polish-split-toggle.warning {
+  border-color: rgba(251, 191, 36, 0.6);
+  border-left-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.8), rgba(217, 119, 6, 0.8));
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+}
+
+:root[data-theme="dark"] .polish-split-toggle.warning:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.9), rgba(180, 83, 9, 0.9));
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
 :root[data-theme="dark"] .settings-trigger {
   color: var(--primary-dark) !important;
   background: rgba(20, 31, 48, 0.88) !important;
@@ -815,6 +845,31 @@
   border-color: rgba(245, 158, 11, 0.62);
   color: #ffe0a3;
   background: rgba(88, 58, 18, 0.74);
+}
+
+:root[data-theme="dark"] .ai-toggle-compact {
+  border-color: rgba(52, 74, 103, 0.9);
+  color: var(--ink-soft);
+  background: rgba(16, 24, 39, 0.76);
+}
+
+:root[data-theme="dark"] .ai-toggle-compact:hover {
+  border-color: rgba(109, 168, 255, 0.34);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.16);
+  box-shadow: none;
+}
+
+:root[data-theme="dark"] .ai-toggle-compact.active {
+  border-color: rgba(109, 168, 255, 0.36);
+  color: #d9eaff;
+  background: rgba(63, 140, 255, 0.18);
+}
+
+:root[data-theme="dark"] .ai-toggle-compact.warning {
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #f8d18b;
+  background: rgba(68, 44, 14, 0.56);
 }
 
 :root[data-theme="dark"] .export-popover {

@@ -67,3 +67,51 @@ test("explains when onboarding workspace contains no git repositories", async ({
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page.getByLabel("Git 作者")).toHaveValue("Playwright Tester");
 });
+
+test("renders onboarding setup with dark theme surfaces", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({
+      onboardingDone: false,
+      rootDirs: [],
+      outputEnabled: false,
+      outputDir: "",
+      author: "",
+      themeMode: "dark",
+    }),
+    dialogResponses: [["C:/empty-workspace"]],
+    scanRepos: [],
+    gitIdentity: {
+      userName: "Playwright Tester",
+      userEmail: "playwright@example.com",
+    },
+  });
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "开始配置" }).click();
+  await page.getByRole("button", { name: /点击选择文件夹|继续添加目录/ }).click();
+  await expect(page.getByText("暂未发现 Git 仓库")).toBeVisible();
+
+  const setupColors = await page.evaluate(() => {
+    const card = document.querySelector(".onboarding-card");
+    const emptyWorkspace = document.querySelector(".onboarding-empty-workspace");
+    return {
+      cardBackground: card ? getComputedStyle(card).backgroundColor : "",
+      emptyWorkspaceBackground: emptyWorkspace ? getComputedStyle(emptyWorkspace).backgroundColor : "",
+    };
+  });
+
+  expect(cssRgbBrightness(setupColors.cardBackground)).toBeLessThan(90);
+  expect(cssRgbBrightness(setupColors.emptyWorkspaceBackground)).toBeLessThan(110);
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page.getByLabel("Git 作者")).toHaveValue("Playwright Tester");
+
+  const authorInputBackground = await page.getByLabel("Git 作者").evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(cssRgbBrightness(authorInputBackground)).toBeLessThan(70);
+});
+
+function cssRgbBrightness(value: string) {
+  const channels = value.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number) ?? [];
+  expect(channels).toHaveLength(3);
+  return (channels[0] + channels[1] + channels[2]) / 3;
+}
