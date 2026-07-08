@@ -13,8 +13,8 @@ pub fn run(options: DiagnosticOptions) -> DiagnosticResult {
         checks::output_dir(&options.output_dir, options.output_enabled),
         ai_checks::ai(&options),
         checks::pdf_font(),
-        network_checks::github(),
-        network_checks::updater_manifest(),
+        network_checks::github(&options.proxy),
+        network_checks::updater_manifest(&options.proxy),
     ];
     build_result(items)
 }
@@ -70,6 +70,7 @@ mod tests {
             ai_base_url: String::new(),
             ai_model: String::new(),
             ai_api_key: String::new(),
+            proxy: Default::default(),
             indexed_repos: Vec::new(),
         });
 

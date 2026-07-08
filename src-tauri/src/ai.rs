@@ -86,7 +86,7 @@ fn resolve_system_prompt<'a>(custom: &'a str, fallback: &'a str) -> &'a str {
 
 pub fn list_models(config: &AiConfig) -> Result<Vec<AiModelInfo>, String> {
     if config.provider == "codex-oauth" {
-        return crate::codex_oauth::list_models();
+        return crate::codex_oauth::list_models(&config.proxy);
     }
     validate_model_list_config(config)?;
     let api_key = read_api_key(config)?;
@@ -117,7 +117,7 @@ fn enhance_report(
 
     validate_config(config)?;
     if config.provider == "codex-oauth" {
-        return crate::codex_oauth::enhance(system_prompt, prompt, &config.model);
+        return crate::codex_oauth::enhance(system_prompt, prompt, &config.model, &config.proxy);
     }
     let api_key = read_api_key(config)?;
     match config.provider.as_str() {
@@ -238,10 +238,10 @@ fn enhance_with_anthropic(
 }
 
 fn http_client(config: &AiConfig) -> Result<Client, String> {
-    Client::builder()
-        .timeout(Duration::from_secs(config.timeout_seconds.max(1)))
-        .build()
-        .map_err(|err| err.to_string())
+    crate::network::client(
+        Duration::from_secs(config.timeout_seconds.max(1)),
+        &config.proxy,
+    )
 }
 
 fn parse_json_response(response: reqwest::blocking::Response) -> Result<Value, String> {
@@ -452,6 +452,7 @@ mod tests {
             api_key: "test-direct-api-key".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         assert_eq!(read_api_key(&config).unwrap(), "test-direct-api-key");
@@ -468,6 +469,7 @@ mod tests {
             api_key: "GITPULSE_TEST_AI_KEY".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         assert_eq!(read_api_key(&config).unwrap(), "test-env-api-key");
@@ -485,6 +487,7 @@ mod tests {
             api_key: "env:GITPULSE_TEST_AI_KEY_PREFIXED".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         assert_eq!(read_api_key(&config).unwrap(), "test-env-api-key-prefixed");
@@ -501,6 +504,7 @@ mod tests {
             api_key: String::new(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         assert_eq!(read_api_key(&config).unwrap_err(), "未提供 API Key");
@@ -516,6 +520,7 @@ mod tests {
             api_key: "env:".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         let message = read_api_key(&config).unwrap_err();
@@ -535,6 +540,7 @@ mod tests {
             api_key: "GITPULSE_TEST_MISSING_AI_KEY".to_string(),
             temperature: 0.2,
             timeout_seconds: 60,
+            proxy: Default::default(),
         };
 
         let message = read_api_key(&config).unwrap_err();

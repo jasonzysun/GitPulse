@@ -595,6 +595,100 @@
   background: rgba(255, 244, 224, 0.88);
 }
 
+.proxy-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.proxy-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px max-content;
+  gap: 8px;
+  align-items: center;
+}
+
+.proxy-url-row input,
+.proxy-auth-grid input {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.proxy-tool-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 37px;
+  border: 1px solid rgba(63, 140, 255, 0.22);
+  border-radius: var(--radius-sm);
+  color: var(--primary-dark);
+  background: rgba(237, 246, 255, 0.9);
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+
+.proxy-tool-button:hover:not(:disabled) {
+  border-color: rgba(63, 140, 255, 0.4);
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.proxy-tool-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.proxy-auth-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.proxy-candidates {
+  display: grid;
+  gap: 6px;
+  max-height: 150px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(63, 140, 255, 0.14);
+  border-radius: var(--radius-sm);
+  background: rgba(247, 251, 255, 0.82);
+}
+
+.proxy-candidates button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.proxy-candidates button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-candidates button:hover,
+.proxy-candidates button.selected {
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.12);
+}
+
+.proxy-status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
 .temperature-control {
   display: flex;
   align-items: center;
@@ -1409,6 +1503,16 @@
 
   .model-picker {
     grid-template-columns: 1fr;
+  }
+
+  .proxy-url-row,
+  .proxy-auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .proxy-tool-button,
+  .proxy-test-button {
+    width: 100%;
   }
 
   .local-boundary-grid {

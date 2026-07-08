@@ -130,12 +130,56 @@ pub struct AiConfig {
     pub api_key: String,
     pub temperature: f32,
     pub timeout_seconds: u64,
+    #[serde(default)]
+    pub proxy: ProxyConfig,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiModelInfo {
     pub id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyConfig {
+    #[serde(default = "default_proxy_mode")]
+    pub mode: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+    #[serde(default)]
+    pub password_saved: bool,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self {
+            mode: default_proxy_mode(),
+            url: String::new(),
+            username: String::new(),
+            password: String::new(),
+            password_saved: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyCandidate {
+    pub url: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProxyTestResult {
+    pub ok: bool,
+    pub message: String,
+    pub latency_ms: u128,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -172,6 +216,8 @@ pub struct DiagnosticOptions {
     pub ai_base_url: String,
     pub ai_model: String,
     pub ai_api_key: String,
+    #[serde(default)]
+    pub proxy: ProxyConfig,
     #[serde(default)]
     pub indexed_repos: Vec<RepoInfo>,
 }
@@ -326,6 +372,10 @@ fn default_extract_report_kind() -> String {
 
 fn default_commit_item_prefix_mode() -> String {
     "mapped-project".to_string()
+}
+
+fn default_proxy_mode() -> String {
+    "off".to_string()
 }
 
 fn default_daily_report_template() -> String {

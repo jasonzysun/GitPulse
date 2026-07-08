@@ -139,6 +139,27 @@ export type AiModelInfo = {
   id: string;
 };
 
+export type ProxyMode = "off" | "custom";
+
+export type ProxyConfig = {
+  mode: ProxyMode;
+  url: string;
+  username: string;
+  password: string;
+  passwordSaved: boolean;
+};
+
+export type ProxyCandidate = {
+  url: string;
+  label: string;
+};
+
+export type ProxyTestResult = {
+  ok: boolean;
+  message: string;
+  latencyMs: number;
+};
+
 export type DiagnosticSeverity = "ok" | "warning" | "error";
 
 export type DiagnosticItem = {
@@ -194,6 +215,11 @@ export type AppSettings = {
   dailySystemPrompt: string;
   monthlySystemPrompt: string;
   aiTemperature: number;
+  proxyMode: ProxyMode;
+  proxyUrl: string;
+  proxyUsername: string;
+  proxyPassword: string;
+  proxyPasswordSaved: boolean;
 };
 
 export type LoadedSettingsState = {
@@ -263,6 +289,11 @@ export const defaultSettings: AppSettings = {
   dailySystemPrompt: DEFAULT_DAILY_SYSTEM_PROMPT,
   monthlySystemPrompt: DEFAULT_MONTHLY_SYSTEM_PROMPT,
   aiTemperature: 0.2,
+  proxyMode: "off",
+  proxyUrl: "",
+  proxyUsername: "",
+  proxyPassword: "",
+  proxyPasswordSaved: false,
 };
 
 export function loadSettingsState(): LoadedSettingsState {
@@ -311,10 +342,15 @@ export function loadSettingsState(): LoadedSettingsState {
     ? parsed.disabledRepos.filter(isNonEmptyString).map(stripWindowsVerbatimPrefix)
     : [];
   parsed.aiApiKey = typeof parsed.aiApiKey === "string" ? parsed.aiApiKey : "";
+  parsed.proxyUrl = typeof parsed.proxyUrl === "string" ? parsed.proxyUrl : "";
+  parsed.proxyUsername = typeof parsed.proxyUsername === "string" ? parsed.proxyUsername : "";
+  parsed.proxyPassword = "";
   parsed.authorAliasesText = typeof parsed.authorAliasesText === "string" ? parsed.authorAliasesText : "";
   parsed.evidenceLinkPrefixesText = typeof parsed.evidenceLinkPrefixesText === "string" ? parsed.evidenceLinkPrefixesText : "";
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
+  parsed.proxyPasswordSaved = Boolean(parsed.proxyPasswordSaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
+  parsed.proxyMode = normalizeProxyMode(parsed.proxyMode);
   parsed.themeMode = normalizeThemeMode(parsed.themeMode);
   parsed.commitItemPrefixMode = normalizeCommitItemPrefixMode(parsed.commitItemPrefixMode);
   parsed.reportPurposePreset = normalizeReportPurposePreset(parsed.reportPurposePreset);
@@ -384,6 +420,7 @@ export function settingsForPersistence(settings: AppSettings): AppSettings {
   return {
     ...settings,
     aiApiKey: isAiKeyReference(aiApiKey) ? aiApiKey : "",
+    proxyPassword: "",
   };
 }
 
@@ -934,6 +971,17 @@ function buildAiOptions(settings: AppSettings, enabled = settings.aiEnabled) {
     apiKey: settings.aiApiKey.trim(),
     temperature: clampTemperature(settings.aiTemperature),
     timeoutSeconds: 60,
+    proxy: buildProxyConfig(settings),
+  };
+}
+
+export function buildProxyConfig(settings: AppSettings): ProxyConfig {
+  return {
+    mode: settings.proxyMode,
+    url: settings.proxyUrl.trim(),
+    username: settings.proxyUsername.trim(),
+    password: settings.proxyPassword.trim(),
+    passwordSaved: settings.proxyPasswordSaved,
   };
 }
 
@@ -1118,6 +1166,11 @@ function normalizeAiProvider(value: unknown): AppSettings["aiProvider"] {
     return value;
   }
   return defaultSettings.aiProvider;
+}
+
+function normalizeProxyMode(value: unknown): ProxyMode {
+  if (value === "custom") return value;
+  return defaultSettings.proxyMode;
 }
 
 function normalizeThemeMode(value: unknown): ThemeMode {

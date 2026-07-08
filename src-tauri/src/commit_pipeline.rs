@@ -858,6 +858,7 @@ mod tests {
                 api_key: String::new(),
                 temperature: 0.2,
                 timeout_seconds: 60,
+                proxy: Default::default(),
             },
         };
 
@@ -913,6 +914,7 @@ mod tests {
                 api_key: String::new(),
                 temperature: 0.2,
                 timeout_seconds: 60,
+                proxy: Default::default(),
             },
         };
 

@@ -7,7 +7,10 @@
 //! ⚠️ 非官方路径：复用 codex client_id 并把请求伪装成 codex，可能违反 OpenAI ToS、
 //! 账号可能被限、随时可能失效。仅作为可选 provider，登录态独立存储、可一键登出。
 
-use crate::{models::AiModelInfo, secure_store};
+use crate::{
+    models::{AiModelInfo, ProxyConfig},
+    secure_store,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use reqwest::blocking::{Client, Response};
 use serde::{Deserialize, Serialize};
@@ -119,11 +122,8 @@ pub struct AuthStatus {
 
 // ── 基础工具 ─────────────────────────────────────────────────
 
-fn client() -> Result<Client, String> {
-    Client::builder()
-        .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .build()
-        .map_err(|err| err.to_string())
+fn client_with_proxy(proxy: &ProxyConfig) -> Result<Client, String> {
+    crate::network::client(Duration::from_secs(HTTP_TIMEOUT_SECS), proxy)
 }
 
 fn now_ms() -> i64 {
@@ -154,8 +154,8 @@ fn truncate(text: &str, max: usize) -> String {
 
 /// 启动设备码流程。device_code + user_code 一并返回前端，poll 时回传二者，
 /// 后端无需缓存进行中的登录会话（无状态）。
-pub fn start_device_flow() -> Result<DeviceFlowInfo, String> {
-    let resp = client()?
+pub fn start_device_flow(proxy: &ProxyConfig) -> Result<DeviceFlowInfo, String> {
+    let resp = client_with_proxy(proxy)?
         .post(DEVICE_USERCODE_URL)
         .header("User-Agent", USER_AGENT)
         .json(&json!({ "client_id": CLIENT_ID }))
@@ -184,8 +184,12 @@ pub fn start_device_flow() -> Result<DeviceFlowInfo, String> {
 }
 
 /// 轮询一次设备码授权状态。未授权返回 pending；授权成功则换 token、写入登录态。
-pub fn poll_once(device_code: &str, user_code: &str) -> Result<PollResult, String> {
-    let resp = client()?
+pub fn poll_once(
+    device_code: &str,
+    user_code: &str,
+    proxy: &ProxyConfig,
+) -> Result<PollResult, String> {
+    let resp = client_with_proxy(proxy)?
         .post(DEVICE_TOKEN_URL)
         .header("User-Agent", USER_AGENT)
         .json(&json!({ "device_auth_id": device_code, "user_code": user_code }))
@@ -215,7 +219,7 @@ pub fn poll_once(device_code: &str, user_code: &str) -> Result<PollResult, Strin
         .as_str()
         .ok_or("响应缺少 code_verifier")?;
 
-    let tokens = exchange_code(auth_code, verifier)?;
+    let tokens = exchange_code(auth_code, verifier, proxy)?;
     let refresh_token = tokens
         .refresh_token
         .clone()
@@ -248,8 +252,8 @@ struct TokenResponse {
     expires_in: Option<i64>,
 }
 
-fn exchange_code(code: &str, verifier: &str) -> Result<TokenResponse, String> {
-    let resp = client()?
+fn exchange_code(code: &str, verifier: &str, proxy: &ProxyConfig) -> Result<TokenResponse, String> {
+    let resp = client_with_proxy(proxy)?
         .post(OAUTH_TOKEN_URL)
         .header("User-Agent", USER_AGENT)
         .form(&[
@@ -269,8 +273,8 @@ fn exchange_code(code: &str, verifier: &str) -> Result<TokenResponse, String> {
     resp.json().map_err(|err| err.to_string())
 }
 
-fn refresh(refresh_token: &str) -> Result<TokenResponse, String> {
-    let resp = client()?
+fn refresh(refresh_token: &str, proxy: &ProxyConfig) -> Result<TokenResponse, String> {
+    let resp = client_with_proxy(proxy)?
         .post(OAUTH_TOKEN_URL)
         .header("User-Agent", USER_AGENT)
         .form(&[
@@ -289,7 +293,7 @@ fn refresh(refresh_token: &str) -> Result<TokenResponse, String> {
 }
 
 /// 取有效 access_token（必要时用 refresh_token 刷新并回写系统凭据库）。
-fn valid_access_token() -> Result<(String, Option<String>), String> {
+fn valid_access_token(proxy: &ProxyConfig) -> Result<(String, Option<String>), String> {
     let mut stored = load_auth_result()?.ok_or("尚未登录 ChatGPT")?;
 
     if let (Some(token), Some(expires_at)) = (&stored.access_token, stored.expires_at_ms) {
@@ -298,7 +302,7 @@ fn valid_access_token() -> Result<(String, Option<String>), String> {
         }
     }
 
-    let refreshed = refresh(&stored.refresh_token)?;
+    let refreshed = refresh(&stored.refresh_token, proxy)?;
     if let Some(new_refresh) = refreshed.refresh_token.clone() {
         stored.refresh_token = new_refresh;
     }
@@ -336,9 +340,9 @@ pub fn logout() -> Result<(), String> {
 
 // ── 模型列表 ─────────────────────────────────────────────────
 
-pub fn list_models() -> Result<Vec<AiModelInfo>, String> {
-    let (token, account_id) = valid_access_token()?;
-    let mut request = client()?
+pub fn list_models(proxy: &ProxyConfig) -> Result<Vec<AiModelInfo>, String> {
+    let (token, account_id) = valid_access_token(proxy)?;
+    let mut request = client_with_proxy(proxy)?
         .get(format!("{BACKEND_BASE}/models"))
         .header("Authorization", format!("Bearer {token}"))
         .header("originator", ORIGINATOR)
@@ -393,11 +397,16 @@ fn parse_models(value: Value) -> Vec<AiModelInfo> {
 
 // ── 润色：POST /responses ────────────────────────────────────
 
-pub fn enhance(system_prompt: &str, user_prompt: &str, model: &str) -> Result<String, String> {
+pub fn enhance(
+    system_prompt: &str,
+    user_prompt: &str,
+    model: &str,
+    proxy: &ProxyConfig,
+) -> Result<String, String> {
     if model.trim().is_empty() {
         return Err("未配置 AI 模型名".to_string());
     }
-    let (token, account_id) = valid_access_token()?;
+    let (token, account_id) = valid_access_token(proxy)?;
 
     let payload = json!({
         "model": model,
@@ -406,7 +415,7 @@ pub fn enhance(system_prompt: &str, user_prompt: &str, model: &str) -> Result<St
         "stream": false,
     });
 
-    let mut request = client()?
+    let mut request = client_with_proxy(proxy)?
         .post(format!("{BACKEND_BASE}/responses"))
         .header("Authorization", format!("Bearer {token}"))
         .header("originator", ORIGINATOR)

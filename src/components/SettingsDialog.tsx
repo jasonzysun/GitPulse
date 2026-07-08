@@ -16,6 +16,7 @@ import {
   Monitor,
   Moon,
   Plus,
+  Radar,
   RefreshCw,
   Settings2,
   Sun,
@@ -29,6 +30,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { DiagnosticsSection } from "./DiagnosticsSection";
 import {
+  buildProxyConfig,
   buildMappingKeys,
   buildMappingSuggestions,
   DEFAULT_DAILY_SYSTEM_PROMPT,
@@ -40,6 +42,8 @@ import {
   type AppSettings,
   type MappingEntry,
   type MappingSuggestion,
+  type ProxyCandidate,
+  type ProxyTestResult,
   type RepoInfo,
   type UpdateSummary,
 } from "../model";
@@ -75,6 +79,8 @@ type ModelFetchStatus = {
   type: "idle" | "loading" | "success" | "error";
   message: string;
 };
+
+type ProxyActionStatus = ModelFetchStatus;
 
 type SettingsTab = "workspace" | "format" | "ai" | "mapping" | "diagnostics" | "general";
 
@@ -112,6 +118,9 @@ export function SettingsDialog({
   const [aiModelOptions, setAiModelOptions] = useState<string[]>([]);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [modelFetchStatus, setModelFetchStatus] = useState<ModelFetchStatus>(EMPTY_MODEL_FETCH_STATUS);
+  const [proxyScanStatus, setProxyScanStatus] = useState<ProxyActionStatus>(EMPTY_MODEL_FETCH_STATUS);
+  const [proxyTestStatus, setProxyTestStatus] = useState<ProxyActionStatus>(EMPTY_MODEL_FETCH_STATUS);
+  const [proxyCandidates, setProxyCandidates] = useState<ProxyCandidate[]>([]);
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [codexAuth, setCodexAuth] = useState<{ authenticated: boolean; email?: string }>({ authenticated: false });
   const [codexFlow, setCodexFlow] = useState<{ userCode: string; verificationUri: string } | null>(null);
@@ -136,6 +145,9 @@ export function SettingsDialog({
       setAiModelOptions([]);
       setModelMenuOpen(false);
       setModelFetchStatus(EMPTY_MODEL_FETCH_STATUS);
+      setProxyScanStatus(EMPTY_MODEL_FETCH_STATUS);
+      setProxyTestStatus(EMPTY_MODEL_FETCH_STATUS);
+      setProxyCandidates([]);
       setPendingDeleteIndex(null);
       setCodexFlow(null);
       setCodexMessage("");
@@ -246,6 +258,7 @@ export function SettingsDialog({
           apiKey: settings.aiApiKey.trim(),
           temperature: 0.2,
           timeoutSeconds: 30,
+          proxy: buildProxyConfig(settings),
         },
       });
       const modelIds = [...new Set(models.map((model) => model.id.trim()).filter(Boolean))];
@@ -293,7 +306,7 @@ export function SettingsDialog({
         verificationUri: string;
         interval: number;
         expiresIn: number;
-      }>("codex_oauth_start_device_flow");
+      }>("codex_oauth_start_device_flow", { proxy: buildProxyConfig(settings) });
       setCodexFlow({ userCode: flow.userCode, verificationUri: flow.verificationUri });
       try {
         await openUrl(flow.verificationUri);
@@ -312,6 +325,7 @@ export function SettingsDialog({
           const result = await invoke<{ status: string; email?: string }>("codex_oauth_poll", {
             deviceCode: flow.deviceCode,
             userCode: flow.userCode,
+            proxy: buildProxyConfig(settings),
           });
           if (result.status === "done") {
             setCodexFlow(null);
@@ -346,6 +360,53 @@ export function SettingsDialog({
       setCodexMessage(error instanceof Error ? error.message : String(error));
     }
     await refreshCodexStatus();
+  }
+
+  function updateProxyMode(enabled: boolean) {
+    updateSetting("proxyMode", enabled ? "custom" : "off");
+    setProxyTestStatus(EMPTY_MODEL_FETCH_STATUS);
+  }
+
+  function updateProxyConnectionSetting<K extends "proxyUrl" | "proxyUsername" | "proxyPassword">(key: K, value: AppSettings[K]) {
+    updateSetting(key, value);
+    setProxyTestStatus(EMPTY_MODEL_FETCH_STATUS);
+  }
+
+  async function scanProxyCandidates() {
+    setProxyCandidates([]);
+    setProxyScanStatus({ type: "loading", message: "正在扫描本机常见代理端口..." });
+    try {
+      const candidates = await invoke<ProxyCandidate[]>("scan_proxy_candidates");
+      setProxyCandidates(candidates);
+      setProxyScanStatus(
+        candidates.length > 0
+          ? { type: "success", message: `发现 ${candidates.length} 个候选，点击即可填入` }
+          : { type: "error", message: "未发现可连接的本地代理端口" },
+      );
+    } catch (error) {
+      setProxyScanStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  function selectProxyCandidate(candidate: ProxyCandidate) {
+    updateSetting("proxyMode", "custom");
+    updateSetting("proxyUrl", candidate.url);
+    setProxyTestStatus(EMPTY_MODEL_FETCH_STATUS);
+  }
+
+  async function testProxyConnection() {
+    setProxyTestStatus({ type: "loading", message: "正在测试外部连接..." });
+    try {
+      const result = await invoke<ProxyTestResult>("test_proxy_connection", {
+        config: buildProxyConfig(settings),
+      });
+      setProxyTestStatus({
+        type: result.ok ? "success" : "error",
+        message: result.message,
+      });
+    } catch (error) {
+      setProxyTestStatus({ type: "error", message: error instanceof Error ? error.message : String(error) });
+    }
   }
 
   function updateMappingRow(index: number, patch: Partial<MappingEntry>) {
@@ -545,6 +606,87 @@ export function SettingsDialog({
             {activeTab === "ai" && (
               <section className="settings-section">
                 <SectionTitle icon={<Bot size={16} />} title="AI 润色" />
+                <Field
+                  label="应用出站代理"
+                  hint="仅代理 GitPulse 访问外部 API 的请求，不修改系统代理，也不影响本地 Git 扫描。"
+                >
+                  <div className="proxy-panel">
+                    <Toggle label="启用代理" checked={settings.proxyMode === "custom"} onChange={updateProxyMode} />
+                    {settings.proxyMode === "custom" && (
+                      <>
+                        <div className="proxy-url-row">
+                          <input
+                            value={settings.proxyUrl}
+                            onChange={(event) => updateProxyConnectionSetting("proxyUrl", event.target.value)}
+                            placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:7890"
+                            spellCheck={false}
+                          />
+                          <button
+                            type="button"
+                            className="proxy-tool-button"
+                            onClick={() => void scanProxyCandidates()}
+                            disabled={proxyScanStatus.type === "loading"}
+                            aria-label="扫描本地代理候选"
+                            title="扫描本地代理候选"
+                          >
+                            {proxyScanStatus.type === "loading" ? <Loader2 className="spin" size={15} /> : <Radar size={15} />}
+                          </button>
+                          <button
+                            type="button"
+                            className="model-fetch-button proxy-test-button"
+                            onClick={() => void testProxyConnection()}
+                            disabled={proxyTestStatus.type === "loading"}
+                          >
+                            {proxyTestStatus.type === "loading" ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
+                            测试连接
+                          </button>
+                        </div>
+                        <div className="proxy-auth-grid">
+                          <input
+                            value={settings.proxyUsername}
+                            onChange={(event) => updateProxyConnectionSetting("proxyUsername", event.target.value)}
+                            placeholder="用户名（可选）"
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                          <input
+                            type="password"
+                            value={settings.proxyPassword}
+                            onChange={(event) => updateProxyConnectionSetting("proxyPassword", event.target.value)}
+                            placeholder={settings.proxyPasswordSaved ? "密码已保存，可重新输入覆盖" : "密码（可选）"}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                        </div>
+                        {proxyCandidates.length > 0 && (
+                          <div className="proxy-candidates" aria-label="本地代理候选">
+                            {proxyCandidates.map((candidate) => (
+                              <button
+                                key={candidate.url}
+                                type="button"
+                                className={settings.proxyUrl === candidate.url ? "selected" : ""}
+                                onClick={() => selectProxyCandidate(candidate)}
+                              >
+                                <span>{candidate.label}</span>
+                                {settings.proxyUrl === candidate.url && <CheckCircle2 size={14} />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {(proxyScanStatus.message || proxyTestStatus.message) && (
+                          <div className="proxy-status-stack">
+                            {proxyScanStatus.message && (
+                              <p className={`model-fetch-note ${proxyScanStatus.type}`}>{proxyScanStatus.message}</p>
+                            )}
+                            {proxyTestStatus.message && (
+                              <p className={`model-fetch-note ${proxyTestStatus.type}`}>{proxyTestStatus.message}</p>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </Field>
                 <Field label="协议">
                   <select value={settings.aiProvider} onChange={(event) => updateAiProvider(event.target.value as AppSettings["aiProvider"])}>
                     <option value="openai-compatible">OpenAI Compatible</option>

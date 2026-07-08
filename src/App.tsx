@@ -98,6 +98,7 @@ function App() {
   const [commitCount, setCommitCount] = useState(0);
   const [projectCount, setProjectCount] = useState(0);
   const aiApiKeySaveTimer = useRef<number | null>(null);
+  const proxyPasswordSaveTimer = useRef<number | null>(null);
   const {
     appVersion,
     updateSummary,
@@ -156,6 +157,26 @@ function App() {
       })
       .catch(() => undefined);
     // Only run on startup; later key edits are handled by updateSetting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const currentPassword = settings.proxyPassword.trim();
+    if (currentPassword) {
+      void persistSecureProxyPassword(currentPassword);
+      return;
+    }
+
+    invoke<string | null>("get_secure_proxy_password")
+      .then((password) => {
+        if (!password) return;
+        setSettings((current) => {
+          if (current.proxyPassword.trim()) return current;
+          return { ...current, proxyPassword: password, proxyPasswordSaved: true };
+        });
+      })
+      .catch(() => undefined);
+    // Only run on startup; later proxy password edits are handled by updateSetting.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -629,6 +650,19 @@ function App() {
       scheduleSecureAiApiKeySync(aiApiKey);
       return;
     }
+    if (key === "proxyPassword") {
+      const proxyPassword = String(value);
+      setSettings((current) => ({
+        ...current,
+        proxyPassword,
+        proxyPasswordSaved:
+          current.proxyPasswordSaved
+          && current.proxyPassword === proxyPassword
+          && Boolean(proxyPassword.trim()),
+      }));
+      scheduleSecureProxyPasswordSync(proxyPassword);
+      return;
+    }
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
@@ -678,6 +712,35 @@ function App() {
       setSettings((current) => {
         if (current.aiApiKey.trim() !== apiKey) return current;
         return { ...current, aiApiKeySaved: true };
+      });
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error), { tone: "error", notify: true, duration: 4200 });
+    }
+  }
+
+  function scheduleSecureProxyPasswordSync(value: string) {
+    if (proxyPasswordSaveTimer.current !== null) {
+      window.clearTimeout(proxyPasswordSaveTimer.current);
+    }
+    proxyPasswordSaveTimer.current = window.setTimeout(() => {
+      proxyPasswordSaveTimer.current = null;
+      void persistSecureProxyPassword(value);
+    }, 500);
+  }
+
+  async function persistSecureProxyPassword(value: string) {
+    const password = value.trim();
+    try {
+      if (!password) {
+        await invoke("clear_secure_proxy_password");
+        setSettings((current) => ({ ...current, proxyPasswordSaved: false }));
+        return;
+      }
+
+      await invoke("set_secure_proxy_password", { password });
+      setSettings((current) => {
+        if (current.proxyPassword.trim() !== password) return current;
+        return { ...current, proxyPasswordSaved: true };
       });
     } catch (error) {
       setStatus(error instanceof Error ? error.message : String(error), { tone: "error", notify: true, duration: 4200 });

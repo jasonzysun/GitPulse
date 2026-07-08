@@ -440,6 +440,32 @@
   background: rgba(101, 65, 16, 0.22);
 }
 
+:root[data-theme="dark"] .proxy-tool-button {
+  border-color: rgba(109, 168, 255, 0.26);
+  color: var(--primary-dark);
+  background: rgba(63, 140, 255, 0.14);
+}
+
+:root[data-theme="dark"] .proxy-tool-button:hover:not(:disabled) {
+  border-color: rgba(109, 168, 255, 0.42);
+  background: rgba(63, 140, 255, 0.24);
+}
+
+:root[data-theme="dark"] .proxy-candidates {
+  border-color: rgba(109, 168, 255, 0.18);
+  background: rgba(10, 18, 31, 0.72);
+}
+
+:root[data-theme="dark"] .proxy-candidates button {
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .proxy-candidates button:hover,
+:root[data-theme="dark"] .proxy-candidates button.selected {
+  color: #d9eaff;
+  background: rgba(109, 168, 255, 0.14);
+}
+
 :root[data-theme="dark"] .diagnostics-summary span {
   border-color: rgba(90, 214, 159, 0.28);
   color: #9ee8c7;

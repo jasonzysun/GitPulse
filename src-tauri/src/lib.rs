@@ -5,15 +5,16 @@ mod diagnostics;
 mod docx;
 mod git_ops;
 mod models;
+mod network;
 mod pdf;
 mod report;
 mod secure_store;
 mod zip_store;
 
 use crate::models::{
-    AiConfig, AiModelInfo, DiagnosticOptions, DiagnosticResult,
-    ExtractOptions, ExtractResult, GitIdentity, MappingEntry, MonthlyReportOptions,
-    MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo, RepoScanProgress,
+    AiConfig, AiModelInfo, DiagnosticOptions, DiagnosticResult, ExtractOptions, ExtractResult,
+    GitIdentity, MappingEntry, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
+    PeriodReportResult, ProxyCandidate, ProxyConfig, ProxyTestResult, RepoInfo, RepoScanProgress,
     ReportEnhanceOptions, ReportEnhanceResult,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -156,8 +157,45 @@ async fn clear_secure_ai_api_key() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn codex_oauth_start_device_flow() -> Result<codex_oauth::DeviceFlowInfo, String> {
-    async_runtime::spawn_blocking(codex_oauth::start_device_flow)
+async fn get_secure_proxy_password() -> Result<Option<String>, String> {
+    async_runtime::spawn_blocking(secure_store::get_proxy_password)
+        .await
+        .map_err(|err| format!("读取代理密码任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn set_secure_proxy_password(password: String) -> Result<(), String> {
+    async_runtime::spawn_blocking(move || secure_store::set_proxy_password(&password))
+        .await
+        .map_err(|err| format!("保存代理密码任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn clear_secure_proxy_password() -> Result<(), String> {
+    async_runtime::spawn_blocking(secure_store::clear_proxy_password)
+        .await
+        .map_err(|err| format!("清除代理密码任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn scan_proxy_candidates() -> Result<Vec<ProxyCandidate>, String> {
+    async_runtime::spawn_blocking(network::scan_proxy_candidates)
+        .await
+        .map_err(|err| format!("扫描代理候选任务中断：{}", err))
+}
+
+#[tauri::command]
+async fn test_proxy_connection(config: ProxyConfig) -> Result<ProxyTestResult, String> {
+    async_runtime::spawn_blocking(move || network::test_proxy_connection(&config))
+        .await
+        .map_err(|err| format!("测试代理连接任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn codex_oauth_start_device_flow(
+    proxy: ProxyConfig,
+) -> Result<codex_oauth::DeviceFlowInfo, String> {
+    async_runtime::spawn_blocking(move || codex_oauth::start_device_flow(&proxy))
         .await
         .map_err(|err| format!("启动 ChatGPT 登录任务中断：{}", err))?
 }
@@ -166,8 +204,9 @@ async fn codex_oauth_start_device_flow() -> Result<codex_oauth::DeviceFlowInfo, 
 async fn codex_oauth_poll(
     device_code: String,
     user_code: String,
+    proxy: ProxyConfig,
 ) -> Result<codex_oauth::PollResult, String> {
-    async_runtime::spawn_blocking(move || codex_oauth::poll_once(&device_code, &user_code))
+    async_runtime::spawn_blocking(move || codex_oauth::poll_once(&device_code, &user_code, &proxy))
         .await
         .map_err(|err| format!("ChatGPT 登录轮询任务中断：{}", err))?
 }
@@ -181,7 +220,6 @@ fn codex_oauth_status() -> codex_oauth::AuthStatus {
 fn codex_oauth_logout() -> Result<(), String> {
     codex_oauth::logout()
 }
-
 
 #[tauri::command]
 fn save_text_file(
@@ -285,6 +323,11 @@ pub fn run() {
             get_secure_ai_api_key,
             set_secure_ai_api_key,
             clear_secure_ai_api_key,
+            get_secure_proxy_password,
+            set_secure_proxy_password,
+            clear_secure_proxy_password,
+            scan_proxy_candidates,
+            test_proxy_connection,
             save_text_file,
             save_report_file,
             read_mapping_xlsx,

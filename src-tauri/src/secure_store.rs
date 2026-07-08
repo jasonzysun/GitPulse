@@ -1,5 +1,6 @@
 const AI_API_KEY_ACCOUNT: &str = "ai-api-key";
 const CODEX_OAUTH_ACCOUNT: &str = "codex-oauth";
+const PROXY_PASSWORD_ACCOUNT: &str = "outbound-proxy-password";
 const SERVICE: &str = "com.goldenzqqq.gitpulse";
 
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
@@ -30,6 +31,21 @@ pub fn set_codex_oauth_auth(auth_json: &str) -> Result<(), String> {
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub fn clear_codex_oauth_auth() -> Result<(), String> {
     clear_credential(CODEX_OAUTH_ACCOUNT)
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub fn get_proxy_password() -> Result<Option<String>, String> {
+    get_credential(PROXY_PASSWORD_ACCOUNT)
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub fn set_proxy_password(password: &str) -> Result<(), String> {
+    set_credential(PROXY_PASSWORD_ACCOUNT, password)
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub fn clear_proxy_password() -> Result<(), String> {
+    clear_credential(PROXY_PASSWORD_ACCOUNT)
 }
 
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
@@ -94,5 +110,20 @@ pub fn set_codex_oauth_auth(_auth_json: &str) -> Result<(), String> {
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 pub fn clear_codex_oauth_auth() -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub fn get_proxy_password() -> Result<Option<String>, String> {
+    Ok(None)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub fn set_proxy_password(_password: &str) -> Result<(), String> {
+    Err("当前平台暂不支持系统凭据库保存代理密码".to_string())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub fn clear_proxy_password() -> Result<(), String> {
     Ok(())
 }

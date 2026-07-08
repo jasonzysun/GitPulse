@@ -128,6 +128,7 @@ mod tests {
             ai_base_url: "https://api.openai.com/v1".to_string(),
             ai_model: "gpt-4.1-mini".to_string(),
             ai_api_key: "env:GITPULSE_DIAGNOSTIC_MISSING_KEY".to_string(),
+            proxy: Default::default(),
             indexed_repos: Vec::new(),
         });
 

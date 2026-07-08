@@ -1,6 +1,6 @@
 use crate::{
     diagnostics::item,
-    models::{DiagnosticItem, DiagnosticSeverity},
+    models::{DiagnosticItem, DiagnosticSeverity, ProxyConfig},
 };
 use reqwest::{
     blocking::{Client, Response},
@@ -15,8 +15,8 @@ const GITHUB_REPO_API_URL: &str = "https://api.github.com/repos/GoldenZqqq/GitPu
 const UPDATER_MANIFEST_URL: &str =
     "https://github.com/GoldenZqqq/GitPulse/releases/latest/download/gitpulse-latest.json";
 
-pub fn github() -> DiagnosticItem {
-    match get(GITHUB_REPO_API_URL) {
+pub fn github(proxy: &ProxyConfig) -> DiagnosticItem {
+    match get(GITHUB_REPO_API_URL, proxy) {
         Ok(response) if response.status().is_success() => item(
             "network-github",
             "GitHub 网络",
@@ -41,8 +41,8 @@ pub fn github() -> DiagnosticItem {
     }
 }
 
-pub fn updater_manifest() -> DiagnosticItem {
-    match get(UPDATER_MANIFEST_URL) {
+pub fn updater_manifest(proxy: &ProxyConfig) -> DiagnosticItem {
+    match get(UPDATER_MANIFEST_URL, proxy) {
         Ok(response) => classify_manifest_response(response),
         Err(message) => item(
             "updater-manifest",
@@ -97,8 +97,8 @@ fn classify_manifest_response(response: Response) -> DiagnosticItem {
     }
 }
 
-fn get(url: &str) -> Result<Response, String> {
-    client()?
+fn get(url: &str, proxy: &ProxyConfig) -> Result<Response, String> {
+    client(proxy)?
         .get(url)
         .header("User-Agent", USER_AGENT)
         .header("Accept", "application/json")
@@ -106,11 +106,8 @@ fn get(url: &str) -> Result<Response, String> {
         .map_err(|err| err.to_string())
 }
 
-fn client() -> Result<Client, String> {
-    Client::builder()
-        .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
-        .build()
-        .map_err(|err| err.to_string())
+fn client(proxy: &ProxyConfig) -> Result<Client, String> {
+    crate::network::client(Duration::from_secs(HTTP_TIMEOUT_SECS), proxy)
 }
 
 fn manifest_version(body: &str) -> Result<String, String> {

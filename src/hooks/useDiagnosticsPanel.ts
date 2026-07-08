@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { AppSettings, DiagnosticResult, RepoInfo } from "../model";
+import { buildProxyConfig, type AppSettings, type DiagnosticResult, type RepoInfo } from "../model";
 
 type Params = {
   open: boolean;
@@ -45,6 +45,7 @@ export function useDiagnosticsPanel({ open, active, settings, repos }: Params) {
           aiBaseUrl: settings.aiBaseUrl,
           aiModel: settings.aiModel,
           aiApiKey: settings.aiApiKey,
+          proxy: buildProxyConfig(settings),
           indexedRepos: repos,
         },
       });
