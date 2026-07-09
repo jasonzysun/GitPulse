@@ -105,6 +105,7 @@ function App() {
     updateMessage,
     updateProgress,
     updateBusy,
+    startupUpdateNotice,
     checkForUpdates,
     installUpdate,
   } = useAppRuntime({ themeMode: settings.themeMode });
@@ -134,6 +135,11 @@ function App() {
     const shouldNotify = options.notify ?? shouldNotifyStatus(message);
     if (shouldNotify) showMessage(message, options.tone ?? inferMessageTone(message), options.duration);
   }
+
+  useEffect(() => {
+    if (!startupUpdateNotice) return;
+    showMessage(`发现新版本 v${startupUpdateNotice.version}，可在设置中下载并安装`, "info", 5200);
+  }, [startupUpdateNotice]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsForPersistence(settings)));

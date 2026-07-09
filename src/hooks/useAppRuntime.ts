@@ -6,10 +6,20 @@ import type { ThemeMode, UpdateSummary } from "../model";
 
 type SystemTheme = Exclude<ThemeMode, "system">;
 type UpdateBusy = "checking" | "installing" | null;
+type UpdateCheckSource = "manual" | "startup";
+type StartupUpdateNotice = {
+  id: number;
+  version: string;
+};
 
 type Params = {
   themeMode: ThemeMode;
 };
+
+const UPDATE_CHECK_TIMEOUT_MS = 20000;
+
+let startupUpdateCheckPromise: Promise<PendingAppUpdate | null> | null = null;
+let startupUpdateNoticeId = 0;
 
 export function useAppRuntime({ themeMode }: Params) {
   const [systemTheme, setSystemTheme] = useState<SystemTheme>(readSystemTheme);
@@ -19,18 +29,28 @@ export function useAppRuntime({ themeMode }: Params) {
   const [updateProgress, setUpdateProgress] = useState("");
   const [updateBusy, setUpdateBusy] = useState<UpdateBusy>(null);
   const [pendingUpdate, setPendingUpdate] = useState<PendingAppUpdate | null>(null);
+  const [startupUpdateNotice, setStartupUpdateNotice] = useState<StartupUpdateNotice | null>(null);
   const resolvedTheme = themeMode === "system" ? systemTheme : themeMode;
 
   useEffect(() => {
+    let cancelled = false;
+
     getVersion()
       .then((version) => {
+        if (cancelled) return;
         setAppVersion(version);
         setUpdateMessage(`当前版本 v${version}，可手动检查更新`);
+        void checkForStartupUpdates(version, () => cancelled);
       })
       .catch(() => {
+        if (cancelled) return;
         setAppVersion("开发环境");
         setUpdateMessage("当前是浏览器预览，在线更新仅在桌面应用中可用");
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -84,32 +104,50 @@ export function useAppRuntime({ themeMode }: Params) {
   }, [pendingUpdate]);
 
   async function checkForUpdates() {
+    await runUpdateCheck("manual", appVersion);
+  }
+
+  async function checkForStartupUpdates(currentVersion: string, isCancelled: () => boolean) {
+    await runUpdateCheck("startup", currentVersion, isCancelled);
+  }
+
+  async function runUpdateCheck(source: UpdateCheckSource, currentVersion: string, isCancelled = () => false) {
     setUpdateBusy("checking");
     setUpdateProgress("");
-    setUpdateMessage("正在检查更新");
+    if (source === "manual") {
+      setUpdateMessage("正在检查更新");
+    }
 
     try {
-      const nextUpdate = await check({ timeout: 20000 });
+      const nextUpdate = source === "startup"
+        ? await checkStartupUpdateOnce()
+        : await check({ timeout: UPDATE_CHECK_TIMEOUT_MS });
+
+      if (isCancelled()) return;
+
       await replacePendingUpdate(nextUpdate);
 
       if (!nextUpdate) {
         setUpdateSummary(null);
-        setUpdateMessage(`当前已是最新版本 v${appVersion}`);
+        setUpdateMessage(`当前已是最新版本 v${currentVersion}`);
         return;
       }
 
-      setUpdateSummary({
-        currentVersion: nextUpdate.currentVersion,
-        version: nextUpdate.version,
-        notes: nextUpdate.body || "本次版本未提供更新说明。",
-        date: nextUpdate.date,
-      });
+      setUpdateSummary(summarizeUpdate(nextUpdate));
       setUpdateMessage(`发现新版本 v${nextUpdate.version}`);
+      if (source === "startup") {
+        setStartupUpdateNotice({ id: ++startupUpdateNoticeId, version: nextUpdate.version });
+      }
     } catch (error) {
+      if (isCancelled()) return;
       setUpdateSummary(null);
-      setUpdateMessage(formatUpdaterError(error));
+      if (source === "manual") {
+        setUpdateMessage(formatUpdaterError(error));
+      }
     } finally {
-      setUpdateBusy(null);
+      if (!isCancelled()) {
+        setUpdateBusy(null);
+      }
     }
   }
 
@@ -163,8 +201,25 @@ export function useAppRuntime({ themeMode }: Params) {
     updateMessage,
     updateProgress,
     updateBusy,
+    startupUpdateNotice,
     checkForUpdates,
     installUpdate,
+  };
+}
+
+function checkStartupUpdateOnce() {
+  if (!startupUpdateCheckPromise) {
+    startupUpdateCheckPromise = check({ timeout: UPDATE_CHECK_TIMEOUT_MS });
+  }
+  return startupUpdateCheckPromise;
+}
+
+function summarizeUpdate(update: PendingAppUpdate): UpdateSummary {
+  return {
+    currentVersion: update.currentVersion,
+    version: update.version,
+    notes: update.body || "本次版本未提供更新说明。",
+    date: update.date,
   };
 }
 
