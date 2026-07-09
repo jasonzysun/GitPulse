@@ -31,6 +31,7 @@ const checks = [
       includes(files.diagnosticsHook, 'invoke<DiagnosticResult>("run_diagnostics"');
       includes(files.diagnosticsHook, "rootDirs: settings.rootDirs");
       includes(files.diagnosticsHook, "indexedRepos: repos");
+      includes(files.diagnosticsHook, "proxy: buildProxyConfig(settings)");
       includes(files.model, "export type DiagnosticResult");
     },
   },
@@ -47,8 +48,8 @@ const checks = [
   {
     name: "diagnostics command includes network and updater checks",
     run: () => {
-      includes(files.diagnostics, "network_checks::github()");
-      includes(files.diagnostics, "network_checks::updater_manifest()");
+      includes(files.diagnostics, "network_checks::github(&options.proxy)");
+      includes(files.diagnostics, "network_checks::updater_manifest(&options.proxy)");
       includes(files.networkDiagnostics, "GitHub 网络");
       includes(files.networkDiagnostics, "更新清单");
       includes(files.networkDiagnostics, "gitpulse-latest.json");
