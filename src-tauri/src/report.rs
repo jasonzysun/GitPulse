@@ -2,12 +2,13 @@ use crate::{
     docx,
     models::{
         CommitRecord, EvidenceLinkRule, ExtractResult, MonthlyReportResult, PeriodReportResult,
-        RepoInfo, ReportFormatTemplates,
+        RepoInfo, ReportFormatTemplates, ReportRedactionOptions, ReportRedactionRule,
     },
     pdf,
 };
 use chrono::{Datelike, Duration, Local, NaiveDate};
 use regex::Regex;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
@@ -47,18 +48,52 @@ pub fn build_extract_result(
     commit_item_prefix_mode: &str,
     show_evidence_details: bool,
     detailed_output: bool,
+    redaction: &ReportRedactionOptions,
     format: ExtractReportFormat,
 ) -> ExtractResult {
-    let summary_text = render_extract_report(
+    if !redaction.enabled {
+        let summary_text = render_extract_report(
+            &commits,
+            project_names,
+            show_project_and_branch,
+            commit_item_prefix_mode,
+            show_evidence_details,
+            &format,
+        );
+        let detailed_text = if detailed_output {
+            render_detailed_report(&summary_text, &commits)
+        } else {
+            String::new()
+        };
+        return ExtractResult {
+            summary_text,
+            detailed_text,
+            repos,
+            commits,
+            warnings,
+        };
+    }
+
+    let prepared = prepare_report_input(
         &commits,
         project_names,
+        format.evidence_link_rules,
+        format.author,
+        redaction,
+    );
+    let summary_text = render_extract_report_prepared(
+        prepared.commits.as_ref(),
+        prepared.project_names.as_ref(),
         show_project_and_branch,
         commit_item_prefix_mode,
         show_evidence_details,
         &format,
+        prepared.evidence_link_rules.as_ref(),
+        prepared.author.as_ref(),
+        redaction,
     );
     let detailed_text = if detailed_output {
-        render_detailed_report(&summary_text, &commits)
+        render_detailed_report(&summary_text, prepared.commits.as_ref())
     } else {
         String::new()
     };
@@ -66,7 +101,7 @@ pub fn build_extract_result(
         summary_text,
         detailed_text,
         repos,
-        commits,
+        commits: prepared.commits.into_owned(),
         warnings,
     }
 }
@@ -107,6 +142,30 @@ pub fn render_extract_report(
     show_evidence_details: bool,
     format: &ExtractReportFormat,
 ) -> String {
+    render_extract_report_prepared(
+        commits,
+        project_names,
+        show_project_and_branch,
+        commit_item_prefix_mode,
+        show_evidence_details,
+        format,
+        format.evidence_link_rules,
+        format.author,
+        &ReportRedactionOptions::default(),
+    )
+}
+
+fn render_extract_report_prepared(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    show_project_and_branch: bool,
+    commit_item_prefix_mode: &str,
+    show_evidence_details: bool,
+    format: &ExtractReportFormat,
+    evidence_link_rules: &[EvidenceLinkRule],
+    author: &str,
+    redaction: &ReportRedactionOptions,
+) -> String {
     let kind = if format.report_kind == "custom" {
         "custom"
     } else {
@@ -125,14 +184,14 @@ pub fn render_extract_report(
         project_names,
         format.start_date,
         format.end_date,
-        format.author,
+        author,
         &period_label,
         show_project_and_branch,
         commit_item_prefix_mode,
         show_evidence_details,
-        format.evidence_link_rules,
+        evidence_link_rules,
     );
-    render_report_template(template, default_template_for(kind), &values)
+    render_report_template_with_redaction(template, default_template_for(kind), &values, redaction)
 }
 
 pub fn render_monthly_report_with_template(
@@ -147,21 +206,61 @@ pub fn render_monthly_report_with_template(
     evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
-    let period_label = resolve_period_label("monthly", month_label, start_date, end_date);
-    let values = build_template_values(
-        "monthly",
+    render_monthly_report_with_redaction(
         commits,
         project_names,
         start_date,
         end_date,
         author,
+        month_label,
+        show_evidence_details,
+        commit_item_prefix_mode,
+        evidence_link_rules,
+        template,
+        &ReportRedactionOptions::default(),
+    )
+}
+
+pub fn render_monthly_report_with_redaction(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    month_label: &str,
+    show_evidence_details: bool,
+    commit_item_prefix_mode: &str,
+    evidence_link_rules: &[EvidenceLinkRule],
+    template: &str,
+    redaction: &ReportRedactionOptions,
+) -> String {
+    let prepared = prepare_report_input(
+        commits,
+        project_names,
+        evidence_link_rules,
+        author,
+        redaction,
+    );
+    let period_label = resolve_period_label("monthly", month_label, start_date, end_date);
+    let values = build_template_values(
+        "monthly",
+        prepared.commits.as_ref(),
+        prepared.project_names.as_ref(),
+        start_date,
+        end_date,
+        prepared.author.as_ref(),
         &period_label,
         false,
         commit_item_prefix_mode,
         show_evidence_details,
-        evidence_link_rules,
+        prepared.evidence_link_rules.as_ref(),
     );
-    render_report_template(template, default_template_for("monthly"), &values)
+    render_report_template_with_redaction(
+        template,
+        default_template_for("monthly"),
+        &values,
+        redaction,
+    )
 }
 
 pub fn render_weekly_report_with_template(
@@ -176,21 +275,61 @@ pub fn render_weekly_report_with_template(
     evidence_link_rules: &[EvidenceLinkRule],
     template: &str,
 ) -> String {
-    let period_label = resolve_period_label("weekly", week_label, start_date, end_date);
-    let values = build_template_values(
-        "weekly",
+    render_weekly_report_with_redaction(
         commits,
         project_names,
         start_date,
         end_date,
         author,
+        week_label,
+        show_evidence_details,
+        commit_item_prefix_mode,
+        evidence_link_rules,
+        template,
+        &ReportRedactionOptions::default(),
+    )
+}
+
+pub fn render_weekly_report_with_redaction(
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    week_label: &str,
+    show_evidence_details: bool,
+    commit_item_prefix_mode: &str,
+    evidence_link_rules: &[EvidenceLinkRule],
+    template: &str,
+    redaction: &ReportRedactionOptions,
+) -> String {
+    let prepared = prepare_report_input(
+        commits,
+        project_names,
+        evidence_link_rules,
+        author,
+        redaction,
+    );
+    let period_label = resolve_period_label("weekly", week_label, start_date, end_date);
+    let values = build_template_values(
+        "weekly",
+        prepared.commits.as_ref(),
+        prepared.project_names.as_ref(),
+        start_date,
+        end_date,
+        prepared.author.as_ref(),
         &period_label,
         false,
         commit_item_prefix_mode,
         show_evidence_details,
-        evidence_link_rules,
+        prepared.evidence_link_rules.as_ref(),
     );
-    render_report_template(template, default_template_for("weekly"), &values)
+    render_report_template_with_redaction(
+        template,
+        default_template_for("weekly"),
+        &values,
+        redaction,
+    )
 }
 
 pub fn save_report_file(
@@ -406,6 +545,13 @@ struct ReportTemplateValues {
     notes: String,
 }
 
+struct PreparedReportInput<'a> {
+    commits: Cow<'a, [CommitRecord]>,
+    project_names: Cow<'a, HashMap<String, String>>,
+    evidence_link_rules: Cow<'a, [EvidenceLinkRule]>,
+    author: Cow<'a, str>,
+}
+
 fn build_template_values(
     kind: &str,
     commits: &[CommitRecord],
@@ -518,6 +664,127 @@ fn render_report_template(
         output = output.replace(token, value);
     }
     output.trim().to_string()
+}
+
+fn render_report_template_with_redaction(
+    template: &str,
+    fallback_template: &str,
+    values: &ReportTemplateValues,
+    redaction: &ReportRedactionOptions,
+) -> String {
+    let output = render_report_template(template, fallback_template, values);
+    if redaction.enabled {
+        apply_redaction_rules_to_text(&output, &redaction.rules)
+    } else {
+        output
+    }
+}
+
+fn prepare_report_input<'a>(
+    commits: &'a [CommitRecord],
+    project_names: &'a HashMap<String, String>,
+    evidence_link_rules: &'a [EvidenceLinkRule],
+    author: &'a str,
+    redaction: &ReportRedactionOptions,
+) -> PreparedReportInput<'a> {
+    if !redaction.enabled {
+        return PreparedReportInput {
+            commits: Cow::Borrowed(commits),
+            project_names: Cow::Borrowed(project_names),
+            evidence_link_rules: Cow::Borrowed(evidence_link_rules),
+            author: Cow::Borrowed(author),
+        };
+    }
+
+    let mut redactor = ReportRedactor::new(&redaction.rules);
+    let redacted_commits = commits
+        .iter()
+        .map(|commit| redactor.redact_commit(commit))
+        .collect::<Vec<_>>();
+
+    PreparedReportInput {
+        commits: Cow::Owned(redacted_commits),
+        project_names: Cow::Owned(HashMap::new()),
+        evidence_link_rules: Cow::Owned(Vec::new()),
+        author: Cow::Owned(redact_author_scope(author)),
+    }
+}
+
+struct ReportRedactor<'a> {
+    rules: &'a [ReportRedactionRule],
+    repo_aliases: HashMap<String, String>,
+    branch_aliases: HashMap<String, String>,
+    author_aliases: HashMap<String, String>,
+    hash_aliases: HashMap<String, String>,
+}
+
+impl<'a> ReportRedactor<'a> {
+    fn new(rules: &'a [ReportRedactionRule]) -> Self {
+        Self {
+            rules,
+            repo_aliases: HashMap::new(),
+            branch_aliases: HashMap::new(),
+            author_aliases: HashMap::new(),
+            hash_aliases: HashMap::new(),
+        }
+    }
+
+    fn redact_commit(&mut self, commit: &CommitRecord) -> CommitRecord {
+        let mut redacted = commit.clone();
+        redacted.project_name = alias_for(&mut self.repo_aliases, &commit.project_name, "仓库");
+        redacted.repo_path = redacted.project_name.clone();
+        redacted.branch_name = alias_for(&mut self.branch_aliases, &commit.branch_name, "分支");
+        let author_key = commit_author_key(commit);
+        redacted.author = alias_for(&mut self.author_aliases, &author_key, "作者");
+        redacted.author_email = String::new();
+        redacted.hash = alias_for(&mut self.hash_aliases, &commit.hash, "commit-");
+        redacted.message = apply_redaction_rules_to_text(&commit.message, self.rules);
+        redacted
+    }
+}
+
+fn alias_for(aliases: &mut HashMap<String, String>, value: &str, prefix: &str) -> String {
+    let key = value.trim();
+    if key.is_empty() {
+        return format!("{}未知", prefix.trim_end_matches('-'));
+    }
+    if let Some(alias) = aliases.get(key) {
+        return alias.clone();
+    }
+    let alias = format!("{}{}", prefix, aliases.len() + 1);
+    aliases.insert(key.to_string(), alias.clone());
+    alias
+}
+
+fn commit_author_key(commit: &CommitRecord) -> String {
+    [commit.author.trim(), commit.author_email.trim()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn redact_author_scope(author: &str) -> String {
+    if author.trim().is_empty() {
+        String::new()
+    } else {
+        "作者范围已脱敏".to_string()
+    }
+}
+
+fn apply_redaction_rules_to_text(text: &str, rules: &[ReportRedactionRule]) -> String {
+    rules.iter().fold(text.to_string(), |current, rule| {
+        let find = rule.find.trim();
+        if find.is_empty() {
+            return current;
+        }
+        let replacement = if rule.replacement.trim().is_empty() {
+            "***"
+        } else {
+            rule.replacement.trim()
+        };
+        current.replace(find, replacement)
+    })
 }
 
 fn render_summary_content(
@@ -745,7 +1012,11 @@ fn commit_item_prefix(
     match mode {
         CommitItemPrefixMode::MappedProject => display_prefix(&mapped_project),
         CommitItemPrefixMode::RepoBranchAndMapped => {
-            format!("{}{}", display_prefix(&repo_branch), display_prefix(&mapped_project))
+            format!(
+                "{}{}",
+                display_prefix(&repo_branch),
+                display_prefix(&mapped_project)
+            )
         }
         CommitItemPrefixMode::RepoBranch => display_prefix(&repo_branch),
         CommitItemPrefixMode::None => String::new(),
@@ -1115,6 +1386,9 @@ fn short_date(date: &str) -> String {
 }
 
 fn short_hash(hash: &str) -> String {
+    if hash.starts_with("commit-") {
+        return hash.to_string();
+    }
     hash.chars().take(7).collect()
 }
 
@@ -1486,6 +1760,59 @@ mod tests {
     }
 
     #[test]
+    fn render_weekly_report_redacts_traceable_evidence_details() {
+        let commits = vec![commit(
+            "private-api",
+            "feature/customer-secret",
+            "feat: 完成内部项目客户验收 #123",
+        )];
+        let mut project_names = HashMap::new();
+        project_names.insert("private-api(*)".to_string(), "内部平台-".to_string());
+        let evidence_link_rules = vec![EvidenceLinkRule {
+            prefix: "#".to_string(),
+            url_template: "https://jira.internal/browse/{id}".to_string(),
+        }];
+        let redaction = ReportRedactionOptions {
+            enabled: true,
+            rules: vec![
+                ReportRedactionRule {
+                    find: "内部项目".to_string(),
+                    replacement: "项目A".to_string(),
+                },
+                ReportRedactionRule {
+                    find: "客户".to_string(),
+                    replacement: String::new(),
+                },
+            ],
+        };
+
+        let report = render_weekly_report_with_redaction(
+            &commits,
+            &project_names,
+            "2026-06-08",
+            "2026-06-14",
+            "tester@example.com",
+            "2026-W24",
+            true,
+            "mapped-project",
+            &evidence_link_rules,
+            default_template_for("weekly"),
+            &redaction,
+        );
+
+        assert!(report.contains("来源：`仓库1` / `分支1` / `2026-06-10` / `commit-1`"));
+        assert!(report.contains("项目A***验收"));
+        assert!(report.contains("- 作者：作者范围已脱敏"));
+        assert!(!report.contains("private-api"));
+        assert!(!report.contains("feature/customer-secret"));
+        assert!(!report.contains("abc123def"));
+        assert!(!report.contains("tester@example.com"));
+        assert!(!report.contains("https://jira.internal"));
+        assert!(!report.contains("内部平台"));
+        assert!(!report.contains("内部项目"));
+    }
+
+    #[test]
     fn render_weekly_report_uses_custom_template_variables() {
         let commits = vec![
             commit("repo-a", "main", "feat: 添加格式模板"),
@@ -1633,10 +1960,7 @@ mod tests {
             "feat: 接入注安题目纠错反馈模块",
         )];
         let mut project_names = HashMap::new();
-        project_names.insert(
-            "cse-frontend(*)".to_string(),
-            "柏科注安工程师".to_string(),
-        );
+        project_names.insert("cse-frontend(*)".to_string(), "柏科注安工程师".to_string());
         let templates = ReportFormatTemplates {
             daily: "{commitItems}".to_string(),
             ..ReportFormatTemplates::default()
@@ -1677,9 +2001,8 @@ mod tests {
 
         assert!(mapped_only.contains("柏科注安工程师 - 接入注安题目纠错反馈模块"));
         assert!(!mapped_only.contains("cse-frontend(master)"));
-        assert!(repo_and_mapped.contains(
-            "cse-frontend(master) - 柏科注安工程师 - 接入注安题目纠错反馈模块"
-        ));
+        assert!(repo_and_mapped
+            .contains("cse-frontend(master) - 柏科注安工程师 - 接入注安题目纠错反馈模块"));
     }
 
     #[test]
@@ -1699,6 +2022,7 @@ mod tests {
             "mapped-project",
             false,
             true,
+            &ReportRedactionOptions::default(),
             ExtractReportFormat {
                 start_date: "2026-06-14",
                 end_date: "2026-06-14",

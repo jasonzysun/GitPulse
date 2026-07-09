@@ -73,6 +73,22 @@ pub struct EvidenceLinkRule {
     pub url_template: String,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportRedactionRule {
+    pub find: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportRedactionOptions {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub rules: Vec<ReportRedactionRule>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractOptions {
@@ -102,6 +118,8 @@ pub struct ExtractOptions {
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
+    #[serde(default)]
+    pub redaction: ReportRedactionOptions,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,
@@ -296,6 +314,8 @@ pub struct MonthlyReportOptions {
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
+    #[serde(default)]
+    pub redaction: ReportRedactionOptions,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,
@@ -344,6 +364,8 @@ pub struct PeriodReportOptions {
     pub show_evidence_details: bool,
     #[serde(default)]
     pub evidence_link_rules: Vec<EvidenceLinkRule>,
+    #[serde(default)]
+    pub redaction: ReportRedactionOptions,
     pub project_names: HashMap<String, String>,
     #[serde(default)]
     pub report_format_templates: ReportFormatTemplates,

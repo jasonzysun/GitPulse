@@ -570,6 +570,7 @@ export function SettingsDialog({
                       <Toggle label="排除 Bot 提交" checked={settings.excludeBotCommits} onChange={(value) => updateSetting("excludeBotCommits", value)} />
                       <Toggle label="输出详细日志" checked={settings.detailedOutput} onChange={(value) => updateSetting("detailedOutput", value)} />
                       <Toggle label="显示提交证据" checked={settings.showEvidenceDetails} onChange={(value) => updateSetting("showEvidenceDetails", value)} />
+                      <Toggle label="报告脱敏" checked={settings.redactionEnabled} onChange={(value) => updateSetting("redactionEnabled", value)} />
                     </div>
                     <Field
                       label="日报条目前缀"
@@ -594,6 +595,17 @@ export function SettingsDialog({
                         value={settings.evidenceLinkPrefixesText}
                         onChange={(event) => updateSetting("evidenceLinkPrefixesText", event.target.value)}
                         placeholder={"# -> https://github.com/org/repo/issues/{id}\nPR -> https://github.com/org/repo/pull/{id}\nJIRA -> https://jira.example.com/browse/{key}"}
+                      />
+                    </Field>
+                    <Field
+                      label="脱敏替换规则"
+                      hint="可选。每行一条：敏感词 -> 替换文本；只写敏感词时默认替换为 ***。启用报告脱敏后生效。"
+                    >
+                      <textarea
+                        className="refinement-input redaction-rules-input"
+                        value={settings.redactionRulesText}
+                        onChange={(event) => updateSetting("redactionRulesText", event.target.value)}
+                        placeholder={"内部项目 -> 项目A\n客户名称 -> 客户X\nSECRET_TOKEN"}
                       />
                     </Field>
                   </div>

@@ -7,8 +7,8 @@ use crate::ai;
 use crate::git_ops;
 use crate::models::{
     AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult,
-    RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
+    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
+    ReportEnhanceOptions, ReportEnhanceResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -26,18 +26,34 @@ where
     let extract_options = monthly_extract_options(&options, &dates.0, &dates.1);
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
     let report_author = report_author(&options.author_display_name, &options.author);
-    let mut report_text = report::render_monthly_report_with_template(
-        &commits,
-        &options.project_names,
-        &dates.0,
-        &dates.1,
-        &report_author,
-        &dates.2,
-        options.show_evidence_details,
-        &options.commit_item_prefix_mode,
-        &options.evidence_link_rules,
-        &options.report_format_templates.monthly,
-    );
+    let mut report_text = if options.redaction.enabled {
+        report::render_monthly_report_with_redaction(
+            &commits,
+            &options.project_names,
+            &dates.0,
+            &dates.1,
+            &report_author,
+            &dates.2,
+            options.show_evidence_details,
+            &options.commit_item_prefix_mode,
+            &options.evidence_link_rules,
+            &options.report_format_templates.monthly,
+            &options.redaction,
+        )
+    } else {
+        report::render_monthly_report_with_template(
+            &commits,
+            &options.project_names,
+            &dates.0,
+            &dates.1,
+            &report_author,
+            &dates.2,
+            options.show_evidence_details,
+            &options.commit_item_prefix_mode,
+            &options.evidence_link_rules,
+            &options.report_format_templates.monthly,
+        )
+    };
 
     report_text = apply_ai_if_enabled(report_text, &options, &dates, &report_author, &mut warnings);
     let output_file = save_monthly_if_enabled(&options, &dates.2, &report_text)?;
@@ -69,6 +85,19 @@ where
     let (_, commits, mut warnings) = collect_commits(&extract_options, on_progress)?;
     let report_author = report_author(&options.author_display_name, &options.author);
     let mut report_text = match options.report_kind.as_str() {
+        "weekly" if options.redaction.enabled => report::render_weekly_report_with_redaction(
+            &commits,
+            &options.project_names,
+            &options.start_date,
+            &options.end_date,
+            &report_author,
+            &options.period_label,
+            options.show_evidence_details,
+            &options.commit_item_prefix_mode,
+            &options.evidence_link_rules,
+            &options.report_format_templates.weekly,
+            &options.redaction,
+        ),
         "weekly" => report::render_weekly_report_with_template(
             &commits,
             &options.project_names,
@@ -80,6 +109,19 @@ where
             &options.commit_item_prefix_mode,
             &options.evidence_link_rules,
             &options.report_format_templates.weekly,
+        ),
+        "monthly" if options.redaction.enabled => report::render_monthly_report_with_redaction(
+            &commits,
+            &options.project_names,
+            &options.start_date,
+            &options.end_date,
+            &report_author,
+            &options.period_label,
+            options.show_evidence_details,
+            &options.commit_item_prefix_mode,
+            &options.evidence_link_rules,
+            &options.report_format_templates.monthly,
+            &options.redaction,
         ),
         "monthly" => report::render_monthly_report_with_template(
             &commits,
@@ -178,6 +220,7 @@ where
         &options.commit_item_prefix_mode,
         options.show_evidence_details,
         options.detailed_output,
+        &options.redaction,
         report::ExtractReportFormat {
             start_date: &options.start_date,
             end_date: &options.end_date,
@@ -528,6 +571,7 @@ fn monthly_extract_options(
         commit_item_prefix_mode: options.commit_item_prefix_mode.clone(),
         show_evidence_details: options.show_evidence_details,
         evidence_link_rules: options.evidence_link_rules.clone(),
+        redaction: options.redaction.clone(),
         project_names: options.project_names.clone(),
         report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
@@ -557,6 +601,7 @@ fn period_extract_options(options: &PeriodReportOptions) -> ExtractOptions {
         commit_item_prefix_mode: options.commit_item_prefix_mode.clone(),
         show_evidence_details: options.show_evidence_details,
         evidence_link_rules: options.evidence_link_rules.clone(),
+        redaction: options.redaction.clone(),
         project_names: options.project_names.clone(),
         report_format_templates: options.report_format_templates.clone(),
         refinement_instruction: options.refinement_instruction.clone(),
@@ -846,6 +891,7 @@ mod tests {
             commit_item_prefix_mode: "mapped-project".to_string(),
             show_evidence_details: false,
             evidence_link_rules: Vec::new(),
+            redaction: crate::models::ReportRedactionOptions::default(),
             project_names: Default::default(),
             report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),
@@ -902,6 +948,7 @@ mod tests {
             commit_item_prefix_mode: "mapped-project".to_string(),
             show_evidence_details: true,
             evidence_link_rules: Vec::new(),
+            redaction: crate::models::ReportRedactionOptions::default(),
             project_names: Default::default(),
             report_format_templates: crate::models::ReportFormatTemplates::default(),
             refinement_instruction: String::new(),

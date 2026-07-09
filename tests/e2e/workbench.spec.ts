@@ -453,6 +453,51 @@ test("generates and exports a weekly report", async ({ page }) => {
   expect(saveCalls[0].args.baseName).toContain("weekly_report_2026-W27");
 });
 
+test("passes redaction options when generating a traceable weekly report", async ({ page }) => {
+  await launchApp(page, {
+    settings: createSettings({
+      ...settings,
+      showEvidenceDetails: true,
+      redactionEnabled: true,
+      redactionRulesText: "内部项目 -> 项目A\nSECRET_TOKEN",
+    }),
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    periodResults: {
+      weekly: {
+        reportText: "# 2026-W27 工作周报\n\n- 项目A完成验收\n  > 来源：`仓库1` / `分支1` / `2026-07-01` / `commit-1`",
+        outputFile: "C:/exports/weekly_report_2026-W27.md",
+        warnings: [],
+        periodLabel: "2026-W27",
+        reportKind: "weekly",
+        projectCount: 1,
+        commitCount: 1,
+      },
+    },
+    outputDir: "C:/exports",
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "周报" }).click();
+  await page.getByRole("button", { name: "生成周报" }).click();
+
+  await expect(page.getByText("项目A完成验收")).toBeVisible();
+  await expect(page.locator(".generation-scope-strip")).toContainText("脱敏");
+  await expect(page.locator(".generation-scope-strip")).toContainText("已启用");
+
+  const generateCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "generate_period_report"),
+  );
+  expect(generateCalls).toHaveLength(1);
+  expect(generateCalls[0].args.options.showEvidenceDetails).toBe(true);
+  expect(generateCalls[0].args.options.redaction).toEqual({
+    enabled: true,
+    rules: [
+      { find: "内部项目", replacement: "项目A" },
+      { find: "SECRET_TOKEN", replacement: "***" },
+    ],
+  });
+});
+
 test("generates and exports a monthly report", async ({ page }) => {
   await launchApp(page, {
     settings,

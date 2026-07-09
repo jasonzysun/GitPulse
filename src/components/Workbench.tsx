@@ -66,6 +66,7 @@ type Props = {
   aiConfigured: boolean;
   extractAllBranches: boolean;
   showEvidenceDetails: boolean;
+  redactionEnabled: boolean;
   outputEnabled: boolean;
   outputDir: string;
   onExtract: () => void;
@@ -407,6 +408,7 @@ export function Workbench(props: Props) {
               totalRepoCount={props.repos.length}
               extractAllBranches={props.extractAllBranches}
               showEvidenceDetails={props.showEvidenceDetails}
+              redactionEnabled={props.redactionEnabled}
               outputEnabled={props.outputEnabled}
               outputDir={props.outputDir}
             />
@@ -572,6 +574,7 @@ export function Workbench(props: Props) {
                 totalRepoCount={props.repos.length}
                 aiConfigured={props.aiConfigured}
                 showEvidenceDetails={props.showEvidenceDetails}
+                redactionEnabled={props.redactionEnabled}
                 canExport={props.canExport}
               />
             )}
@@ -1038,6 +1041,7 @@ function GenerationScopeStrip({
   totalRepoCount,
   extractAllBranches,
   showEvidenceDetails,
+  redactionEnabled,
   outputEnabled,
   outputDir,
 }: {
@@ -1048,6 +1052,7 @@ function GenerationScopeStrip({
   totalRepoCount: number;
   extractAllBranches: boolean;
   showEvidenceDetails: boolean;
+  redactionEnabled: boolean;
   outputEnabled: boolean;
   outputDir: string;
 }) {
@@ -1059,6 +1064,7 @@ function GenerationScopeStrip({
       <ScopeItem label="仓库" value={formatRepoScope(enabledRepoCount, totalRepoCount)} tone={enabledRepoCount === 0 ? "attention" : "default"} />
       <ScopeItem label="分支" value={extractAllBranches ? "全部分支" : "当前分支"} />
       <ScopeItem label="证据" value={showEvidenceDetails ? "显示" : "未显示"} />
+      <ScopeItem label="脱敏" value={redactionEnabled ? "已启用" : "未启用"} tone={redactionEnabled ? "default" : "attention"} />
       <ScopeItem
         label="导出"
         value={formatOutputScope(outputEnabled, outputDir)}

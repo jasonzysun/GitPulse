@@ -135,6 +135,16 @@ export type EvidenceLinkRule = {
   urlTemplate: string;
 };
 
+export type ReportRedactionRule = {
+  find: string;
+  replacement: string;
+};
+
+export type ReportRedactionOptions = {
+  enabled: boolean;
+  rules: ReportRedactionRule[];
+};
+
 export type AiModelInfo = {
   id: string;
 };
@@ -198,6 +208,8 @@ export type AppSettings = {
   showProjectAndBranch: boolean;
   commitItemPrefixMode: CommitItemPrefixMode;
   showEvidenceDetails: boolean;
+  redactionEnabled: boolean;
+  redactionRulesText: string;
   projectNamesText: string;
   aiEnabled: boolean;
   aiProvider: "openai-compatible" | "anthropic-native" | "codex-oauth";
@@ -236,6 +248,8 @@ const LEGACY_STORAGE_KEY = "git-report-studio-settings";
 const ENV_VAR_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const EVIDENCE_PRESERVATION_INSTRUCTION =
   "已启用提交证据详情。请保留每条事项下方的「来源」引用块，不要改写仓库、分支、日期、commit hash 或原始提交信息。";
+const REDACTION_PRESERVATION_INSTRUCTION =
+  "已启用报告脱敏。请保留仓库、分支、作者和 commit 的脱敏别名，不要推测或还原真实名称。";
 const TEMPLATE_PRESERVATION_INSTRUCTION =
   "请保留当前报告草稿的模板结构、标题层级和分段顺序，不要改成其他固定格式。";
 
@@ -272,6 +286,8 @@ export const defaultSettings: AppSettings = {
   showProjectAndBranch: true,
   commitItemPrefixMode: "mapped-project",
   showEvidenceDetails: false,
+  redactionEnabled: false,
+  redactionRulesText: "",
   projectNamesText: "",
   aiEnabled: false,
   aiProvider: "openai-compatible",
@@ -347,6 +363,7 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.proxyPassword = "";
   parsed.authorAliasesText = typeof parsed.authorAliasesText === "string" ? parsed.authorAliasesText : "";
   parsed.evidenceLinkPrefixesText = typeof parsed.evidenceLinkPrefixesText === "string" ? parsed.evidenceLinkPrefixesText : "";
+  parsed.redactionRulesText = typeof parsed.redactionRulesText === "string" ? parsed.redactionRulesText : "";
   parsed.aiApiKeySaved = Boolean(parsed.aiApiKeySaved);
   parsed.proxyPasswordSaved = Boolean(parsed.proxyPasswordSaved);
   parsed.aiProvider = normalizeAiProvider(parsed.aiProvider);
@@ -359,6 +376,7 @@ export function loadSettingsState(): LoadedSettingsState {
   parsed.excludeRevertCommits = parsed.excludeRevertCommits !== false;
   parsed.excludeBotCommits = parsed.excludeBotCommits !== false;
   parsed.showEvidenceDetails = Boolean(parsed.showEvidenceDetails);
+  parsed.redactionEnabled = Boolean(parsed.redactionEnabled);
   parsed.dailyReportFormatTemplate = normalizeReportFormatTemplate(
     parsed.dailyReportFormatTemplate,
     DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE,
@@ -726,6 +744,22 @@ export function parseEvidenceLinkRules(text: string): EvidenceLinkRule[] {
   }, []);
 }
 
+export function parseRedactionRules(text: string): ReportRedactionRule[] {
+  const seen = new Set<string>();
+  return text.split(/\r?\n/).reduce<ReportRedactionRule[]>((rules, line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("//")) return rules;
+    const separatorIndex = line.indexOf("->");
+    const find = separatorIndex < 0 ? trimmed : line.slice(0, separatorIndex).trim();
+    const replacement = separatorIndex < 0 ? "***" : line.slice(separatorIndex + 2).trim() || "***";
+    const key = find.toLowerCase();
+    if (!find || seen.has(key)) return rules;
+    seen.add(key);
+    rules.push({ find, replacement });
+    return rules;
+  }, []);
+}
+
 export function buildAuthorFilter(author: string, groups: AuthorAliasGroup[]): string {
   const authors = splitAuthorInput(author);
   if (authors.length === 0) return "";
@@ -810,6 +844,7 @@ export function buildExtractOptions(
     commitItemPrefixMode: settings.commitItemPrefixMode,
     showEvidenceDetails: settings.showEvidenceDetails,
     evidenceLinkRules,
+    redaction: buildReportRedactionOptions(settings),
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
@@ -843,6 +878,7 @@ export function buildMonthlyOptions(
     showEvidenceDetails: settings.showEvidenceDetails,
     commitItemPrefixMode: settings.commitItemPrefixMode,
     evidenceLinkRules,
+    redaction: buildReportRedactionOptions(settings),
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
@@ -883,6 +919,7 @@ export function buildPeriodReportOptions(
     showEvidenceDetails: settings.showEvidenceDetails,
     commitItemPrefixMode: settings.commitItemPrefixMode,
     evidenceLinkRules,
+    redaction: buildReportRedactionOptions(settings),
     projectNames,
     reportFormatTemplates: buildReportFormatTemplates(settings),
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
@@ -985,6 +1022,13 @@ export function buildProxyConfig(settings: AppSettings): ProxyConfig {
   };
 }
 
+function buildReportRedactionOptions(settings: AppSettings): ReportRedactionOptions {
+  return {
+    enabled: settings.redactionEnabled,
+    rules: parseRedactionRules(settings.redactionRulesText),
+  };
+}
+
 function buildReportFormatTemplates(settings: AppSettings): ReportFormatTemplates {
   return {
     daily: settings.dailyReportFormatTemplate,
@@ -1017,12 +1061,16 @@ function buildReportSystemPrompt(settings: AppSettings, kind: "daily" | PeriodRe
 
 function buildReportRefinementInstruction(settings: AppSettings, extraInstruction: string) {
   const evidenceInstruction = settings.showEvidenceDetails ? EVIDENCE_PRESERVATION_INSTRUCTION : "";
+  const redactionInstruction = settings.redactionEnabled ? REDACTION_PRESERVATION_INSTRUCTION : "";
   const purposeInstruction = purposeRefinementInstruction(settings.reportPurposePreset);
   return mergeInstructions(
     mergeInstructions(
       mergeInstructions(
-        mergeInstructions(purposeInstruction, settings.refinementInstruction),
-        TEMPLATE_PRESERVATION_INSTRUCTION,
+        mergeInstructions(
+          mergeInstructions(purposeInstruction, settings.refinementInstruction),
+          TEMPLATE_PRESERVATION_INSTRUCTION,
+        ),
+        redactionInstruction,
       ),
       evidenceInstruction,
     ),

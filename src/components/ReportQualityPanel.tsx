@@ -4,6 +4,7 @@ import {
   FileDown,
   FileText,
   GitBranch,
+  ShieldCheck,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ type Props = {
   totalRepoCount: number;
   aiConfigured: boolean;
   showEvidenceDetails: boolean;
+  redactionEnabled: boolean;
   canExport: boolean;
 };
 
@@ -35,6 +37,7 @@ export function ReportQualityPanel({
   totalRepoCount,
   aiConfigured,
   showEvidenceDetails,
+  redactionEnabled,
   canExport,
 }: Props) {
   const items = buildQualityItems({
@@ -44,6 +47,7 @@ export function ReportQualityPanel({
     totalRepoCount,
     aiConfigured,
     showEvidenceDetails,
+    redactionEnabled,
     canExport,
   });
   const warningCount = items.filter((item) => item.tone === "warning").length;
@@ -82,6 +86,7 @@ function buildQualityItems({
   totalRepoCount,
   aiConfigured,
   showEvidenceDetails,
+  redactionEnabled,
   canExport,
 }: Props): QualityItem[] {
   const coverageLabel = projectCount > 0 ? `${projectCount} 个项目` : "项目待确认";
@@ -114,6 +119,13 @@ function buildQualityItems({
       detail: showEvidenceDetails ? "报告保留 commit 来源，便于追溯。" : "关键汇报建议开启提交证据。",
       tone: showEvidenceDetails ? "ok" : "warning",
       icon: FileText,
+    },
+    {
+      id: "redaction",
+      label: redactionEnabled ? "脱敏已启用" : "未脱敏",
+      detail: redactionEnabled ? "仓库、分支、作者和 hash 会以别名展示。" : "对外分享前建议开启报告脱敏。",
+      tone: redactionEnabled ? "ok" : "warning",
+      icon: redactionEnabled ? ShieldCheck : AlertCircle,
     },
     {
       id: "export",

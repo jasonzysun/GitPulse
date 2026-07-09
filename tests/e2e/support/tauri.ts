@@ -69,6 +69,8 @@ export function createSettings(overrides: Record<string, unknown> = {}) {
     showProjectAndBranch: true,
     commitItemPrefixMode: "mapped-project",
     showEvidenceDetails: false,
+    redactionEnabled: false,
+    redactionRulesText: "",
     projectNamesText: "",
     aiEnabled: false,
     aiProvider: "openai-compatible",

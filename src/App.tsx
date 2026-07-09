@@ -802,6 +802,7 @@ function App() {
         aiConfigured={aiConfigured}
         extractAllBranches={settings.extractAllBranches}
         showEvidenceDetails={settings.showEvidenceDetails}
+        redactionEnabled={settings.redactionEnabled}
         outputEnabled={settings.outputEnabled}
         outputDir={settings.outputDir}
         onExtract={extractCommits}
