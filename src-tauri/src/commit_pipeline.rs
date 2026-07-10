@@ -996,6 +996,9 @@ mod tests {
             author_email: email.to_string(),
             date: date.to_string(),
             message: "feat: demo".to_string(),
+            additions: 0,
+            deletions: 0,
+            changed_files: 0,
         }
     }
 

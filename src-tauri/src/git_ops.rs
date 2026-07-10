@@ -1,5 +1,5 @@
 use crate::models::{CommitRecord, GitIdentity, RepoInfo, RepoScanProgress};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io;
 use std::io::ErrorKind;
@@ -104,7 +104,22 @@ pub fn get_git_commits(
     let args = build_log_args(query);
     let borrowed_args: Vec<&str> = args.iter().map(String::as_str).collect();
     let output = run_git(&repo_path, &borrowed_args)?;
-    Ok(parse_git_log_output(repo, &output, query))
+    let mut records = parse_git_log_output(repo, &output, query);
+
+    let numstat_args = build_numstat_args(query);
+    let borrowed_numstat: Vec<&str> = numstat_args.iter().map(String::as_str).collect();
+    if let Ok(numstat_output) = run_git(&repo_path, &borrowed_numstat) {
+        let stats = parse_numstat_output(&numstat_output);
+        for record in &mut records {
+            if let Some(&(a, d, f)) = stats.get(&record.hash) {
+                record.additions = a;
+                record.deletions = d;
+                record.changed_files = f;
+            }
+        }
+    }
+
+    Ok(records)
 }
 
 pub fn git_version() -> Result<String, String> {
@@ -310,6 +325,67 @@ pub(crate) fn split_authors(author: &str) -> Vec<String> {
     result
 }
 
+fn build_numstat_args(query: &GitCommitQuery) -> Vec<String> {
+    let mut args = vec!["log".to_string()];
+    if query.extract_all_branches {
+        args.push("--all".to_string());
+    }
+    if query.exclude_merge_commits {
+        args.push("--no-merges".to_string());
+    }
+    args.extend([
+        format!("--since={} 00:00:00", query.start_date),
+        format!("--until={} 23:59:59", query.end_date),
+        "--format=%x1e%H".to_string(),
+        "--numstat".to_string(),
+    ]);
+    for author in split_authors(query.author) {
+        args.push(format!("--author={}", author));
+    }
+    args
+}
+
+fn parse_numstat_output(output: &str) -> HashMap<String, (u64, u64, u32)> {
+    let mut result = HashMap::new();
+    for record in output.split('\x1e') {
+        let record = record.trim();
+        if record.is_empty() {
+            continue;
+        }
+        let mut lines = record.lines();
+        let Some(hash_line) = lines.next() else {
+            continue;
+        };
+        let hash = hash_line.trim().to_string();
+        if hash.is_empty() {
+            continue;
+        }
+        let mut additions: u64 = 0;
+        let mut deletions: u64 = 0;
+        let mut changed_files: u32 = 0;
+        for line in lines {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let parts: Vec<&str> = line.splitn(3, '\t').collect();
+            if parts.len() < 3 {
+                continue;
+            }
+            if parts[0] == "-" && parts[1] == "-" {
+                continue;
+            }
+            if let (Ok(a), Ok(d)) = (parts[0].parse::<u64>(), parts[1].parse::<u64>()) {
+                additions += a;
+                deletions += d;
+                changed_files += 1;
+            }
+        }
+        result.insert(hash, (additions, deletions, changed_files));
+    }
+    result
+}
+
 fn parse_git_log_output(
     repo: &RepoInfo,
     output: &str,
@@ -359,6 +435,9 @@ fn parse_commit_record(
         author_email: author_email.to_string(),
         date: parts[5].trim().to_string(),
         message: message.to_string(),
+        additions: 0,
+        deletions: 0,
+        changed_files: 0,
     })
 }
 
@@ -788,5 +867,38 @@ mod tests {
         format!(
             "\x1e{hash}\x1f{parents}\x1f{source}\x1f{author}\x1f{email}\x1f2026-06-10 10:00:00 +0800\x1f{message}"
         )
+    }
+
+    #[test]
+    fn test_parse_numstat_output() {
+        let output = "\x1eabc123\n\n3\t1\tsrc/main.rs\n10\t5\tsrc/lib.rs\n\n\x1edef456\n\n1\t0\tREADME.md\n";
+        let stats = parse_numstat_output(output);
+        assert_eq!(stats.len(), 2);
+        assert_eq!(stats.get("abc123"), Some(&(13, 6, 2)));
+        assert_eq!(stats.get("def456"), Some(&(1, 0, 1)));
+    }
+
+    #[test]
+    fn test_parse_numstat_binary_files() {
+        let output = "\x1eabc123\n\n-\t-\timage.png\n3\t1\tsrc/main.rs\n";
+        let stats = parse_numstat_output(output);
+        assert_eq!(stats.get("abc123"), Some(&(3, 1, 1)));
+    }
+
+    #[test]
+    fn test_parse_numstat_empty() {
+        let stats = parse_numstat_output("");
+        assert!(stats.is_empty());
+    }
+
+    #[test]
+    fn build_numstat_args_mirrors_log_args_filters() {
+        let query = query(true, true, false, false);
+        let args = build_numstat_args(&query);
+        assert!(args.contains(&"--all".to_string()));
+        assert!(args.contains(&"--no-merges".to_string()));
+        assert!(args.contains(&"--numstat".to_string()));
+        assert!(args.contains(&"--format=%x1e%H".to_string()));
+        assert!(args.iter().any(|a| a.starts_with("--author=")));
     }
 }

@@ -524,6 +524,9 @@ impl CommitItemPrefixMode {
 struct ProjectCommitItem {
     title: String,
     evidence: String,
+    additions: u64,
+    deletions: u64,
+    changed_files: u32,
 }
 
 type ProjectGroups = BTreeMap<String, Vec<ProjectCommitItem>>;
@@ -543,6 +546,10 @@ struct ReportTemplateValues {
     next_steps: String,
     evidence: String,
     notes: String,
+    additions: String,
+    deletions: String,
+    net_lines: String,
+    changed_files: String,
 }
 
 struct PreparedReportInput<'a> {
@@ -569,6 +576,10 @@ fn build_template_values(
     let author_groups =
         group_commits_by_author_project(commits, project_names, evidence_link_rules);
     let group_by_author = should_group_by_author(author, &author_groups);
+    let total_additions: u64 = commits.iter().map(|c| c.additions).sum();
+    let total_deletions: u64 = commits.iter().map(|c| c.deletions).sum();
+    let net_lines = total_additions as i64 - total_deletions as i64;
+    let total_changed_files: u32 = commits.iter().map(|c| c.changed_files).sum();
     ReportTemplateValues {
         period_label: period_label.to_string(),
         start_date: start_date.to_string(),
@@ -631,6 +642,10 @@ fn build_template_values(
             render_evidence_items(commits, evidence_link_rules)
         },
         notes: report_note(kind).to_string(),
+        additions: total_additions.to_string(),
+        deletions: total_deletions.to_string(),
+        net_lines: net_lines.to_string(),
+        changed_files: total_changed_files.to_string(),
     }
 }
 
@@ -658,6 +673,10 @@ fn render_report_template(
         ("{nextSteps}", values.next_steps.as_str()),
         ("{evidence}", values.evidence.as_str()),
         ("{notes}", values.notes.as_str()),
+        ("{additions}", values.additions.as_str()),
+        ("{deletions}", values.deletions.as_str()),
+        ("{netLines}", values.net_lines.as_str()),
+        ("{changedFiles}", values.changed_files.as_str()),
     ];
     let mut output = source.to_string();
     for (token, value) in replacements {
@@ -968,7 +987,7 @@ fn report_note(kind: &str) -> &'static str {
 
 const DEFAULT_DAILY_REPORT_TEMPLATE: &str = "{commitItems}";
 const DEFAULT_WEEKLY_REPORT_TEMPLATE: &str = "# {periodLabel}工作周报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、本周重点\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、下周关注\n\n{nextSteps}\n\n{notes}";
-const DEFAULT_MONTHLY_REPORT_TEMPLATE: &str = "# {periodLabel}工作月报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n## 一、项目进度\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、当月总结\n\n{conclusion}\n\n{notes}";
+const DEFAULT_MONTHLY_REPORT_TEMPLATE: &str = "# {periodLabel}工作月报\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n- 代码变更：+{additions} -{deletions}（净增 {netLines} 行）\n\n## 一、项目进度\n\n{summary}\n\n## 二、实际完成情况\n\n{projectSections}\n\n## 三、当月总结\n\n{conclusion}\n\n{notes}";
 const DEFAULT_CUSTOM_REPORT_TEMPLATE: &str = "# {periodLabel}工作报告\n\n- 统计周期：{startDate} 至 {endDate}\n- 作者：{author}\n- 项目数量：{projectCount}\n- 提交事项：{commitCount}\n\n{projectSections}\n\n{evidence}";
 
 fn render_summary_line(
@@ -1078,6 +1097,9 @@ fn group_commits_by_project(
             .push(ProjectCommitItem {
                 title: clean_commit_message(&commit.message),
                 evidence: format_evidence_text(commit, evidence_link_rules),
+                additions: commit.additions,
+                deletions: commit.deletions,
+                changed_files: commit.changed_files,
             });
     }
     groups
@@ -1100,6 +1122,9 @@ fn group_commits_by_author_project(
             .push(ProjectCommitItem {
                 title: clean_commit_message(&commit.message),
                 evidence: format_evidence_text(commit, evidence_link_rules),
+                additions: commit.additions,
+                deletions: commit.deletions,
+                changed_files: commit.changed_files,
             });
     }
     author_groups
@@ -1477,6 +1502,17 @@ fn render_actual_completion_content(
             if show_evidence_details {
                 lines.extend(render_evidence_block(&item.evidence));
             }
+        }
+        let proj_add: u64 = items.iter().map(|i| i.additions).sum();
+        let proj_del: u64 = items.iter().map(|i| i.deletions).sum();
+        let proj_files: u32 = items.iter().map(|i| i.changed_files).sum();
+        if proj_add + proj_del > 0 {
+            let net = proj_add as i64 - proj_del as i64;
+            lines.push(String::new());
+            lines.push(format!(
+                "\u{1f4ca} 变更统计：+{} -{}（净增 {} 行，涉及 {} 个文件）",
+                proj_add, proj_del, net, proj_files
+            ));
         }
         lines.push("".to_string());
     }
@@ -2093,6 +2129,9 @@ mod tests {
             author_email: format!("{}@example.com", author.to_lowercase()),
             date: "2026-06-10 10:00:00 +0800".to_string(),
             message: message.to_string(),
+            additions: 0,
+            deletions: 0,
+            changed_files: 0,
         }
     }
 }

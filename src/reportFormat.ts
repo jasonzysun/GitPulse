@@ -43,6 +43,10 @@ export const REPORT_FORMAT_VARIABLES: ReportFormatVariable[] = [
   { token: "{nextSteps}", label: "后续关注" },
   { token: "{evidence}", label: "来源证据" },
   { token: "{notes}", label: "生成说明" },
+  { token: "{additions}", label: "新增行数" },
+  { token: "{deletions}", label: "删除行数" },
+  { token: "{netLines}", label: "净增行数" },
+  { token: "{changedFiles}", label: "变更文件数" },
 ];
 
 export const DEFAULT_DAILY_REPORT_FORMAT_TEMPLATE = "{commitItems}";
@@ -77,6 +81,7 @@ export const DEFAULT_MONTHLY_REPORT_FORMAT_TEMPLATE = [
   "- 作者：{author}",
   "- 项目数量：{projectCount}",
   "- 提交事项：{commitCount}",
+  "- 代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
   "",
   "## 一、项目进度",
   "",

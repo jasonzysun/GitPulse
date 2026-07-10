@@ -57,6 +57,9 @@ pub struct CommitRecord {
     pub author_email: String,
     pub date: String,
     pub message: String,
+    pub additions: u64,
+    pub deletions: u64,
+    pub changed_files: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -438,6 +441,7 @@ fn default_monthly_report_template() -> String {
         "- 作者：{author}",
         "- 项目数量：{projectCount}",
         "- 提交事项：{commitCount}",
+        "- 代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
         "",
         "## 一、项目进度",
         "",

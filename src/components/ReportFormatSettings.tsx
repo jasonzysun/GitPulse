@@ -58,6 +58,10 @@ const BASE_REPORT_FORMAT_SAMPLE_VALUES: Record<string, string> = {
     "> 原始：`feat: 添加报告格式设置面板`",
   ].join("\n"),
   "{notes}": "> 说明：本报告基于 Git 提交记录生成，业务指标和验收结论建议结合实际交付补充。",
+  "{additions}": "234",
+  "{deletions}": "89",
+  "{netLines}": "145",
+  "{changedFiles}": "12",
 };
 
 export function ReportFormatSettings({ settings, updateSetting }: Props) {
