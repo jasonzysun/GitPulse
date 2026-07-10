@@ -34,6 +34,7 @@ import {
   type RepoInfo,
   type RepoScanProgress,
 } from "../model";
+import { convertMarkdownTo, REPORT_FORMAT_PRESETS, type IMFormatPresetId } from "../reportFormat";
 import { ContributionHeatmap, type HeatmapResult } from "./ContributionHeatmap";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -105,6 +106,7 @@ export function Workbench(props: Props) {
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [polishMenuOpen, setPolishMenuOpen] = useState(false);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [copyAsMenuOpen, setCopyAsMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
   const [activeAssistPanel, setActiveAssistPanel] = useState<AssistPanel>("repos");
   const [heatmapData, setHeatmapData] = useState<HeatmapResult | null>(null);
@@ -154,18 +156,19 @@ export function Workbench(props: Props) {
   }, [isPreviewExpanded]);
 
   useEffect(() => {
-    if (!polishMenuOpen && !exportMenuOpen) return;
+    if (!polishMenuOpen && !exportMenuOpen && !copyAsMenuOpen) return;
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setPolishMenuOpen(false);
         setExportMenuOpen(false);
+        setCopyAsMenuOpen(false);
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [polishMenuOpen, exportMenuOpen]);
+  }, [polishMenuOpen, exportMenuOpen, copyAsMenuOpen]);
 
   function handlePreviewChange(preview: PreviewMode) {
     props.onPreviewChange(preview);
@@ -430,10 +433,50 @@ export function Workbench(props: Props) {
                     )}
                   </div>
                 )}
-                <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
-                  <Clipboard size={15} />
-                  复制
-                </button>
+                <div className="copy-split">
+                  <button className="preview-copy-button" type="button" onClick={props.onCopy} disabled={!props.previewText}>
+                    <Clipboard size={15} />
+                    复制
+                  </button>
+                  {props.previewText && (
+                    <>
+                      <button
+                        className="copy-split-toggle"
+                        type="button"
+                        onClick={() => setCopyAsMenuOpen((current) => !current)}
+                        disabled={!props.previewText}
+                        aria-expanded={copyAsMenuOpen}
+                        aria-label="复制为其他格式"
+                        title="复制为其他格式"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      {copyAsMenuOpen && (
+                        <div className="copy-as-popover" role="menu" aria-label="复制格式">
+                          {REPORT_FORMAT_PRESETS.filter((p) => p.id !== "default").map((preset) => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className="export-option"
+                              role="menuitem"
+                              onClick={() => {
+                                const converted = convertMarkdownTo(props.previewText, preset.id as IMFormatPresetId);
+                                navigator.clipboard.writeText(converted);
+                                setCopyAsMenuOpen(false);
+                              }}
+                            >
+                              <Clipboard size={15} />
+                              <span>
+                                <strong>{preset.name}</strong>
+                                <em>{preset.description}</em>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             <GenerationScopeStrip

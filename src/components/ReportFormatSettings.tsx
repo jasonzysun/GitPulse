@@ -3,12 +3,15 @@ import { useState, type ReactNode } from "react";
 import type { AppSettings } from "../model";
 import {
   defaultReportFormatTemplate,
+  imFormatPresetTemplate,
   profileReportFormatTemplate,
   purposeReportFormatTemplate,
   REPORT_FORMAT_KINDS,
+  REPORT_FORMAT_PRESETS,
   REPORT_PURPOSE_PRESETS,
   REPORT_FORMAT_VARIABLES,
   validateReportFormatTemplate,
+  type IMFormatPresetId,
   type ReportFormatKind,
   type ReportPurposePreset,
   type ReportTemplateProfile,
@@ -91,6 +94,25 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
     }
   }
 
+  function applyIMFormatPreset(presetId: IMFormatPresetId) {
+    if (presetId === "default") {
+      applyReportTemplateProfile("standard");
+      return;
+    }
+    const currentTemplate = activeReportFormatTemplate;
+    const isDefault = REPORT_FORMAT_KINDS.some(
+      (k) => currentTemplate === defaultReportFormatTemplate(k) || currentTemplate === profileReportFormatTemplate(settings.reportTemplateProfile, k),
+    );
+    if (!isDefault && currentTemplate.trim()) {
+      if (!window.confirm("当前模板已修改，切换预设会覆盖内容，确定继续？")) return;
+    }
+    if (settings.reportPurposePreset !== "custom") updateSetting("reportPurposePreset", "custom");
+    updateSetting("reportTemplateProfile", "custom");
+    for (const kind of REPORT_FORMAT_KINDS) {
+      updateSetting(reportFormatTemplateKey(kind), imFormatPresetTemplate(presetId, kind));
+    }
+  }
+
   function resetCurrentReportFormatTemplate() {
     updateReportFormatTemplate(formatEditTarget, defaultReportFormatTemplate(formatEditTarget));
   }
@@ -118,6 +140,20 @@ export function ReportFormatSettings({ settings, updateSetting }: Props) {
             </button>
           ))}
         </div>
+      </Field>
+
+      <Field label="平台格式预设">
+        <select
+          className="im-format-preset-select"
+          value={detectActiveIMPreset(activeReportFormatTemplate, formatEditTarget)}
+          onChange={(event) => applyIMFormatPreset(event.target.value as IMFormatPresetId)}
+        >
+          {REPORT_FORMAT_PRESETS.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.name} — {preset.description}
+            </option>
+          ))}
+        </select>
       </Field>
 
       <div className="mapping-scope-control report-format-kind-control" role="radiogroup" aria-label="选择报告类型">
@@ -272,4 +308,12 @@ function reportFormatSampleValues(kind: ReportFormatKind): Record<string, string
     },
   };
   return { ...BASE_REPORT_FORMAT_SAMPLE_VALUES, ...periodValues[kind] };
+}
+
+function detectActiveIMPreset(template: string, kind: ReportFormatKind): IMFormatPresetId {
+  for (const preset of REPORT_FORMAT_PRESETS) {
+    if (template === imFormatPresetTemplate(preset.id, kind)) return preset.id;
+  }
+  if (template === defaultReportFormatTemplate(kind)) return "default";
+  return "default";
 }

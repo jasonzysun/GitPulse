@@ -173,6 +173,421 @@ export function validateReportFormatTemplate(template: string): ReportTemplateVa
 
 const CONTENT_TOKENS = new Set(["{projectSections}", "{commitItems}", "{summary}", "{conclusion}", "{evidence}"]);
 
+export type IMFormatPresetId = "default" | "feishu" | "dingtalk" | "wecom" | "confluence" | "plain";
+
+export type IMFormatPreset = {
+  id: IMFormatPresetId;
+  name: string;
+  description: string;
+};
+
+export const REPORT_FORMAT_PRESETS: IMFormatPreset[] = [
+  { id: "default", name: "默认 Markdown", description: "标准 Markdown 格式" },
+  { id: "feishu", name: "飞书文档", description: "适配飞书文档的 Markdown 子集" },
+  { id: "dingtalk", name: "钉钉日志", description: "适配钉钉日志的纯文本格式" },
+  { id: "wecom", name: "企业微信", description: "适配企微消息的 Markdown 格式" },
+  { id: "confluence", name: "Confluence", description: "Confluence wiki 格式" },
+  { id: "plain", name: "纯文本", description: "去除所有标记，适合粘贴到任何地方" },
+];
+
+export function imFormatPresetTemplate(preset: IMFormatPresetId, kind: ReportFormatKind): string {
+  if (preset === "feishu") return feishuTemplate(kind);
+  if (preset === "dingtalk") return dingtalkTemplate(kind);
+  if (preset === "wecom") return wecomTemplate(kind);
+  if (preset === "confluence") return confluenceTemplate(kind);
+  if (preset === "plain") return plainTemplate(kind);
+  return defaultReportFormatTemplate(kind);
+}
+
+export function convertMarkdownTo(markdown: string, format: IMFormatPresetId): string {
+  if (format === "default") return markdown;
+  if (format === "feishu") return convertToFeishu(markdown);
+  if (format === "dingtalk") return convertToDingtalk(markdown);
+  if (format === "wecom") return convertToWecom(markdown);
+  if (format === "confluence") return convertToConfluence(markdown);
+  if (format === "plain") return convertToPlain(markdown);
+  return markdown;
+}
+
+function convertToFeishu(md: string): string {
+  return md
+    .replace(/^(#{1,6})\s+(.+)$/gm, (_match, _hashes, title) => `**${title}**`)
+    .replace(/^>\s+(.+)$/gm, "$1");
+}
+
+function convertToDingtalk(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+(.+)$/gm, "【$1】")
+    .replace(/^[-*]\s+/gm, "· ")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^>\s+(.+)$/gm, "$1");
+}
+
+function convertToWecom(md: string): string {
+  return md
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
+}
+
+function convertToConfluence(md: string): string {
+  return md
+    .replace(/^######\s+(.+)$/gm, "h6. $1")
+    .replace(/^#####\s+(.+)$/gm, "h5. $1")
+    .replace(/^####\s+(.+)$/gm, "h4. $1")
+    .replace(/^###\s+(.+)$/gm, "h3. $1")
+    .replace(/^##\s+(.+)$/gm, "h2. $1")
+    .replace(/^#\s+(.+)$/gm, "h1. $1")
+    .replace(/^-\s+/gm, "* ")
+    .replace(/^>\s+(.+)$/gm, "{quote}$1{quote}");
+}
+
+function convertToPlain(md: string): string {
+  return md
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/^[-*]\s+/gm, "  ")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/^>\s+/gm, "  ")
+    .replace(/`([^`]+)`/g, "$1");
+}
+
+function feishuTemplate(kind: ReportFormatKind): string {
+  if (kind === "daily") {
+    return ["{commitItems}"].join("\n");
+  }
+  if (kind === "weekly") {
+    return [
+      "**{periodLabel}工作周报**",
+      "",
+      "- 统计周期：{startDate} 至 {endDate}",
+      "- 作者：{author}",
+      "- 项目数量：{projectCount}",
+      "- 提交事项：{commitCount}",
+      "",
+      "**一、本周重点**",
+      "",
+      "{summary}",
+      "",
+      "**二、实际完成情况**",
+      "",
+      "{projectSections}",
+      "",
+      "**三、下周关注**",
+      "",
+      "{nextSteps}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  if (kind === "monthly") {
+    return [
+      "**{periodLabel}工作月报**",
+      "",
+      "- 统计周期：{startDate} 至 {endDate}",
+      "- 作者：{author}",
+      "- 项目数量：{projectCount}",
+      "- 提交事项：{commitCount}",
+      "- 代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
+      "",
+      "**一、项目进度**",
+      "",
+      "{summary}",
+      "",
+      "**二、实际完成情况**",
+      "",
+      "{projectSections}",
+      "",
+      "**三、当月总结**",
+      "",
+      "{conclusion}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  return [
+    "**{periodLabel}工作报告**",
+    "",
+    "- 统计周期：{startDate} 至 {endDate}",
+    "- 作者：{author}",
+    "- 项目数量：{projectCount}",
+    "- 提交事项：{commitCount}",
+    "",
+    "{projectSections}",
+    "",
+    "{evidence}",
+  ].join("\n");
+}
+
+function dingtalkTemplate(kind: ReportFormatKind): string {
+  if (kind === "daily") {
+    return ["{commitItems}"].join("\n");
+  }
+  if (kind === "weekly") {
+    return [
+      "【{periodLabel}工作周报】",
+      "",
+      "统计周期：{startDate} 至 {endDate}",
+      "作者：{author}",
+      "项目数量：{projectCount}",
+      "提交事项：{commitCount}",
+      "",
+      "【一、本周重点】",
+      "",
+      "{summary}",
+      "",
+      "【二、实际完成情况】",
+      "",
+      "{projectSections}",
+      "",
+      "【三、下周关注】",
+      "",
+      "{nextSteps}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  if (kind === "monthly") {
+    return [
+      "【{periodLabel}工作月报】",
+      "",
+      "统计周期：{startDate} 至 {endDate}",
+      "作者：{author}",
+      "项目数量：{projectCount}",
+      "提交事项：{commitCount}",
+      "代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
+      "",
+      "【一、项目进度】",
+      "",
+      "{summary}",
+      "",
+      "【二、实际完成情况】",
+      "",
+      "{projectSections}",
+      "",
+      "【三、当月总结】",
+      "",
+      "{conclusion}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  return [
+    "【{periodLabel}工作报告】",
+    "",
+    "统计周期：{startDate} 至 {endDate}",
+    "作者：{author}",
+    "项目数量：{projectCount}",
+    "提交事项：{commitCount}",
+    "",
+    "{projectSections}",
+    "",
+    "{evidence}",
+  ].join("\n");
+}
+
+function wecomTemplate(kind: ReportFormatKind): string {
+  if (kind === "daily") {
+    return ["{commitItems}"].join("\n");
+  }
+  if (kind === "weekly") {
+    return [
+      "**{periodLabel}工作周报**",
+      "",
+      "- 统计周期：{startDate} 至 {endDate}",
+      "- 作者：{author}",
+      "- 项目数量：{projectCount}",
+      "- 提交事项：{commitCount}",
+      "",
+      "**一、本周重点**",
+      "",
+      "{summary}",
+      "",
+      "**二、实际完成情况**",
+      "",
+      "{projectSections}",
+      "",
+      "**三、下周关注**",
+      "",
+      "{nextSteps}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  if (kind === "monthly") {
+    return [
+      "**{periodLabel}工作月报**",
+      "",
+      "- 统计周期：{startDate} 至 {endDate}",
+      "- 作者：{author}",
+      "- 项目数量：{projectCount}",
+      "- 提交事项：{commitCount}",
+      "- 代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
+      "",
+      "**一、项目进度**",
+      "",
+      "{summary}",
+      "",
+      "**二、实际完成情况**",
+      "",
+      "{projectSections}",
+      "",
+      "**三、当月总结**",
+      "",
+      "{conclusion}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  return [
+    "**{periodLabel}工作报告**",
+    "",
+    "- 统计周期：{startDate} 至 {endDate}",
+    "- 作者：{author}",
+    "- 项目数量：{projectCount}",
+    "- 提交事项：{commitCount}",
+    "",
+    "{projectSections}",
+    "",
+    "{evidence}",
+  ].join("\n");
+}
+
+function confluenceTemplate(kind: ReportFormatKind): string {
+  if (kind === "daily") {
+    return ["{commitItems}"].join("\n");
+  }
+  if (kind === "weekly") {
+    return [
+      "h1. {periodLabel}工作周报",
+      "",
+      "* 统计周期：{startDate} 至 {endDate}",
+      "* 作者：{author}",
+      "* 项目数量：{projectCount}",
+      "* 提交事项：{commitCount}",
+      "",
+      "h2. 一、本周重点",
+      "",
+      "{summary}",
+      "",
+      "h2. 二、实际完成情况",
+      "",
+      "{projectSections}",
+      "",
+      "h2. 三、下周关注",
+      "",
+      "{nextSteps}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  if (kind === "monthly") {
+    return [
+      "h1. {periodLabel}工作月报",
+      "",
+      "* 统计周期：{startDate} 至 {endDate}",
+      "* 作者：{author}",
+      "* 项目数量：{projectCount}",
+      "* 提交事项：{commitCount}",
+      "* 代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
+      "",
+      "h2. 一、项目进度",
+      "",
+      "{summary}",
+      "",
+      "h2. 二、实际完成情况",
+      "",
+      "{projectSections}",
+      "",
+      "h2. 三、当月总结",
+      "",
+      "{conclusion}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  return [
+    "h1. {periodLabel}工作报告",
+    "",
+    "* 统计周期：{startDate} 至 {endDate}",
+    "* 作者：{author}",
+    "* 项目数量：{projectCount}",
+    "* 提交事项：{commitCount}",
+    "",
+    "{projectSections}",
+    "",
+    "{evidence}",
+  ].join("\n");
+}
+
+function plainTemplate(kind: ReportFormatKind): string {
+  if (kind === "daily") {
+    return ["{commitItems}"].join("\n");
+  }
+  if (kind === "weekly") {
+    return [
+      "{periodLabel}工作周报",
+      "",
+      "  统计周期：{startDate} 至 {endDate}",
+      "  作者：{author}",
+      "  项目数量：{projectCount}",
+      "  提交事项：{commitCount}",
+      "",
+      "一、本周重点",
+      "",
+      "{summary}",
+      "",
+      "二、实际完成情况",
+      "",
+      "{projectSections}",
+      "",
+      "三、下周关注",
+      "",
+      "{nextSteps}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  if (kind === "monthly") {
+    return [
+      "{periodLabel}工作月报",
+      "",
+      "  统计周期：{startDate} 至 {endDate}",
+      "  作者：{author}",
+      "  项目数量：{projectCount}",
+      "  提交事项：{commitCount}",
+      "  代码变更：+{additions} -{deletions}（净增 {netLines} 行）",
+      "",
+      "一、项目进度",
+      "",
+      "{summary}",
+      "",
+      "二、实际完成情况",
+      "",
+      "{projectSections}",
+      "",
+      "三、当月总结",
+      "",
+      "{conclusion}",
+      "",
+      "{notes}",
+    ].join("\n");
+  }
+  return [
+    "{periodLabel}工作报告",
+    "",
+    "  统计周期：{startDate} 至 {endDate}",
+    "  作者：{author}",
+    "  项目数量：{projectCount}",
+    "  提交事项：{commitCount}",
+    "",
+    "{projectSections}",
+    "",
+    "{evidence}",
+  ].join("\n");
+}
+
 function conciseReportFormatTemplate(kind: ReportFormatKind) {
   if (kind === "daily") {
     return ["【{periodLabel}】", "{commitItems}"].join("\n");

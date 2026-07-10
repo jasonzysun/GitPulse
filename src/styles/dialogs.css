@@ -793,6 +793,19 @@
   line-height: 1.35;
 }
 
+.im-format-preset-select {
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
 .report-template-input {
   min-height: 248px;
   font-family: var(--font-mono);
