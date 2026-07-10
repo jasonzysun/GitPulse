@@ -9,6 +9,7 @@ use crate::models::{
     AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
     HeatmapEntry, HeatmapOptions, HeatmapResult, MonthlyReportOptions, MonthlyReportResult,
     PeriodReportOptions, PeriodReportResult, RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
+    WorkRhythmOptions, WorkRhythmResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -296,6 +297,147 @@ pub fn collect_heatmap_data(options: &HeatmapOptions) -> Result<HeatmapResult, S
         busiest_day,
         busiest_count,
     })
+}
+
+pub fn collect_work_rhythm(options: &WorkRhythmOptions) -> Result<WorkRhythmResult, String> {
+    let today = chrono::Local::now().date_naive();
+    let weekday_num = today.format("%u").to_string().parse::<i64>().unwrap_or(1);
+    let this_week_start = today - chrono::Duration::days(weekday_num - 1);
+    let last_week_start = this_week_start - chrono::Duration::days(7);
+    let end_date = today.format("%Y-%m-%d").to_string();
+    let start_date = last_week_start.format("%Y-%m-%d").to_string();
+
+    let repos = git_ops::find_git_repos(&options.workspace_roots)?;
+
+    let mut seen_hashes = HashSet::new();
+    let mut timestamps: Vec<String> = Vec::new();
+
+    for repo in &repos {
+        let entries = git_ops::get_commit_timestamps(
+            repo,
+            &start_date,
+            &end_date,
+            &options.author,
+            true,
+        );
+        let entries = match entries {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        for (hash, ts) in entries {
+            if seen_hashes.insert(hash) {
+                timestamps.push(ts);
+            }
+        }
+    }
+
+    let mut hourly = vec![0u32; 24];
+    let mut weekday = vec![0u32; 7];
+    let mut this_week: u32 = 0;
+    let mut last_week: u32 = 0;
+    let mut overtime_count: u32 = 0;
+    let mut weekend_count: u32 = 0;
+    let this_week_start_str = this_week_start.format("%Y-%m-%d").to_string();
+
+    for ts in &timestamps {
+        let (date_part, time_part) = match parse_iso_date_time(ts) {
+            Some(v) => v,
+            None => continue,
+        };
+        let hour = match parse_hour(&time_part) {
+            Some(h) => h,
+            None => continue,
+        };
+        let dow = match day_of_week(&date_part) {
+            Some(d) => d,
+            None => continue,
+        };
+
+        if hour < 24 {
+            hourly[hour as usize] += 1;
+        }
+        if dow < 7 {
+            weekday[dow as usize] += 1;
+        }
+
+        if date_part.as_str() >= this_week_start_str.as_str() {
+            this_week += 1;
+        } else {
+            last_week += 1;
+        }
+
+        let is_weekend = dow >= 5;
+        if is_weekend {
+            weekend_count += 1;
+            overtime_count += 1;
+        } else if hour >= 21 || hour < 6 {
+            overtime_count += 1;
+        }
+    }
+
+    let total = timestamps.len() as f64;
+    let overtime_ratio = if total > 0.0 {
+        overtime_count as f64 / total
+    } else {
+        0.0
+    };
+    let weekend_ratio = if total > 0.0 {
+        weekend_count as f64 / total
+    } else {
+        0.0
+    };
+
+    let busiest_hour = hourly
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, count)| *count)
+        .map(|(h, _)| h as u32)
+        .unwrap_or(0);
+
+    Ok(WorkRhythmResult {
+        hourly_distribution: hourly,
+        weekday_distribution: weekday,
+        this_week_commits: this_week,
+        last_week_commits: last_week,
+        overtime_ratio,
+        busiest_hour,
+        weekend_ratio,
+    })
+}
+
+fn parse_iso_date_time(ts: &str) -> Option<(String, String)> {
+    let t_pos = ts.find('T')?;
+    let date = ts[..t_pos].to_string();
+    let rest = &ts[t_pos + 1..];
+    let time_end = rest.find('+')
+        .or_else(|| rest.rfind('-').filter(|&p| p > 0));
+    let time = match time_end {
+        Some(pos) => rest[..pos].to_string(),
+        None => rest.to_string(),
+    };
+    Some((date, time))
+}
+
+fn parse_hour(time: &str) -> Option<u32> {
+    let hour_str = time.split(':').next()?;
+    hour_str.parse::<u32>().ok()
+}
+
+fn day_of_week(date: &str) -> Option<u32> {
+    let parts: Vec<&str> = date.split('-').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let y = parts[0].parse::<i32>().ok()?;
+    let m = parts[1].parse::<i32>().ok()?;
+    let d = parts[2].parse::<i32>().ok()?;
+    let (adj_y, adj_m) = if m <= 2 { (y - 1, m + 12) } else { (y, m) };
+    let q = d;
+    let k = adj_y % 100;
+    let j = adj_y / 100;
+    let h = (q + (13 * (adj_m + 1)) / 5 + k + k / 4 + j / 4 + 5 * j) % 7;
+    let dow = ((h + 5) % 7) as u32;
+    Some(dow)
 }
 
 fn compute_max_streak(entries: &[HeatmapEntry]) -> u32 {
@@ -1177,5 +1319,64 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("gitpulse-{label}-{}-{nanos}", std::process::id()))
+    }
+
+    #[test]
+    fn test_work_rhythm_hour_parsing() {
+        assert_eq!(
+            parse_iso_date_time("2026-07-10T14:30:00+08:00"),
+            Some(("2026-07-10".to_string(), "14:30:00".to_string()))
+        );
+        assert_eq!(
+            parse_iso_date_time("2026-07-10T09:00:00-05:00"),
+            Some(("2026-07-10".to_string(), "09:00:00".to_string()))
+        );
+        assert_eq!(
+            parse_iso_date_time("2026-07-10T23:15:30+00:00"),
+            Some(("2026-07-10".to_string(), "23:15:30".to_string()))
+        );
+        assert_eq!(parse_iso_date_time("invalid"), None);
+
+        assert_eq!(parse_hour("14:30:00"), Some(14));
+        assert_eq!(parse_hour("09:00:00"), Some(9));
+        assert_eq!(parse_hour("0:00:00"), Some(0));
+        assert_eq!(parse_hour("23:59:59"), Some(23));
+    }
+
+    #[test]
+    fn test_day_of_week_calculation() {
+        // 2026-07-10 is a Friday => dow=4
+        assert_eq!(day_of_week("2026-07-10"), Some(4));
+        // 2026-07-06 is a Monday => dow=0
+        assert_eq!(day_of_week("2026-07-06"), Some(0));
+        // 2026-07-11 is a Saturday => dow=5
+        assert_eq!(day_of_week("2026-07-11"), Some(5));
+        // 2026-07-12 is a Sunday => dow=6
+        assert_eq!(day_of_week("2026-07-12"), Some(6));
+    }
+
+    #[test]
+    fn test_overtime_ratio_calculation() {
+        // Weekday 22:00 -> overtime (hour >= 21)
+        let ts_overtime = "2026-07-10T22:00:00+08:00"; // Friday
+        let (date, time) = parse_iso_date_time(ts_overtime).unwrap();
+        let hour = parse_hour(&time).unwrap();
+        let dow = day_of_week(&date).unwrap();
+        assert!(dow < 5); // weekday
+        assert!(hour >= 21); // overtime hour
+
+        // Weekday 14:00 -> not overtime
+        let ts_normal = "2026-07-10T14:00:00+08:00";
+        let (date2, time2) = parse_iso_date_time(ts_normal).unwrap();
+        let hour2 = parse_hour(&time2).unwrap();
+        let dow2 = day_of_week(&date2).unwrap();
+        assert!(dow2 < 5);
+        assert!(hour2 >= 6 && hour2 < 21); // normal hours
+
+        // Saturday -> always overtime
+        let ts_weekend = "2026-07-11T10:00:00+08:00";
+        let (date3, _) = parse_iso_date_time(ts_weekend).unwrap();
+        let dow3 = day_of_week(&date3).unwrap();
+        assert!(dow3 >= 5); // weekend
     }
 }

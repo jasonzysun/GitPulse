@@ -417,6 +417,25 @@ pub struct HeatmapResult {
     pub busiest_count: u32,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkRhythmOptions {
+    pub workspace_roots: Vec<String>,
+    pub author: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkRhythmResult {
+    pub hourly_distribution: Vec<u32>,
+    pub weekday_distribution: Vec<u32>,
+    pub this_week_commits: u32,
+    pub last_week_commits: u32,
+    pub overtime_ratio: f64,
+    pub busiest_hour: u32,
+    pub weekend_ratio: f64,
+}
+
 fn default_extract_report_kind() -> String {
     "daily".to_string()
 }

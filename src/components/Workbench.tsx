@@ -38,6 +38,7 @@ import { ContributionHeatmap, type HeatmapResult } from "./ContributionHeatmap";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { ReportQualityPanel } from "./ReportQualityPanel";
+import { WorkRhythmPanel, type WorkRhythmResult } from "./WorkRhythmPanel";
 
 type Props = {
   repos: RepoInfo[];
@@ -108,6 +109,8 @@ export function Workbench(props: Props) {
   const [activeAssistPanel, setActiveAssistPanel] = useState<AssistPanel>("repos");
   const [heatmapData, setHeatmapData] = useState<HeatmapResult | null>(null);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
+  const [rhythmData, setRhythmData] = useState<WorkRhythmResult | null>(null);
+  const [rhythmLoading, setRhythmLoading] = useState(false);
 
   const loadHeatmapData = useCallback(() => {
     if (heatmapLoading) return;
@@ -122,7 +125,20 @@ export function Workbench(props: Props) {
       .then((result) => setHeatmapData(result))
       .catch(() => setHeatmapData(null))
       .finally(() => setHeatmapLoading(false));
-  }, [props.rootDirs, props.author, heatmapLoading]);
+
+    if (!rhythmLoading) {
+      setRhythmLoading(true);
+      invoke<WorkRhythmResult>("get_work_rhythm", {
+        options: {
+          workspaceRoots: props.rootDirs,
+          author: props.author,
+        },
+      })
+        .then((result) => setRhythmData(result))
+        .catch(() => setRhythmData(null))
+        .finally(() => setRhythmLoading(false));
+    }
+  }, [props.rootDirs, props.author, heatmapLoading, rhythmLoading]);
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -613,7 +629,10 @@ export function Workbench(props: Props) {
             )}
 
             {visibleAssistPanel === "heatmap" && (
-              <ContributionHeatmap data={heatmapData} loading={heatmapLoading} />
+              <>
+                <ContributionHeatmap data={heatmapData} loading={heatmapLoading} />
+                <WorkRhythmPanel data={rhythmData} loading={rhythmLoading} />
+              </>
             )}
           </div>
         </aside>

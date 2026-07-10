@@ -16,6 +16,7 @@ use crate::models::{
     GitIdentity, HeatmapOptions, HeatmapResult, MappingEntry, MonthlyReportOptions,
     MonthlyReportResult, PeriodReportOptions, PeriodReportResult, ProxyCandidate, ProxyConfig,
     ProxyTestResult, RepoInfo, RepoScanProgress, ReportEnhanceOptions, ReportEnhanceResult,
+    WorkRhythmOptions, WorkRhythmResult,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -229,6 +230,13 @@ async fn get_heatmap_data(options: HeatmapOptions) -> Result<HeatmapResult, Stri
 }
 
 #[tauri::command]
+async fn get_work_rhythm(options: WorkRhythmOptions) -> Result<WorkRhythmResult, String> {
+    async_runtime::spawn_blocking(move || commit_pipeline::collect_work_rhythm(&options))
+        .await
+        .map_err(|err| format!("工作节奏数据任务中断：{}", err))?
+}
+
+#[tauri::command]
 fn save_text_file(
     output_dir: String,
     file_name: String,
@@ -328,6 +336,7 @@ pub fn run() {
             list_ai_models,
             run_diagnostics,
             get_heatmap_data,
+            get_work_rhythm,
             get_secure_ai_api_key,
             set_secure_ai_api_key,
             clear_secure_ai_api_key,

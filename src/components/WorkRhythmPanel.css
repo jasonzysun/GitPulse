@@ -1,0 +1,144 @@
+.work-rhythm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.work-rhythm-panel h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.rhythm-hourly-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rhythm-hourly-chart h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rhythm-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 64px;
+  padding: 0 2px;
+}
+
+.rhythm-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px 2px 0 0;
+  background: var(--heatmap-2);
+  transition: background 0.15s;
+  position: relative;
+}
+
+.rhythm-bar[data-busiest="true"] {
+  background: var(--heatmap-4);
+}
+
+.rhythm-bar:hover {
+  background: var(--heatmap-3);
+}
+
+.rhythm-bar[data-busiest="true"]:hover {
+  background: var(--heatmap-4);
+}
+
+.rhythm-hours {
+  display: flex;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.rhythm-hours span {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.rhythm-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rhythm-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.rhythm-card-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.rhythm-card-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.rhythm-card-value .rhythm-change {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rhythm-change.up {
+  color: #30a14e;
+}
+
+.rhythm-change.down {
+  color: #d1242f;
+}
+
+.rhythm-change.neutral {
+  color: var(--muted);
+}
+
+.rhythm-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--heatmap-0);
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.rhythm-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--heatmap-3);
+  transition: width 0.3s ease;
+}
+
+.rhythm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
