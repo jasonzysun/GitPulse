@@ -1,13 +1,13 @@
 mod ai;
 mod codex_oauth;
-mod commit_pipeline;
+pub mod commit_pipeline;
 mod diagnostics;
 mod docx;
-mod git_ops;
-mod models;
+pub mod git_ops;
+pub mod models;
 mod network;
 mod pdf;
-mod report;
+pub mod report;
 mod secure_store;
 mod zip_store;
 

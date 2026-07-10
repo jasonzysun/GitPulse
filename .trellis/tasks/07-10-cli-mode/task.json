@@ -3,7 +3,7 @@
   "name": "cli-mode",
   "title": "CLI 模式（headless 报告生成）",
   "description": "支持命令行调用生成报告：gitpulse report --type weekly --author zhangsan --output report.md。可集成到 cron job、CI pipeline、飞书机器人等自动化场景。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,
