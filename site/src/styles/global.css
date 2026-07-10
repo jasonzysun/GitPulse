@@ -277,7 +277,7 @@ p {
 
 @media (max-width: 920px) {
   .site-header {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto 1fr auto;
     gap: 14px;
   }
 

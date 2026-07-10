@@ -55,6 +55,22 @@ const commitLabels = ["feat", "fix", "refactor", "test", "docs", "build", "chore
     ))}
     <link rel="alternate" hreflang="x-default" href={defaultUrl} />
     <link rel="icon" type="image/png" href={asset("assets/favicon.png")} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GitPulse" />
+    <meta name="twitter:description" content={content.ogDescription} />
+    <meta name="twitter:image" content={absoluteUrl(asset("assets/brand-light.png"))} />
+    <script type="application/ld+json" set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: "GitPulse",
+      description: content.description,
+      url: canonicalUrl,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Windows, macOS, Linux",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      downloadUrl: releaseUrl,
+      author: { "@type": "Person", name: "GoldenZqqq", url: "https://github.com/GoldenZqqq" },
+    })}></script>
   </head>
   <body>
     <header class="site-header" aria-label={content.navAriaLabel}>
@@ -83,7 +99,37 @@ const commitLabels = ["feat", "fix", "refactor", "test", "docs", "build", "chore
         </nav>
         <a class="header-action" href={repoUrl}>{content.githubLabel}</a>
       </div>
+      <button class="menu-toggle" aria-expanded="false" data-menu-toggle>
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
     </header>
+
+    <div class="mobile-menu" data-mobile-menu>
+      <div class="mobile-menu-backdrop" data-menu-backdrop></div>
+      <div class="mobile-menu-panel">
+        {content.nav.map((item) => (
+          <a href={`#${item.id}`} data-mobile-link>{item.label}</a>
+        ))}
+        <div class="mobile-menu-footer">
+          <nav class="language-switch" aria-label={content.languageLabel}>
+            {locales.map((target) => (
+              <a
+                class:list={["language-link", target === locale && "active"]}
+                href={localePath(target)}
+                hreflang={target}
+                lang={target}
+                data-locale-choice={target}
+              >
+                {localeLabels[target]}
+              </a>
+            ))}
+          </nav>
+          <a class="header-action" href={repoUrl}>{content.githubLabel}</a>
+        </div>
+      </div>
+    </div>
 
     <main>
       <section class="hero" aria-labelledby="hero-title" data-hero>
@@ -273,6 +319,28 @@ const commitLabels = ["feat", "fix", "refactor", "test", "docs", "build", "chore
               link.href = link.href.split("#")[0] + window.location.hash;
             }
           });
+        });
+      })();
+    </script>
+    <script is:inline>
+      (() => {
+        const toggle = document.querySelector("[data-menu-toggle]");
+        const menu = document.querySelector("[data-mobile-menu]");
+        const backdrop = document.querySelector("[data-menu-backdrop]");
+        if (!toggle || !menu) return;
+        function close() {
+          toggle.classList.remove("open");
+          toggle.setAttribute("aria-expanded", "false");
+          menu.classList.remove("open");
+        }
+        toggle.addEventListener("click", () => {
+          const isOpen = menu.classList.toggle("open");
+          toggle.classList.toggle("open");
+          toggle.setAttribute("aria-expanded", String(isOpen));
+        });
+        if (backdrop) backdrop.addEventListener("click", close);
+        menu.querySelectorAll("[data-mobile-link]").forEach((link) => {
+          link.addEventListener("click", close);
         });
       })();
     </script>

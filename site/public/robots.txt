@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://goldenzqqq.github.io/GitPulse/sitemap-index.xml
