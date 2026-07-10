@@ -391,6 +391,32 @@ pub struct PeriodReportResult {
     pub commit_count: usize,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeatmapOptions {
+    pub workspace_roots: Vec<String>,
+    pub author: String,
+    pub weeks: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeatmapEntry {
+    pub date: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeatmapResult {
+    pub entries: Vec<HeatmapEntry>,
+    pub total_commits: u32,
+    pub active_days: u32,
+    pub max_streak: u32,
+    pub busiest_day: String,
+    pub busiest_count: u32,
+}
+
 fn default_extract_report_kind() -> String {
     "daily".to_string()
 }

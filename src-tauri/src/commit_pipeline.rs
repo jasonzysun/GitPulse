@@ -7,8 +7,8 @@ use crate::ai;
 use crate::git_ops;
 use crate::models::{
     AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions, PeriodReportResult, RepoInfo,
-    ReportEnhanceOptions, ReportEnhanceResult,
+    HeatmapEntry, HeatmapOptions, HeatmapResult, MonthlyReportOptions, MonthlyReportResult,
+    PeriodReportOptions, PeriodReportResult, RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -233,6 +233,85 @@ where
     );
     apply_ai_to_extract_result(&mut result, &options, &report_author);
     Ok(result)
+}
+
+pub fn collect_heatmap_data(options: &HeatmapOptions) -> Result<HeatmapResult, String> {
+    let weeks = options.weeks.unwrap_or(52);
+    let today = chrono::Local::now().date_naive();
+    let start = today - chrono::Duration::weeks(weeks as i64);
+    let start_date = start.format("%Y-%m-%d").to_string();
+    let end_date = today.format("%Y-%m-%d").to_string();
+
+    let repos = git_ops::find_git_repos(&options.workspace_roots)?;
+
+    let mut seen_hashes = HashSet::new();
+    let mut day_counts: HashMap<String, u32> = HashMap::new();
+
+    for repo in &repos {
+        let entries =
+            git_ops::get_commit_dates(repo, &start_date, &end_date, &options.author, true);
+        let entries = match entries {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        for (hash, date) in entries {
+            if seen_hashes.insert(hash) {
+                *day_counts.entry(date).or_insert(0) += 1;
+            }
+        }
+    }
+
+    let mut entries = Vec::new();
+    let mut total_commits: u32 = 0;
+    let mut active_days: u32 = 0;
+    let mut busiest_day = String::new();
+    let mut busiest_count: u32 = 0;
+
+    let mut current = start;
+    while current <= today {
+        let date_str = current.format("%Y-%m-%d").to_string();
+        let count = day_counts.get(&date_str).copied().unwrap_or(0);
+        total_commits += count;
+        if count > 0 {
+            active_days += 1;
+        }
+        if count > busiest_count {
+            busiest_count = count;
+            busiest_day = date_str.clone();
+        }
+        entries.push(HeatmapEntry {
+            date: date_str,
+            count,
+        });
+        current += chrono::Duration::days(1);
+    }
+
+    let max_streak = compute_max_streak(&entries);
+
+    Ok(HeatmapResult {
+        entries,
+        total_commits,
+        active_days,
+        max_streak,
+        busiest_day,
+        busiest_count,
+    })
+}
+
+fn compute_max_streak(entries: &[HeatmapEntry]) -> u32 {
+    let mut max = 0u32;
+    let mut current = 0u32;
+    for entry in entries {
+        if entry.count > 0 {
+            current += 1;
+            if current > max {
+                max = current;
+            }
+        } else {
+            current = 0;
+        }
+    }
+    max
 }
 
 fn save_monthly_if_enabled(
@@ -974,6 +1053,49 @@ mod tests {
         assert!(result.output_file.ends_with("weekly_report_2026-W24.md"));
         assert!(Path::new(&result.output_file).exists());
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn test_heatmap_streak_calculation() {
+        let entries = vec![
+            HeatmapEntry { date: "2026-07-01".to_string(), count: 0 },
+            HeatmapEntry { date: "2026-07-02".to_string(), count: 3 },
+            HeatmapEntry { date: "2026-07-03".to_string(), count: 1 },
+            HeatmapEntry { date: "2026-07-04".to_string(), count: 5 },
+            HeatmapEntry { date: "2026-07-05".to_string(), count: 0 },
+            HeatmapEntry { date: "2026-07-06".to_string(), count: 2 },
+            HeatmapEntry { date: "2026-07-07".to_string(), count: 1 },
+            HeatmapEntry { date: "2026-07-08".to_string(), count: 4 },
+            HeatmapEntry { date: "2026-07-09".to_string(), count: 1 },
+            HeatmapEntry { date: "2026-07-10".to_string(), count: 0 },
+        ];
+        assert_eq!(compute_max_streak(&entries), 4);
+    }
+
+    #[test]
+    fn test_heatmap_streak_all_active() {
+        let entries = vec![
+            HeatmapEntry { date: "2026-07-01".to_string(), count: 1 },
+            HeatmapEntry { date: "2026-07-02".to_string(), count: 2 },
+            HeatmapEntry { date: "2026-07-03".to_string(), count: 3 },
+        ];
+        assert_eq!(compute_max_streak(&entries), 3);
+    }
+
+    #[test]
+    fn test_heatmap_empty_data() {
+        let entries: Vec<HeatmapEntry> = Vec::new();
+        assert_eq!(compute_max_streak(&entries), 0);
+    }
+
+    #[test]
+    fn test_heatmap_all_zeros() {
+        let entries = vec![
+            HeatmapEntry { date: "2026-07-01".to_string(), count: 0 },
+            HeatmapEntry { date: "2026-07-02".to_string(), count: 0 },
+            HeatmapEntry { date: "2026-07-03".to_string(), count: 0 },
+        ];
+        assert_eq!(compute_max_streak(&entries), 0);
     }
 
     fn commit(repo_path: &str, hash: &str, date: &str) -> CommitRecord {

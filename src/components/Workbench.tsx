@@ -1,4 +1,5 @@
 import {
+  Activity,
   AlertCircle,
   CalendarDays,
   ChevronDown,
@@ -21,7 +22,8 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import {
   resolveRepoDisplayName,
   type CommitExtractProgress,
@@ -32,6 +34,7 @@ import {
   type RepoInfo,
   type RepoScanProgress,
 } from "../model";
+import { ContributionHeatmap, type HeatmapResult } from "./ContributionHeatmap";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { ReportQualityPanel } from "./ReportQualityPanel";
@@ -93,7 +96,7 @@ type Props = {
   onAddRootDirs: () => void;
 };
 
-type AssistPanel = "repos" | "history" | "quality";
+type AssistPanel = "repos" | "history" | "quality" | "heatmap";
 
 export function Workbench(props: Props) {
   const previewMeta = props.aiConfigured ? "AI 可润色" : "Markdown 渲染";
@@ -103,6 +106,23 @@ export function Workbench(props: Props) {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [polishExtra, setPolishExtra] = useState("");
   const [activeAssistPanel, setActiveAssistPanel] = useState<AssistPanel>("repos");
+  const [heatmapData, setHeatmapData] = useState<HeatmapResult | null>(null);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+
+  const loadHeatmapData = useCallback(() => {
+    if (heatmapLoading) return;
+    setHeatmapLoading(true);
+    invoke<HeatmapResult>("get_heatmap_data", {
+      options: {
+        workspaceRoots: props.rootDirs,
+        author: props.author,
+        weeks: 52,
+      },
+    })
+      .then((result) => setHeatmapData(result))
+      .catch(() => setHeatmapData(null))
+      .finally(() => setHeatmapLoading(false));
+  }, [props.rootDirs, props.author, heatmapLoading]);
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -470,6 +490,19 @@ export function Workbench(props: Props) {
               交付
               <span>{hasQualityPanel ? "可查" : "待生成"}</span>
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={visibleAssistPanel === "heatmap"}
+              className={visibleAssistPanel === "heatmap" ? "active" : ""}
+              onClick={() => {
+                setActiveAssistPanel("heatmap");
+                if (!heatmapData && !heatmapLoading) loadHeatmapData();
+              }}
+            >
+              <Activity size={14} />
+              热力图
+            </button>
           </div>
 
           <div className="assist-panel">
@@ -577,6 +610,10 @@ export function Workbench(props: Props) {
                 redactionEnabled={props.redactionEnabled}
                 canExport={props.canExport}
               />
+            )}
+
+            {visibleAssistPanel === "heatmap" && (
+              <ContributionHeatmap data={heatmapData} loading={heatmapLoading} />
             )}
           </div>
         </aside>

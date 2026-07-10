@@ -122,6 +122,42 @@ pub fn get_git_commits(
     Ok(records)
 }
 
+pub fn get_commit_dates(
+    repo: &RepoInfo,
+    start_date: &str,
+    end_date: &str,
+    author: &str,
+    all_branches: bool,
+) -> Result<Vec<(String, String)>, String> {
+    let repo_path = PathBuf::from(&repo.path);
+    let mut args = vec!["log".to_string()];
+    if all_branches {
+        args.push("--all".to_string());
+    }
+    args.extend([
+        format!("--since={} 00:00:00", start_date),
+        format!("--until={} 23:59:59", end_date),
+        "--format=%H %ad".to_string(),
+        "--date=short".to_string(),
+    ]);
+    for a in split_authors(author) {
+        args.push(format!("--author={}", a));
+    }
+    let borrowed: Vec<&str> = args.iter().map(String::as_str).collect();
+    let output = run_git(&repo_path, &borrowed)?;
+    let mut result = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some((hash, date)) = line.split_once(' ') {
+            result.push((hash.to_string(), date.to_string()));
+        }
+    }
+    Ok(result)
+}
+
 pub fn git_version() -> Result<String, String> {
     git_command()
         .arg("--version")

@@ -1,0 +1,123 @@
+:root {
+  --heatmap-0: #ebedf0;
+  --heatmap-1: #9be9a8;
+  --heatmap-2: #40c463;
+  --heatmap-3: #30a14e;
+  --heatmap-4: #216e39;
+}
+
+:root[data-theme="dark"] {
+  --heatmap-0: #161b22;
+  --heatmap-1: #0e4429;
+  --heatmap-2: #006d32;
+  --heatmap-3: #26a641;
+  --heatmap-4: #39d353;
+}
+
+.contribution-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+}
+
+.heatmap-grid-wrapper {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.heatmap-grid-wrapper svg {
+  display: block;
+}
+
+.heatmap-month-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-body);
+}
+
+.heatmap-weekday-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: var(--font-body);
+}
+
+.heatmap-cell {
+  rx: 2;
+  ry: 2;
+  outline: none;
+}
+
+.heatmap-cell[data-level="0"] { fill: var(--heatmap-0); }
+.heatmap-cell[data-level="1"] { fill: var(--heatmap-1); }
+.heatmap-cell[data-level="2"] { fill: var(--heatmap-2); }
+.heatmap-cell[data-level="3"] { fill: var(--heatmap-3); }
+.heatmap-cell[data-level="4"] { fill: var(--heatmap-4); }
+
+.heatmap-cell-group {
+  position: relative;
+}
+
+.heatmap-tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1000;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 5px 8px;
+  border-radius: var(--radius-xs);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.heatmap-tooltip.visible {
+  opacity: 1;
+}
+
+.heatmap-summary {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  padding: 0 2px;
+}
+
+.heatmap-summary strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0 2px;
+}
+
+.heatmap-legend-cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.heatmap-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.heatmap-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+  font-size: 13px;
+}

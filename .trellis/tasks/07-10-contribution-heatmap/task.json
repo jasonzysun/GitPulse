@@ -3,7 +3,7 @@
   "name": "contribution-heatmap",
   "title": "工作热力图（Contribution Heatmap）",
   "description": "类似 GitHub contribution graph 的热力图，覆盖所有本地仓库。按日期聚合 commit 数量，用色块深浅表示活跃度。",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

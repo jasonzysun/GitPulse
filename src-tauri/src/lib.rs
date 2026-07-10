@@ -13,9 +13,9 @@ mod zip_store;
 
 use crate::models::{
     AiConfig, AiModelInfo, DiagnosticOptions, DiagnosticResult, ExtractOptions, ExtractResult,
-    GitIdentity, MappingEntry, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
-    PeriodReportResult, ProxyCandidate, ProxyConfig, ProxyTestResult, RepoInfo, RepoScanProgress,
-    ReportEnhanceOptions, ReportEnhanceResult,
+    GitIdentity, HeatmapOptions, HeatmapResult, MappingEntry, MonthlyReportOptions,
+    MonthlyReportResult, PeriodReportOptions, PeriodReportResult, ProxyCandidate, ProxyConfig,
+    ProxyTestResult, RepoInfo, RepoScanProgress, ReportEnhanceOptions, ReportEnhanceResult,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -222,6 +222,13 @@ fn codex_oauth_logout() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn get_heatmap_data(options: HeatmapOptions) -> Result<HeatmapResult, String> {
+    async_runtime::spawn_blocking(move || commit_pipeline::collect_heatmap_data(&options))
+        .await
+        .map_err(|err| format!("热力图数据任务中断：{}", err))?
+}
+
+#[tauri::command]
 fn save_text_file(
     output_dir: String,
     file_name: String,
@@ -320,6 +327,7 @@ pub fn run() {
             enhance_report,
             list_ai_models,
             run_diagnostics,
+            get_heatmap_data,
             get_secure_ai_api_key,
             set_secure_ai_api_key,
             clear_secure_ai_api_key,
