@@ -3,7 +3,7 @@
   "name": "site-changelog",
   "title": "新增 Changelog 页面",
   "description": "用 Astro 渲染 Release Notes Markdown，展示版本迭代历史",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": null,
   "scope": null,
   "package": null,

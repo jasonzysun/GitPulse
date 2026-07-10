@@ -19,7 +19,7 @@ export interface PageContent {
   githubLabel: string;
   languageLabel: string;
   demoAriaLabel: string;
-  nav: Array<{ id: string; label: string }>;
+  nav: Array<{ id: string; label: string; href?: string }>;
   hero: {
     eyebrow: string;
     copy: string;
@@ -63,6 +63,15 @@ export interface PageContent {
     title: string;
     items: Array<{ question: string; answer: string }>;
   };
+  changelog: {
+    eyebrow: string;
+    title: string;
+    versions: Array<{
+      version: string;
+      date: string;
+      changes: string[];
+    }>;
+  };
   footer: {
     releasesLabel: string;
   };
@@ -85,6 +94,7 @@ export const pageContent: Record<Locale, PageContent> = {
       { id: "features", label: "功能" },
       { id: "privacy", label: "隐私" },
       { id: "download", label: "下载" },
+      { id: "changelog", label: "更新日志", href: "/zh-CN/changelog" },
     ],
     hero: {
       eyebrow: "Local-first Git work reports",
@@ -179,6 +189,43 @@ export const pageContent: Record<Locale, PageContent> = {
         },
       ],
     },
+    changelog: {
+      eyebrow: "Changelog",
+      title: "版本更新日志",
+      versions: [
+        {
+          version: "0.4.3",
+          date: "2026-07-10",
+          changes: [
+            "洞察面板全宽视图：热力图、工作节奏、趋势面板移至独立视图",
+            "修复暗色模式下视图切换和洞察面板样式",
+            "修复平台格式预设下拉框无限箭头问题",
+          ],
+        },
+        {
+          version: "0.4.0",
+          date: "2026-07-10",
+          changes: [
+            "代码变更量统计（LOC diff）",
+            "工作热力图（52 周活跃度）",
+            "工作节奏分析（24h 分布 + 加班检测）",
+            "趋势对比面板（折线图 + 项目分布）",
+            "CLI 命令行模式（gitpulse-cli）",
+            "飞书/钉钉/企微格式适配",
+            "报告脱敏与证据链路",
+          ],
+        },
+        {
+          version: "0.3.13",
+          date: "2026-07-09",
+          changes: [
+            "启动自动更新提醒",
+            "应用出站代理配置",
+            "暗色模式界面补齐",
+          ],
+        },
+      ],
+    },
     footer: {
       releasesLabel: "Releases",
     },
@@ -199,6 +246,7 @@ export const pageContent: Record<Locale, PageContent> = {
       { id: "features", label: "Features" },
       { id: "privacy", label: "Privacy" },
       { id: "download", label: "Download" },
+      { id: "changelog", label: "Changelog", href: "/en/changelog" },
     ],
     hero: {
       eyebrow: "Local-first Git work reports",
@@ -290,6 +338,43 @@ export const pageContent: Record<Locale, PageContent> = {
         {
           question: "Who is this for?",
           answer: "Developers who need to turn local Git activity across multiple repositories into daily reports, weekly updates, project reviews, or monthly performance evidence.",
+        },
+      ],
+    },
+    changelog: {
+      eyebrow: "Changelog",
+      title: "Release Notes",
+      versions: [
+        {
+          version: "0.4.3",
+          date: "2026-07-10",
+          changes: [
+            "Full-width insights view: heatmap, rhythm, and trend panels in a dedicated view",
+            "Fixed dark mode styling for view toggle and insights panels",
+            "Fixed infinite dropdown arrow in platform format preset selector",
+          ],
+        },
+        {
+          version: "0.4.0",
+          date: "2026-07-10",
+          changes: [
+            "LOC diff statistics (lines added/removed)",
+            "Contribution heatmap (52-week activity)",
+            "Work rhythm analysis (24h distribution + overtime detection)",
+            "Trend comparison panel (line charts + project distribution)",
+            "CLI mode (gitpulse-cli)",
+            "Feishu / DingTalk / WeCom format presets",
+            "Report redaction and evidence trail",
+          ],
+        },
+        {
+          version: "0.3.13",
+          date: "2026-07-09",
+          changes: [
+            "Auto update check on startup",
+            "Outbound proxy configuration",
+            "Dark mode UI completion",
+          ],
         },
       ],
     },

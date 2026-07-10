@@ -79,7 +79,7 @@ const commitLabels = ["feat", "fix", "refactor", "test", "docs", "build", "chore
       </a>
       <nav class="nav-links" aria-label={content.navAriaLabel}>
         {content.nav.map((item) => (
-          <a href={`#${item.id}`}>{item.label}</a>
+          <a href={item.href ? `${base}${item.href.replace(/^\/+/, "")}` : `#${item.id}`}>{item.label}</a>
         ))}
       </nav>
       <div class="header-actions">
@@ -110,7 +110,7 @@ const commitLabels = ["feat", "fix", "refactor", "test", "docs", "build", "chore
       <div class="mobile-menu-backdrop" data-menu-backdrop></div>
       <div class="mobile-menu-panel">
         {content.nav.map((item) => (
-          <a href={`#${item.id}`} data-mobile-link>{item.label}</a>
+          <a href={item.href ? `${base}${item.href.replace(/^\/+/, "")}` : `#${item.id}`} data-mobile-link>{item.label}</a>
         ))}
         <div class="mobile-menu-footer">
           <nav class="language-switch" aria-label={content.languageLabel}>

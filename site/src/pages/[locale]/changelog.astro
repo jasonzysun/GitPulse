@@ -1,0 +1,100 @@
+---
+import "../../styles/global.css";
+import "../../styles/changelog.css";
+import {
+  localeLabels,
+  locales,
+  pageContent,
+  type Locale,
+} from "../../i18n/content";
+
+export function getStaticPaths() {
+  return locales.map((locale) => ({
+    params: { locale },
+    props: { locale },
+  }));
+}
+
+const { locale } = Astro.props as { locale: Locale };
+const content = pageContent[locale];
+
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const asset = (path: string) => `${base}${path.replace(/^\/+/, "")}`;
+const localePath = (targetLocale: Locale) => `${base}${targetLocale}/`;
+
+const repoUrl = "https://github.com/GoldenZqqq/GitPulse";
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{content.changelog.title} - GitPulse</title>
+    <meta name="description" content={content.changelog.title} />
+    <link rel="icon" type="image/png" href={asset("assets/favicon.png")} />
+  </head>
+  <body>
+    <header class="site-header" aria-label={content.navAriaLabel}>
+      <a class="brand" href={localePath(locale)} aria-label={content.homeAriaLabel}>
+        <img src={asset("assets/brand-dark.png")} alt="GitPulse" width="142" height="40" />
+      </a>
+      <nav class="nav-links" aria-label={content.navAriaLabel}>
+        {content.nav.map((item) => (
+          <a href={item.href ? `${base}${item.href.replace(/^\/+/, "")}` : `${localePath(locale)}#${item.id}`}>{item.label}</a>
+        ))}
+      </nav>
+      <div class="header-actions">
+        <nav class="language-switch" aria-label={content.languageLabel}>
+          {locales.map((target) => (
+            <a
+              class:list={["language-link", target === locale && "active"]}
+              href={`${base}${target}/changelog`}
+              hreflang={target}
+              lang={target}
+              aria-current={target === locale ? "page" : undefined}
+            >
+              {localeLabels[target]}
+            </a>
+          ))}
+        </nav>
+        <a class="header-action" href={repoUrl}>{content.githubLabel}</a>
+      </div>
+    </header>
+
+    <main class="changelog">
+      <div class="changelog-heading">
+        <p class="eyebrow">{content.changelog.eyebrow}</p>
+        <h1>{content.changelog.title}</h1>
+      </div>
+
+      <div class="version-list">
+        {content.changelog.versions.map((v) => (
+          <article class="version-card">
+            <div class="version-meta">
+              <span class="version-tag">v{v.version}</span>
+              <span class="version-date">{v.date}</span>
+            </div>
+            <ul class="version-changes">
+              {v.changes.map((change) => (
+                <li>{change}</li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      <a class="changelog-back" href={localePath(locale)}>
+        &larr; {locale === "zh-CN" ? "返回首页" : "Back to home"}
+      </a>
+    </main>
+
+    <footer class="site-footer">
+      <span>GitPulse</span>
+      <a href={repoUrl}>{content.githubLabel}</a>
+      <a href={`${repoUrl}/releases/latest`}>{content.footer.releasesLabel}</a>
+    </footer>
+  </body>
+</html>
