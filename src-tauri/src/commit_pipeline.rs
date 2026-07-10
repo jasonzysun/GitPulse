@@ -9,12 +9,13 @@ use crate::models::{
     AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
     HeatmapEntry, HeatmapOptions, HeatmapResult, MonthlyReportOptions, MonthlyReportResult,
     PeriodReportOptions, PeriodReportResult, RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
-    WorkRhythmOptions, WorkRhythmResult,
+    TrendOptions, TrendPeriod, TrendProjectShare, TrendResult, WorkRhythmOptions, WorkRhythmResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
+use chrono::Datelike;
 
 pub fn generate_monthly_report_sync<F>(
     options: MonthlyReportOptions,
@@ -403,6 +404,230 @@ pub fn collect_work_rhythm(options: &WorkRhythmOptions) -> Result<WorkRhythmResu
         busiest_hour,
         weekend_ratio,
     })
+}
+
+pub fn collect_trend_data(options: &TrendOptions) -> Result<TrendResult, String> {
+    let is_weekly = options.granularity != "monthly";
+    let periods = options.periods.unwrap_or(12);
+    let today = chrono::Local::now().date_naive();
+
+    let (start_date, buckets) = if is_weekly {
+        build_weekly_buckets(today, periods)
+    } else {
+        build_monthly_buckets(today, periods)
+    };
+    let end_date = today.format("%Y-%m-%d").to_string();
+
+    let repos = git_ops::find_git_repos(&options.workspace_roots)?;
+    let mut seen_hashes = HashSet::new();
+    let mut all_commits: Vec<CommitRecord> = Vec::new();
+
+    for repo in &repos {
+        let query = git_ops::GitCommitQuery {
+            start_date: &start_date,
+            end_date: &end_date,
+            author: &options.author,
+            extract_all_branches: true,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+        };
+        let records = match git_ops::get_git_commits(repo, &query) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        for record in records {
+            let key = format!("{}:{}", record.repo_path, record.hash);
+            if seen_hashes.insert(key) {
+                all_commits.push(record);
+            }
+        }
+    }
+
+    let mut period_data: Vec<TrendPeriod> = buckets
+        .iter()
+        .map(|(label, _, _)| TrendPeriod {
+            label: label.clone(),
+            commits: 0,
+            additions: 0,
+            deletions: 0,
+            active_projects: 0,
+        })
+        .collect();
+    let mut period_projects: Vec<HashSet<String>> = buckets.iter().map(|_| HashSet::new()).collect();
+
+    let mut project_commits: HashMap<String, (u32, u64)> = HashMap::new();
+
+    let weekday_num = today.format("%u").to_string().parse::<i64>().unwrap_or(1);
+    let this_week_start = today - chrono::Duration::days(weekday_num - 1);
+    let last_week_start = this_week_start - chrono::Duration::days(7);
+    let this_month_start_str = today.format("%Y-%m-01").to_string();
+    let last_month = if today.month() == 1 {
+        chrono::NaiveDate::from_ymd_opt(today.year() - 1, 12, 1).unwrap()
+    } else {
+        chrono::NaiveDate::from_ymd_opt(today.year(), today.month() - 1, 1).unwrap()
+    };
+    let last_month_start_str = last_month.format("%Y-%m-%d").to_string();
+    let last_month_end_str = {
+        let d = if today.month() == 1 {
+            chrono::NaiveDate::from_ymd_opt(today.year(), 1, 1).unwrap()
+        } else {
+            chrono::NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap()
+        };
+        (d - chrono::Duration::days(1)).format("%Y-%m-%d").to_string()
+    };
+
+    let this_week_start_str = this_week_start.format("%Y-%m-%d").to_string();
+    let last_week_start_str = last_week_start.format("%Y-%m-%d").to_string();
+    let last_week_end_str = (this_week_start - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+
+    let mut this_week_commits: u32 = 0;
+    let mut last_week_commits: u32 = 0;
+    let mut this_month_commits: u32 = 0;
+    let mut last_month_commits: u32 = 0;
+
+    for commit in &all_commits {
+        let commit_date = extract_date_prefix(&commit.date);
+
+        for (i, (_, bucket_start, bucket_end)) in buckets.iter().enumerate() {
+            if commit_date.as_str() >= bucket_start.as_str()
+                && commit_date.as_str() <= bucket_end.as_str()
+            {
+                period_data[i].commits += 1;
+                period_data[i].additions += commit.additions;
+                period_data[i].deletions += commit.deletions;
+                period_projects[i].insert(commit.project_name.clone());
+                break;
+            }
+        }
+
+        let entry = project_commits
+            .entry(commit.project_name.clone())
+            .or_insert((0, 0));
+        entry.0 += 1;
+        entry.1 += commit.additions;
+
+        if commit_date.as_str() >= this_week_start_str.as_str() {
+            this_week_commits += 1;
+        } else if commit_date.as_str() >= last_week_start_str.as_str()
+            && commit_date.as_str() <= last_week_end_str.as_str()
+        {
+            last_week_commits += 1;
+        }
+
+        if commit_date.as_str() >= this_month_start_str.as_str() {
+            this_month_commits += 1;
+        } else if commit_date.as_str() >= last_month_start_str.as_str()
+            && commit_date.as_str() <= last_month_end_str.as_str()
+        {
+            last_month_commits += 1;
+        }
+    }
+
+    for (i, projects) in period_projects.into_iter().enumerate() {
+        period_data[i].active_projects = projects.len() as u32;
+    }
+
+    let mut project_shares: Vec<TrendProjectShare> = project_commits
+        .into_iter()
+        .map(|(project, (commits, additions))| TrendProjectShare {
+            project,
+            commits,
+            additions,
+        })
+        .collect();
+    project_shares.sort_by(|a, b| b.commits.cmp(&a.commits));
+
+    Ok(TrendResult {
+        periods: period_data,
+        project_shares,
+        this_week_commits,
+        last_week_commits,
+        this_month_commits,
+        last_month_commits,
+    })
+}
+
+fn extract_date_prefix(date_str: &str) -> String {
+    date_str
+        .get(..10)
+        .unwrap_or(date_str)
+        .to_string()
+}
+
+fn build_weekly_buckets(
+    today: chrono::NaiveDate,
+    periods: u32,
+) -> (String, Vec<(String, String, String)>) {
+    let weekday_num = today.format("%u").to_string().parse::<i64>().unwrap_or(1);
+    let this_week_end = today;
+    let this_week_start = today - chrono::Duration::days(weekday_num - 1);
+
+    let mut buckets = Vec::new();
+    for i in 0..periods {
+        let week_start = this_week_start - chrono::Duration::weeks(i as i64);
+        let week_end = if i == 0 {
+            this_week_end
+        } else {
+            week_start + chrono::Duration::days(6)
+        };
+        let label = format!(
+            "{}-{}",
+            week_start.format("%m-%d"),
+            week_end.format("%m-%d")
+        );
+        buckets.push((
+            label,
+            week_start.format("%Y-%m-%d").to_string(),
+            week_end.format("%Y-%m-%d").to_string(),
+        ));
+    }
+    buckets.reverse();
+    let start_date = buckets
+        .first()
+        .map(|(_, s, _)| s.clone())
+        .unwrap_or_default();
+    (start_date, buckets)
+}
+
+fn build_monthly_buckets(
+    today: chrono::NaiveDate,
+    periods: u32,
+) -> (String, Vec<(String, String, String)>) {
+    let mut buckets = Vec::new();
+    for i in 0..periods {
+        let (y, m) = {
+            let total_months = today.year() * 12 + today.month() as i32 - 1 - i as i32;
+            let y = total_months / 12;
+            let m = (total_months % 12 + 1) as u32;
+            (y, m)
+        };
+        let month_start = chrono::NaiveDate::from_ymd_opt(y, m, 1).unwrap();
+        let next_month = if m == 12 {
+            chrono::NaiveDate::from_ymd_opt(y + 1, 1, 1).unwrap()
+        } else {
+            chrono::NaiveDate::from_ymd_opt(y, m + 1, 1).unwrap()
+        };
+        let month_end = if i == 0 {
+            today
+        } else {
+            next_month - chrono::Duration::days(1)
+        };
+        let label = month_start.format("%Y-%m").to_string();
+        buckets.push((
+            label,
+            month_start.format("%Y-%m-%d").to_string(),
+            month_end.format("%Y-%m-%d").to_string(),
+        ));
+    }
+    buckets.reverse();
+    let start_date = buckets
+        .first()
+        .map(|(_, s, _)| s.clone())
+        .unwrap_or_default();
+    (start_date, buckets)
 }
 
 fn parse_iso_date_time(ts: &str) -> Option<(String, String)> {

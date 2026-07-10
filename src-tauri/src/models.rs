@@ -436,6 +436,44 @@ pub struct WorkRhythmResult {
     pub weekend_ratio: f64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendOptions {
+    pub workspace_roots: Vec<String>,
+    pub author: String,
+    pub granularity: String,
+    pub periods: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendPeriod {
+    pub label: String,
+    pub commits: u32,
+    pub additions: u64,
+    pub deletions: u64,
+    pub active_projects: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendProjectShare {
+    pub project: String,
+    pub commits: u32,
+    pub additions: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrendResult {
+    pub periods: Vec<TrendPeriod>,
+    pub project_shares: Vec<TrendProjectShare>,
+    pub this_week_commits: u32,
+    pub last_week_commits: u32,
+    pub this_month_commits: u32,
+    pub last_month_commits: u32,
+}
+
 fn default_extract_report_kind() -> String {
     "daily".to_string()
 }

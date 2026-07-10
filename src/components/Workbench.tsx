@@ -19,6 +19,7 @@ import {
   Sparkles,
   TerminalSquare,
   Trash2,
+  TrendingUp,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -39,6 +40,7 @@ import { ContributionHeatmap, type HeatmapResult } from "./ContributionHeatmap";
 import { CustomRangeDialog } from "./CustomRangeDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { ReportQualityPanel } from "./ReportQualityPanel";
+import { TrendPanel, type TrendResult } from "./TrendPanel";
 import { WorkRhythmPanel, type WorkRhythmResult } from "./WorkRhythmPanel";
 
 type Props = {
@@ -98,7 +100,7 @@ type Props = {
   onAddRootDirs: () => void;
 };
 
-type AssistPanel = "repos" | "history" | "quality" | "heatmap";
+type AssistPanel = "repos" | "history" | "quality" | "heatmap" | "trend";
 
 export function Workbench(props: Props) {
   const previewMeta = props.aiConfigured ? "AI 可润色" : "Markdown 渲染";
@@ -113,6 +115,9 @@ export function Workbench(props: Props) {
   const [heatmapLoading, setHeatmapLoading] = useState(false);
   const [rhythmData, setRhythmData] = useState<WorkRhythmResult | null>(null);
   const [rhythmLoading, setRhythmLoading] = useState(false);
+  const [trendData, setTrendData] = useState<TrendResult | null>(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendGranularity, setTrendGranularity] = useState<"weekly" | "monthly">("weekly");
 
   const loadHeatmapData = useCallback(() => {
     if (heatmapLoading) return;
@@ -141,6 +146,22 @@ export function Workbench(props: Props) {
         .finally(() => setRhythmLoading(false));
     }
   }, [props.rootDirs, props.author, heatmapLoading, rhythmLoading]);
+
+  const loadTrendData = useCallback((granularity: "weekly" | "monthly") => {
+    if (trendLoading) return;
+    setTrendLoading(true);
+    invoke<TrendResult>("get_trend_data", {
+      options: {
+        workspaceRoots: props.rootDirs,
+        author: props.author,
+        granularity,
+        periods: granularity === "weekly" ? 12 : 6,
+      },
+    })
+      .then((result) => setTrendData(result))
+      .catch(() => setTrendData(null))
+      .finally(() => setTrendLoading(false));
+  }, [props.rootDirs, props.author, trendLoading]);
 
   useEffect(() => {
     if (!isPreviewExpanded) return;
@@ -562,6 +583,19 @@ export function Workbench(props: Props) {
               <Activity size={14} />
               热力图
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={visibleAssistPanel === "trend"}
+              className={visibleAssistPanel === "trend" ? "active" : ""}
+              onClick={() => {
+                setActiveAssistPanel("trend");
+                if (!trendData && !trendLoading) loadTrendData(trendGranularity);
+              }}
+            >
+              <TrendingUp size={14} />
+              趋势
+            </button>
           </div>
 
           <div className="assist-panel">
@@ -676,6 +710,19 @@ export function Workbench(props: Props) {
                 <ContributionHeatmap data={heatmapData} loading={heatmapLoading} />
                 <WorkRhythmPanel data={rhythmData} loading={rhythmLoading} />
               </>
+            )}
+
+            {visibleAssistPanel === "trend" && (
+              <TrendPanel
+                data={trendData}
+                loading={trendLoading}
+                granularity={trendGranularity}
+                onGranularityChange={(g) => {
+                  setTrendGranularity(g);
+                  setTrendData(null);
+                  loadTrendData(g);
+                }}
+              />
             )}
           </div>
         </aside>
