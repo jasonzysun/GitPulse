@@ -747,20 +747,12 @@
     0 0 0 3px rgba(109, 168, 255, 0.16);
 }
 
+:root[data-theme="dark"] .report-period-control input,
 :root[data-theme="dark"] .field input[type="date"],
 :root[data-theme="dark"] .field input[type="month"],
-:root[data-theme="dark"] .field input[type="week"] {
+:root[data-theme="dark"] .field input[type="week"],
+:root[data-theme="dark"] .history-filter-bar input[type="date"] {
   color-scheme: dark;
-}
-
-:root[data-theme="dark"] .report-period-control input[type="date"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .report-period-control input[type="month"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .report-period-control input[type="week"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .history-filter-bar input[type="date"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .field input[type="date"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .field input[type="month"]::-webkit-calendar-picker-indicator,
-:root[data-theme="dark"] .field input[type="week"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) brightness(1.25);
 }
 
 :root[data-theme="dark"] .period-range-button:hover:not(:disabled) {

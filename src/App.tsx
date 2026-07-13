@@ -150,6 +150,17 @@ function App() {
   }, [settings]);
 
   useEffect(() => {
+    function handleDateInputClick(e: MouseEvent) {
+      const target = e.target;
+      if (target instanceof HTMLInputElement && /^(date|month|week)$/.test(target.type)) {
+        try { target.showPicker(); } catch { /* showPicker may throw if already open */ }
+      }
+    }
+    document.addEventListener("click", handleDateInputClick);
+    return () => document.removeEventListener("click", handleDateInputClick);
+  }, []);
+
+  useEffect(() => {
     const currentApiKey = settings.aiApiKey.trim();
     if (currentApiKey) {
       if (!isAiKeyReference(currentApiKey)) void persistSecureAiApiKey(currentApiKey);

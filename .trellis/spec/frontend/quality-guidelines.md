@@ -42,11 +42,11 @@ Frontend changes should preserve a reliable local desktop workflow: scan reposit
 
 On Windows, Tauri uses WebView2 (Chromium). Native form controls (`<input type="date">`, `<select>`, etc.) render their own icons and chrome, which default to light-on-white and become invisible on dark backgrounds. Every native control in a dark theme must be explicitly handled:
 
-1. **`<input type="date/month/week">`**: Set `color-scheme: dark` in the dark theme CSS. The base CSS sets `color-scheme: light` to normalize light mode; the dark override reverses it. Without this, the calendar picker icon is invisible.
+1. **`<input type="date/month/week">`**: Set `color-scheme: dark` in the dark theme override (theme.css). Do NOT use `background-image` on date inputs — WebView2 duplicates it infinitely (same bug as select arrows). Do NOT combine `color-scheme: dark` with `filter: invert()` — they cancel each other out. Do NOT use `position: absolute` on `::-webkit-calendar-picker-indicator` to expand the click area — it distorts the icon size. For "click anywhere opens picker" behavior, use a global `showPicker()` event delegation in App.tsx instead.
 
-2. **`<select>`**: Must use `appearance: none` and a custom SVG arrow. WebView2's built-in select arrow renders as an infinite-duplication bug in dark mode without this workaround.
+2. **`<select>`**: Must use `appearance: none` and a custom SVG arrow via `background-image`. WebView2's built-in select arrow renders as an infinite-duplication bug in dark mode without this workaround. Unlike date inputs, `background-image` works on select elements because `appearance: none` disables the native rendering entirely.
 
-3. **General rule**: When adding any new native form control (date, select, color, range, etc.) to a `.field` or dialog, verify it in both light and dark themes on Windows before marking the task complete.
+3. **General rule**: Never use `background-image` on a native form control that retains its default `appearance`. WebView2 duplicates the background behind the native chrome. Either use `appearance: none` (select) or `color-scheme: dark` (date/month/week). Verify in both light and dark themes on Windows before marking complete.
 
 ---
 

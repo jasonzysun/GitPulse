@@ -51,25 +51,18 @@
     0 0 0 3px rgba(63, 140, 255, 0.13);
 }
 
-.field input[type="date"],
-.field input[type="month"],
-.field input[type="week"] {
-  color-scheme: light;
-}
-
 .field input[type="date"]::-webkit-calendar-picker-indicator,
 .field input[type="month"]::-webkit-calendar-picker-indicator,
 .field input[type="week"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   opacity: 0.68;
-  transition: opacity 0.16s ease, transform 0.16s ease;
+  transition: opacity 0.16s ease;
 }
 
 .field input[type="date"]::-webkit-calendar-picker-indicator:hover,
 .field input[type="month"]::-webkit-calendar-picker-indicator:hover,
 .field input[type="week"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
-  transform: translateY(-1px);
 }
 
 .path-input {
