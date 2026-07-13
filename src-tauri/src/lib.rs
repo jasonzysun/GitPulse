@@ -23,6 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::async_runtime;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Clone, Default)]
 struct RepoScanState {
@@ -129,6 +130,14 @@ async fn batch_generate_reports(
     })
     .await
     .map_err(|err| format!("批量生成任务中断：{}", err))?
+}
+
+#[tauri::command]
+fn open_output_directory(app: AppHandle, path: String) -> Result<(), String> {
+    let directory = report::validate_output_directory(&path)?;
+    app.opener()
+        .open_path(directory.to_string_lossy().into_owned(), None::<&str>)
+        .map_err(|err| format!("打开输出目录失败：{}", err))
 }
 
 #[tauri::command]
@@ -356,6 +365,7 @@ pub fn run() {
             generate_monthly_report,
             generate_period_report,
             batch_generate_reports,
+            open_output_directory,
             enhance_report,
             list_ai_models,
             run_diagnostics,

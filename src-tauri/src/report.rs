@@ -380,6 +380,17 @@ pub fn save_report_document(
 }
 
 fn resolve_output_file(output_dir: &str, file_name: &str) -> Result<PathBuf, String> {
+    let dir = validate_output_directory(output_dir)?;
+
+    let trimmed_name = file_name.trim();
+    if trimmed_name.is_empty() {
+        return Err("报告文件名不能为空".to_string());
+    }
+
+    Ok(dir.join(trimmed_name))
+}
+
+pub fn validate_output_directory(output_dir: &str) -> Result<PathBuf, String> {
     let trimmed_dir = output_dir.trim();
     if trimmed_dir.is_empty() {
         return Err("请先在设置中选择输出目录".to_string());
@@ -398,13 +409,7 @@ fn resolve_output_file(output_dir: &str, file_name: &str) -> Result<PathBuf, Str
             trimmed_dir
         ));
     }
-
-    let trimmed_name = file_name.trim();
-    if trimmed_name.is_empty() {
-        return Err("报告文件名不能为空".to_string());
-    }
-
-    Ok(dir.join(trimmed_name))
+    Ok(dir)
 }
 
 fn normalize_export_format(format: &str) -> Result<&'static str, String> {

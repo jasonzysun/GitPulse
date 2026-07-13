@@ -181,6 +181,37 @@ test("generates and exports a daily report", async ({ page }) => {
   expect(saveCalls[0].args.format).toBe("markdown");
 });
 
+test("opens the batch report output directory after generation", async ({ page }) => {
+  await launchApp(page, {
+    settings,
+    repoCache: createRepoCache(["C:/workspace"], repos),
+    batchResult: {
+      total: 5,
+      succeeded: 5,
+      failed: 0,
+      failures: [],
+      outputDir: "C:/exports/batch",
+    },
+  });
+
+  await expectWorkbench(page);
+  await page.getByRole("button", { name: "批量", exact: true }).click();
+
+  const dateInputs = page.locator('.range-dialog input[type="date"]');
+  await dateInputs.nth(0).fill("2026-07-01");
+  await dateInputs.nth(1).fill("2026-07-05");
+  await page.getByRole("button", { name: "开始生成" }).click();
+
+  await expect(page.getByText("生成完成：共 5 份")).toBeVisible();
+  await page.getByRole("button", { name: "打开输出目录" }).click();
+
+  const openCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "open_output_directory"),
+  );
+  expect(openCalls).toHaveLength(1);
+  expect(openCalls[0].args.path).toBe("C:/exports/batch");
+});
+
 test("keeps export setup visible when output is not configured", async ({ page }) => {
   await launchApp(page, {
     settings: createSettings({ ...settings, outputEnabled: false, outputDir: "" }),

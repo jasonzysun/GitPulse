@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import type {
   AppSettings,
   BatchReportProgress,
@@ -46,6 +45,7 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
   const [progress, setProgress] = useState<BatchReportProgress | null>(null);
   const [result, setResult] = useState<BatchReportResult | null>(null);
   const [error, setError] = useState("");
+  const [openError, setOpenError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -53,6 +53,7 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
       setProgress(null);
       setResult(null);
       setError("");
+      setOpenError("");
       setOutputDir(settings.outputDir || "");
     }
   }, [isOpen, settings.outputDir]);
@@ -82,6 +83,7 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
     setStage("running");
     setProgress(null);
     setError("");
+    setOpenError("");
     try {
       const projectNames = parseProjectNames(settings.projectNamesText);
       const options = buildBatchReportOptions(
@@ -105,12 +107,13 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
 
   async function openOutputDir() {
     const dir = result?.outputDir || outputDir;
-    if (dir) {
-      try {
-        await openPath(dir);
-      } catch {
-        // ignore
-      }
+    if (!dir) return;
+
+    setOpenError("");
+    try {
+      await invoke("open_output_directory", { path: dir });
+    } catch (err) {
+      setOpenError(`无法打开输出目录：${String(err)}`);
     }
   }
 
@@ -282,6 +285,7 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
                 )}
               </div>
             )}
+            {openError && <p className="range-error">{openError}</p>}
 
             <footer className="range-dialog-actions" style={{ marginTop: 16 }}>
               {result && result.succeeded > 0 && (

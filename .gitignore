@@ -60,6 +60,7 @@ __pycache__/
 tests/__pycache__/
 .venv/
 venv/
+outputs/
 
 # Editor directories and files
 .vscode/*

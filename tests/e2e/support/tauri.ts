@@ -46,6 +46,7 @@ type MockScenario = {
     monthly?: Record<string, unknown>;
   };
   diagnosticsResult?: Record<string, unknown>;
+  batchResult?: Record<string, unknown>;
   updateMetadata?: Record<string, unknown> | null;
   outputDir?: string;
 };
@@ -149,6 +150,7 @@ export async function launchApp(page: Page, scenario: MockScenario) {
       warningCount: 0,
       errorCount: 0,
     },
+    batchResult: scenario.batchResult ?? null,
     updateMetadata: scenario.updateMetadata ?? null,
     outputDir: scenario.outputDir ?? "C:/exports",
   };
@@ -314,6 +316,8 @@ export async function launchApp(page: Page, scenario: MockScenario) {
               return nextExtractResult();
             case "generate_period_report":
               return resolvePeriodResult(args.options?.reportKind);
+            case "batch_generate_reports":
+              return state.batchResult;
             case "run_diagnostics":
               return state.diagnosticsResult;
             case "save_report_file":

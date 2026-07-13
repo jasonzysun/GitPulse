@@ -173,3 +173,57 @@ return {
   redaction: buildReportRedactionOptions(settings),
 };
 ```
+
+## Scenario: Open a User-Selected Output Directory
+
+### 1. Scope / Trigger
+
+- Trigger: a frontend action must open a report output directory selected at runtime.
+- Tauri opener permissions have two gates: command permission and path scope. `opener:allow-open-path` alone does not allow arbitrary user-selected paths.
+
+### 2. Signatures
+
+- Frontend: `invoke<void>("open_output_directory", { path })`
+- Tauri command: `fn open_output_directory(app: AppHandle, path: String) -> Result<(), String>`
+- Validation owner: `report::validate_output_directory(output_dir: &str) -> Result<PathBuf, String>`
+
+### 3. Contracts
+
+- `path` is trimmed and must resolve to an existing directory.
+- The Rust command opens only directories through `OpenerExt::open_path`; it must not accept files or an `openWith` program.
+- Frontend code must not request `opener:allow-open-path` with a full-filesystem wildcard to support runtime-selected output paths.
+- Rust errors are returned to the dialog and displayed in Chinese.
+
+### 4. Validation & Error Matrix
+
+- Empty path -> `请先在设置中选择输出目录`.
+- Missing/inaccessible path -> `输出目录不存在或当前无法访问`.
+- Existing file path -> `输出路径不是文件夹`.
+- Existing directory + opener failure -> `打开输出目录失败：<cause>`.
+- Existing directory + opener success -> return `Ok(())`.
+
+### 5. Good/Base/Bad Cases
+
+- Good: the user selects `C:\\Users\\name\\Desktop`; the frontend invokes the app command and Rust validates then opens Explorer.
+- Base: the generated batch result returns the selected path unchanged and the completion button opens that path.
+- Bad: granting `{ "path": "**" }` to frontend `open_path`; a compromised WebView could request arbitrary files or executables.
+
+### 6. Tests Required
+
+- Rust tests must keep rejecting missing directories and file paths through the shared validator.
+- Playwright must assert the completion action invokes `open_output_directory` with `BatchReportResult.outputDir`.
+- Run `npm run build`, `cd src-tauri && cargo check`, and `cd src-tauri && cargo test`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```typescript
+await openPath(result.outputDir); // Requires a static path scope or unsafe wildcard.
+```
+
+#### Correct
+
+```typescript
+await invoke("open_output_directory", { path: result.outputDir });
+```
