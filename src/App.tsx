@@ -6,6 +6,7 @@ import { AppMessageHost, type AppMessage, type AppMessageTone } from "./componen
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { RepoMappingDialog } from "./components/RepoMappingDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { Workbench } from "./components/Workbench";
 import { useAppRuntime } from "./hooks/useAppRuntime";
 import {
@@ -93,6 +94,7 @@ function App() {
   const [scanProgress, setScanProgress] = useState<RepoScanProgress | null>(null);
   const [extractProgress, setExtractProgress] = useState<CommitExtractProgress | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
   const [commitCount, setCommitCount] = useState(0);
@@ -138,7 +140,7 @@ function App() {
 
   useEffect(() => {
     if (!startupUpdateNotice) return;
-    showMessage(`发现新版本 v${startupUpdateNotice.version}，可在设置中下载并安装`, "info", 5200);
+    setUpdateBannerDismissed(false);
   }, [startupUpdateNotice]);
 
   useEffect(() => {
@@ -767,9 +769,25 @@ function App() {
     );
   }
 
+  const showUpdateBanner = Boolean(updateSummary) && !updateBannerDismissed;
+
   return (
     <main className="app-root">
       <AppMessageHost message={appMessage} onDismiss={dismissAppMessage} />
+      {showUpdateBanner && updateSummary && (
+        <UpdateBanner
+          version={updateSummary.version}
+          updateBusy={updateBusy}
+          updateProgress={updateProgress}
+          updateMessage={updateMessage}
+          onInstall={installUpdate}
+          onViewDetails={() => {
+            setUpdateBannerDismissed(true);
+            setSettingsOpen(true);
+          }}
+          onDismiss={() => setUpdateBannerDismissed(true)}
+        />
+      )}
       <Workbench
         repos={repos}
         projectNames={projectNames}

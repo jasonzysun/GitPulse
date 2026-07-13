@@ -105,6 +105,37 @@
     var(--paper);
 }
 
+:root[data-theme="dark"] .update-banner {
+  border-color: rgba(109, 168, 255, 0.32);
+  color: #e4f0ff;
+  background:
+    linear-gradient(180deg, rgba(22, 34, 53, 0.98), rgba(13, 23, 38, 0.98)),
+    var(--paper);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+:root[data-theme="dark"] .update-banner-detail {
+  color: #9db6d6;
+}
+
+:root[data-theme="dark"] .update-banner.has-error {
+  border-color: rgba(255, 122, 126, 0.4);
+}
+
+:root[data-theme="dark"] .update-banner.has-error .update-banner-detail {
+  color: #ffb3b6;
+}
+
+:root[data-theme="dark"] .update-banner-link:hover {
+  background: rgba(109, 168, 255, 0.14);
+}
+
+:root[data-theme="dark"] .update-banner-close:hover {
+  background: rgba(109, 168, 255, 0.14);
+}
+
 :root[data-theme="dark"] .field input,
 :root[data-theme="dark"] .field select,
 :root[data-theme="dark"] .mapping-input,
