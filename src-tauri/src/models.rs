@@ -393,6 +393,76 @@ pub struct PeriodReportResult {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BatchReportOptions {
+    pub root_dirs: Vec<String>,
+    #[serde(default)]
+    pub indexed_repos: Vec<RepoInfo>,
+    pub author: String,
+    #[serde(default)]
+    pub author_display_name: String,
+    #[serde(default)]
+    pub author_aliases: Vec<AuthorAliasGroup>,
+    pub disabled_repos: Vec<String>,
+    pub extract_all_branches: bool,
+    pub exclude_merge_commits: bool,
+    pub exclude_revert_commits: bool,
+    pub exclude_bot_commits: bool,
+    #[serde(default = "default_commit_item_prefix_mode")]
+    pub commit_item_prefix_mode: String,
+    pub show_evidence_details: bool,
+    #[serde(default)]
+    pub evidence_link_rules: Vec<EvidenceLinkRule>,
+    #[serde(default)]
+    pub redaction: ReportRedactionOptions,
+    pub project_names: HashMap<String, String>,
+    #[serde(default)]
+    pub report_format_templates: ReportFormatTemplates,
+
+    pub range_start: String,
+    pub range_end: String,
+    pub split_granularity: String,
+    pub export_format: String,
+    pub output_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchReportProgress {
+    pub total: usize,
+    pub completed: usize,
+    pub current_label: String,
+    pub succeeded: usize,
+    pub failed: usize,
+    pub done: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchReportResult {
+    pub total: usize,
+    pub succeeded: usize,
+    pub failed: usize,
+    pub failures: Vec<BatchFailure>,
+    pub output_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchFailure {
+    pub label: String,
+    pub error: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SubPeriod {
+    pub start: String,
+    pub end: String,
+    pub label: String,
+    pub report_kind: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HeatmapOptions {
     pub workspace_roots: Vec<String>,
     pub author: String,

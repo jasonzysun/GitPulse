@@ -6,10 +6,11 @@
 use crate::ai;
 use crate::git_ops;
 use crate::models::{
-    AuthorAliasGroup, CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult,
-    HeatmapEntry, HeatmapOptions, HeatmapResult, MonthlyReportOptions, MonthlyReportResult,
-    PeriodReportOptions, PeriodReportResult, RepoInfo, ReportEnhanceOptions, ReportEnhanceResult,
-    TrendOptions, TrendPeriod, TrendProjectShare, TrendResult, WorkRhythmOptions, WorkRhythmResult,
+    AuthorAliasGroup, BatchFailure, BatchReportOptions, BatchReportProgress, BatchReportResult,
+    CommitExtractProgress, CommitRecord, ExtractOptions, ExtractResult, HeatmapEntry,
+    HeatmapOptions, HeatmapResult, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
+    PeriodReportResult, RepoInfo, ReportEnhanceOptions, ReportEnhanceResult, TrendOptions,
+    TrendPeriod, TrendProjectShare, TrendResult, WorkRhythmOptions, WorkRhythmResult,
 };
 use crate::report;
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -1243,6 +1244,199 @@ fn report_author(display_name: &str, author_filter: &str) -> String {
         return display_name.to_string();
     }
     author_filter.to_string()
+}
+
+pub fn batch_generate_reports_sync<F>(
+    options: BatchReportOptions,
+    mut on_progress: F,
+) -> Result<BatchReportResult, String>
+where
+    F: FnMut(BatchReportProgress),
+{
+    let periods = report::split_date_range(
+        &options.range_start,
+        &options.range_end,
+        &options.split_granularity,
+    )?;
+
+    let total = periods.len();
+    let mut succeeded: usize = 0;
+    let mut failed: usize = 0;
+    let mut failures: Vec<BatchFailure> = Vec::new();
+
+    for (i, period) in periods.iter().enumerate() {
+        let label = format_period_label(period);
+
+        on_progress(BatchReportProgress {
+            total,
+            completed: i,
+            current_label: label.clone(),
+            succeeded,
+            failed,
+            done: false,
+        });
+
+        let result = generate_single_report(&options, period);
+        match result {
+            Ok(content) => {
+                let file_name = report::batch_file_name(period, &options.export_format)
+                    .unwrap_or_else(|_| format!("{}.md", period.label));
+                match report::save_report_document(
+                    &options.output_dir,
+                    &file_name,
+                    &content,
+                    &options.export_format,
+                ) {
+                    Ok(_) => succeeded += 1,
+                    Err(e) => {
+                        failed += 1;
+                        failures.push(BatchFailure {
+                            label: label.clone(),
+                            error: e,
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                failed += 1;
+                failures.push(BatchFailure {
+                    label: label.clone(),
+                    error: e,
+                });
+            }
+        }
+    }
+
+    on_progress(BatchReportProgress {
+        total,
+        completed: total,
+        current_label: String::new(),
+        succeeded,
+        failed,
+        done: true,
+    });
+
+    Ok(BatchReportResult {
+        total,
+        succeeded,
+        failed,
+        failures,
+        output_dir: options.output_dir.clone(),
+    })
+}
+
+fn generate_single_report(
+    options: &BatchReportOptions,
+    period: &crate::models::SubPeriod,
+) -> Result<String, String> {
+    match period.report_kind.as_str() {
+        "daily" => {
+            let extract_opts = batch_to_extract_options(options, period);
+            let result =
+                extract_commits_sync(extract_opts, |_: CommitExtractProgress| {})?;
+            Ok(result.summary_text)
+        }
+        "weekly" | "monthly" => {
+            let period_opts = batch_to_period_options(options, period);
+            let result =
+                generate_period_report_sync(period_opts, |_: CommitExtractProgress| {})?;
+            Ok(result.report_text)
+        }
+        _ => Err(format!("未知报告类型：{}", period.report_kind)),
+    }
+}
+
+fn batch_to_extract_options(
+    opts: &BatchReportOptions,
+    period: &crate::models::SubPeriod,
+) -> ExtractOptions {
+    ExtractOptions {
+        root_dirs: opts.root_dirs.clone(),
+        indexed_repos: opts.indexed_repos.clone(),
+        author: opts.author.clone(),
+        author_display_name: opts.author_display_name.clone(),
+        author_aliases: opts.author_aliases.clone(),
+        start_date: period.start.clone(),
+        end_date: period.end.clone(),
+        period_label: period.label.clone(),
+        report_kind: "daily".to_string(),
+        disabled_repos: opts.disabled_repos.clone(),
+        extract_all_branches: opts.extract_all_branches,
+        exclude_merge_commits: opts.exclude_merge_commits,
+        exclude_revert_commits: opts.exclude_revert_commits,
+        exclude_bot_commits: opts.exclude_bot_commits,
+        detailed_output: false,
+        show_project_and_branch: true,
+        commit_item_prefix_mode: opts.commit_item_prefix_mode.clone(),
+        show_evidence_details: opts.show_evidence_details,
+        evidence_link_rules: opts.evidence_link_rules.clone(),
+        redaction: opts.redaction.clone(),
+        project_names: opts.project_names.clone(),
+        report_format_templates: opts.report_format_templates.clone(),
+        refinement_instruction: String::new(),
+        system_prompt: String::new(),
+        ai: crate::models::AiConfig {
+            enabled: false,
+            provider: String::new(),
+            base_url: String::new(),
+            model: String::new(),
+            api_key: String::new(),
+            temperature: 0.0,
+            timeout_seconds: 0,
+            proxy: Default::default(),
+        },
+    }
+}
+
+fn batch_to_period_options(
+    opts: &BatchReportOptions,
+    period: &crate::models::SubPeriod,
+) -> PeriodReportOptions {
+    PeriodReportOptions {
+        root_dirs: opts.root_dirs.clone(),
+        indexed_repos: opts.indexed_repos.clone(),
+        output_dir: String::new(),
+        output_enabled: false,
+        author: opts.author.clone(),
+        author_display_name: opts.author_display_name.clone(),
+        author_aliases: opts.author_aliases.clone(),
+        start_date: period.start.clone(),
+        end_date: period.end.clone(),
+        period_label: period.label.clone(),
+        report_kind: period.report_kind.clone(),
+        disabled_repos: opts.disabled_repos.clone(),
+        extract_all_branches: opts.extract_all_branches,
+        exclude_merge_commits: opts.exclude_merge_commits,
+        exclude_revert_commits: opts.exclude_revert_commits,
+        exclude_bot_commits: opts.exclude_bot_commits,
+        commit_item_prefix_mode: opts.commit_item_prefix_mode.clone(),
+        show_evidence_details: opts.show_evidence_details,
+        evidence_link_rules: opts.evidence_link_rules.clone(),
+        redaction: opts.redaction.clone(),
+        project_names: opts.project_names.clone(),
+        report_format_templates: opts.report_format_templates.clone(),
+        refinement_instruction: String::new(),
+        system_prompt: String::new(),
+        ai: crate::models::AiConfig {
+            enabled: false,
+            provider: String::new(),
+            base_url: String::new(),
+            model: String::new(),
+            api_key: String::new(),
+            temperature: 0.0,
+            timeout_seconds: 0,
+            proxy: Default::default(),
+        },
+    }
+}
+
+fn format_period_label(period: &crate::models::SubPeriod) -> String {
+    match period.report_kind.as_str() {
+        "daily" => format!("{} 日报", period.label),
+        "weekly" => format!("{} 周报", period.label),
+        "monthly" => format!("{} 月报", period.label),
+        _ => period.label.clone(),
+    }
 }
 
 #[cfg(test)]

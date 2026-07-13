@@ -9,6 +9,7 @@ import {
   FolderPlus,
   GitBranch,
   History,
+  Layers,
   Loader2,
   Maximize2,
   Minimize2,
@@ -98,6 +99,7 @@ type Props = {
   onOpenSettings: () => void;
   rootDirs: string[];
   onAddRootDirs: () => void;
+  onOpenBatch: () => void;
 };
 
 type AssistPanel = "repos" | "history" | "quality";
@@ -397,6 +399,17 @@ export function Workbench(props: Props) {
                 <button className="preview-generate-button" type="button" onClick={handleGenerate} disabled={props.isBusy}>
                   {generateButtonIcon}
                   {generateButtonLabel}
+                </button>
+                <button
+                  className="preview-generate-button"
+                  type="button"
+                  onClick={props.onOpenBatch}
+                  disabled={props.isBusy}
+                  title="批量生成多份报告"
+                  style={{ marginLeft: 4 }}
+                >
+                  <Layers size={15} />
+                  批量
                 </button>
               </div>
               <div className="canvas-actions-group">

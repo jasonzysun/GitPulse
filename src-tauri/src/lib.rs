@@ -12,11 +12,12 @@ mod secure_store;
 mod zip_store;
 
 use crate::models::{
-    AiConfig, AiModelInfo, DiagnosticOptions, DiagnosticResult, ExtractOptions, ExtractResult,
-    GitIdentity, HeatmapOptions, HeatmapResult, MappingEntry, MonthlyReportOptions,
-    MonthlyReportResult, PeriodReportOptions, PeriodReportResult, ProxyCandidate, ProxyConfig,
-    ProxyTestResult, RepoInfo, RepoScanProgress, ReportEnhanceOptions, ReportEnhanceResult,
-    TrendOptions, TrendResult, WorkRhythmOptions, WorkRhythmResult,
+    AiConfig, AiModelInfo, BatchReportOptions, BatchReportResult, DiagnosticOptions,
+    DiagnosticResult, ExtractOptions, ExtractResult, GitIdentity, HeatmapOptions, HeatmapResult,
+    MappingEntry, MonthlyReportOptions, MonthlyReportResult, PeriodReportOptions,
+    PeriodReportResult, ProxyCandidate, ProxyConfig, ProxyTestResult, RepoInfo, RepoScanProgress,
+    ReportEnhanceOptions, ReportEnhanceResult, TrendOptions, TrendResult, WorkRhythmOptions,
+    WorkRhythmResult,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -113,6 +114,21 @@ async fn generate_period_report(
     })
     .await
     .map_err(|err| format!("生成报告任务中断：{}", err))?
+}
+
+#[tauri::command]
+async fn batch_generate_reports(
+    app: AppHandle,
+    options: BatchReportOptions,
+) -> Result<BatchReportResult, String> {
+    let progress_app = app.clone();
+    async_runtime::spawn_blocking(move || {
+        commit_pipeline::batch_generate_reports_sync(options, |progress| {
+            let _ = progress_app.emit("batch-report-progress", progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("批量生成任务中断：{}", err))?
 }
 
 #[tauri::command]
@@ -339,6 +355,7 @@ pub fn run() {
             extract_commits,
             generate_monthly_report,
             generate_period_report,
+            batch_generate_reports,
             enhance_report,
             list_ai_models,
             run_diagnostics,

@@ -38,6 +38,18 @@ Frontend changes should preserve a reliable local desktop workflow: scan reposit
 
 ---
 
+## Tauri WebView2 Dark Mode — Native Controls
+
+On Windows, Tauri uses WebView2 (Chromium). Native form controls (`<input type="date">`, `<select>`, etc.) render their own icons and chrome, which default to light-on-white and become invisible on dark backgrounds. Every native control in a dark theme must be explicitly handled:
+
+1. **`<input type="date/month/week">`**: Set `color-scheme: dark` in the dark theme CSS. The base CSS sets `color-scheme: light` to normalize light mode; the dark override reverses it. Without this, the calendar picker icon is invisible.
+
+2. **`<select>`**: Must use `appearance: none` and a custom SVG arrow. WebView2's built-in select arrow renders as an infinite-duplication bug in dark mode without this workaround.
+
+3. **General rule**: When adding any new native form control (date, select, color, range, etc.) to a `.field` or dialog, verify it in both light and dark themes on Windows before marking the task complete.
+
+---
+
 ## Code Review Checklist
 
 - Does this keep Git/filesystem work behind Rust?

@@ -86,6 +86,30 @@ export type PreviewMode = "summary" | "weekly" | "custom" | "monthly";
 
 export type ReportExportFormat = "markdown" | "docx" | "pdf";
 
+export type SplitGranularity = "daily" | "weekly" | "monthly";
+
+export type BatchReportProgress = {
+  total: number;
+  completed: number;
+  currentLabel: string;
+  succeeded: number;
+  failed: number;
+  done: boolean;
+};
+
+export type BatchReportResult = {
+  total: number;
+  succeeded: number;
+  failed: number;
+  failures: BatchFailure[];
+  outputDir: string;
+};
+
+export type BatchFailure = {
+  label: string;
+  error: string;
+};
+
 export type DateRange = {
   startDate: string;
   endDate: string;
@@ -925,6 +949,43 @@ export function buildPeriodReportOptions(
     refinementInstruction: buildReportRefinementInstruction(settings, extraInstruction),
     systemPrompt: buildReportSystemPrompt(settings, kind),
     ai: buildAiOptions(settings, aiEnabled),
+  };
+}
+
+export function buildBatchReportOptions(
+  settings: AppSettings,
+  projectNames: Record<string, string>,
+  rangeStart: string,
+  rangeEnd: string,
+  splitGranularity: SplitGranularity,
+  exportFormat: ReportExportFormat,
+  outputDir: string,
+  indexedRepos: RepoInfo[] = [],
+) {
+  const authorAliasGroups = parseAuthorAliases(settings.authorAliasesText);
+  const evidenceLinkRules = parseEvidenceLinkRules(settings.evidenceLinkPrefixesText);
+  return {
+    rootDirs: settings.rootDirs,
+    indexedRepos,
+    author: buildAuthorFilter(settings.author, authorAliasGroups),
+    authorDisplayName: buildAuthorDisplayName(settings.author, authorAliasGroups),
+    authorAliases: authorAliasGroups,
+    disabledRepos: settings.disabledRepos,
+    extractAllBranches: settings.extractAllBranches,
+    excludeMergeCommits: settings.excludeMergeCommits,
+    excludeRevertCommits: settings.excludeRevertCommits,
+    excludeBotCommits: settings.excludeBotCommits,
+    commitItemPrefixMode: settings.commitItemPrefixMode,
+    showEvidenceDetails: settings.showEvidenceDetails,
+    evidenceLinkRules,
+    redaction: buildReportRedactionOptions(settings),
+    projectNames,
+    reportFormatTemplates: buildReportFormatTemplates(settings),
+    rangeStart,
+    rangeEnd,
+    splitGranularity,
+    exportFormat,
+    outputDir,
   };
 }
 

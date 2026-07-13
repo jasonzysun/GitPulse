@@ -2,7 +2,7 @@ use crate::{
     docx,
     models::{
         CommitRecord, EvidenceLinkRule, ExtractResult, MonthlyReportResult, PeriodReportResult,
-        RepoInfo, ReportFormatTemplates, ReportRedactionOptions, ReportRedactionRule,
+        RepoInfo, ReportFormatTemplates, ReportRedactionOptions, ReportRedactionRule, SubPeriod,
     },
     pdf,
 };
@@ -1609,6 +1609,110 @@ fn format_week_title(week_label: &str) -> String {
     week_label.to_string()
 }
 
+const BATCH_MAX_PERIODS: usize = 365;
+
+pub fn split_date_range(
+    start: &str,
+    end: &str,
+    granularity: &str,
+) -> Result<Vec<SubPeriod>, String> {
+    let start_date = NaiveDate::parse_from_str(start, "%Y-%m-%d")
+        .map_err(|e| format!("起始日期格式错误：{e}"))?;
+    let end_date = NaiveDate::parse_from_str(end, "%Y-%m-%d")
+        .map_err(|e| format!("结束日期格式错误：{e}"))?;
+    if start_date > end_date {
+        return Err("起始日期不能晚于结束日期".to_string());
+    }
+
+    let periods = match granularity {
+        "daily" => split_daily(start_date, end_date),
+        "weekly" => split_weekly(start_date, end_date),
+        "monthly" => split_monthly(start_date, end_date),
+        _ => return Err(format!("不支持的拆分粒度：{granularity}")),
+    };
+
+    if periods.len() > BATCH_MAX_PERIODS {
+        return Err(format!(
+            "拆分后共 {} 份报告，超过上限 {BATCH_MAX_PERIODS}",
+            periods.len()
+        ));
+    }
+    Ok(periods)
+}
+
+fn split_daily(start: NaiveDate, end: NaiveDate) -> Vec<SubPeriod> {
+    let mut periods = Vec::new();
+    let mut day = start;
+    while day <= end {
+        let ds = day.format("%Y-%m-%d").to_string();
+        periods.push(SubPeriod {
+            start: ds.clone(),
+            end: ds.clone(),
+            label: ds,
+            report_kind: "daily".to_string(),
+        });
+        day += Duration::days(1);
+    }
+    periods
+}
+
+fn split_weekly(start: NaiveDate, end: NaiveDate) -> Vec<SubPeriod> {
+    let mut periods = Vec::new();
+    let mut week_start = start;
+    while week_start <= end {
+        let week_end = {
+            let days_to_sunday = 7 - week_start.weekday().num_days_from_monday() - 1;
+            let natural_end = week_start + Duration::days(days_to_sunday as i64);
+            if natural_end > end { end } else { natural_end }
+        };
+        let iso = week_start.iso_week();
+        let label = format!("{}-W{:02}", iso.year(), iso.week());
+        periods.push(SubPeriod {
+            start: week_start.format("%Y-%m-%d").to_string(),
+            end: week_end.format("%Y-%m-%d").to_string(),
+            label,
+            report_kind: "weekly".to_string(),
+        });
+        week_start = week_end + Duration::days(1);
+    }
+    periods
+}
+
+fn split_monthly(start: NaiveDate, end: NaiveDate) -> Vec<SubPeriod> {
+    let mut periods = Vec::new();
+    let mut month_start = start;
+    while month_start <= end {
+        let next_month = if month_start.month() == 12 {
+            NaiveDate::from_ymd_opt(month_start.year() + 1, 1, 1)
+        } else {
+            NaiveDate::from_ymd_opt(month_start.year(), month_start.month() + 1, 1)
+        }
+        .unwrap();
+        let natural_end = next_month - Duration::days(1);
+        let month_end = if natural_end > end { end } else { natural_end };
+        let label = month_start.format("%Y-%m").to_string();
+        periods.push(SubPeriod {
+            start: month_start.format("%Y-%m-%d").to_string(),
+            end: month_end.format("%Y-%m-%d").to_string(),
+            label,
+            report_kind: "monthly".to_string(),
+        });
+        month_start = next_month;
+    }
+    periods
+}
+
+pub fn batch_file_name(period: &SubPeriod, format: &str) -> Result<String, String> {
+    let ext = normalize_export_format(format)?;
+    let type_label = match period.report_kind.as_str() {
+        "daily" => "日报",
+        "weekly" => "周报",
+        "monthly" => "月报",
+        _ => "报告",
+    };
+    Ok(format!("{}-{}.{}", period.label, type_label, ext))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2133,5 +2237,76 @@ mod tests {
             deletions: 0,
             changed_files: 0,
         }
+    }
+
+    #[test]
+    fn split_daily_single_day() {
+        let periods = split_date_range("2026-07-01", "2026-07-01", "daily").unwrap();
+        assert_eq!(periods.len(), 1);
+        assert_eq!(periods[0].start, "2026-07-01");
+        assert_eq!(periods[0].end, "2026-07-01");
+        assert_eq!(periods[0].report_kind, "daily");
+    }
+
+    #[test]
+    fn split_daily_week() {
+        let periods = split_date_range("2026-07-01", "2026-07-07", "daily").unwrap();
+        assert_eq!(periods.len(), 7);
+        assert_eq!(periods[0].label, "2026-07-01");
+        assert_eq!(periods[6].label, "2026-07-07");
+    }
+
+    #[test]
+    fn split_weekly_cross_month() {
+        let periods = split_date_range("2026-06-25", "2026-07-15", "weekly").unwrap();
+        assert!(periods.len() >= 3);
+        assert_eq!(periods[0].report_kind, "weekly");
+        assert!(periods[0].start <= periods[0].end);
+        assert!(periods.last().unwrap().end == "2026-07-15");
+    }
+
+    #[test]
+    fn split_monthly_cross_year() {
+        let periods = split_date_range("2026-11-15", "2027-02-10", "monthly").unwrap();
+        assert_eq!(periods.len(), 4);
+        assert_eq!(periods[0].label, "2026-11");
+        assert_eq!(periods[0].start, "2026-11-15");
+        assert_eq!(periods[0].end, "2026-11-30");
+        assert_eq!(periods[3].label, "2027-02");
+        assert_eq!(periods[3].start, "2027-02-01");
+        assert_eq!(periods[3].end, "2027-02-10");
+    }
+
+    #[test]
+    fn split_rejects_start_after_end() {
+        let result = split_date_range("2026-07-10", "2026-07-01", "daily");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn split_rejects_too_many_periods() {
+        let result = split_date_range("2024-01-01", "2026-12-31", "daily");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("超过上限"));
+    }
+
+    #[test]
+    fn batch_file_name_formats() {
+        let daily = SubPeriod {
+            start: "2026-07-01".into(),
+            end: "2026-07-01".into(),
+            label: "2026-07-01".into(),
+            report_kind: "daily".into(),
+        };
+        assert_eq!(batch_file_name(&daily, "markdown").unwrap(), "2026-07-01-日报.md");
+        assert_eq!(batch_file_name(&daily, "docx").unwrap(), "2026-07-01-日报.docx");
+
+        let weekly = SubPeriod {
+            start: "2026-06-29".into(),
+            end: "2026-07-05".into(),
+            label: "2026-W27".into(),
+            report_kind: "weekly".into(),
+        };
+        assert_eq!(batch_file_name(&weekly, "pdf").unwrap(), "2026-W27-周报.pdf");
     }
 }

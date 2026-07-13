@@ -747,6 +747,12 @@
     0 0 0 3px rgba(109, 168, 255, 0.16);
 }
 
+:root[data-theme="dark"] .field input[type="date"],
+:root[data-theme="dark"] .field input[type="month"],
+:root[data-theme="dark"] .field input[type="week"] {
+  color-scheme: dark;
+}
+
 :root[data-theme="dark"] .report-period-control input[type="date"]::-webkit-calendar-picker-indicator,
 :root[data-theme="dark"] .report-period-control input[type="month"]::-webkit-calendar-picker-indicator,
 :root[data-theme="dark"] .report-period-control input[type="week"]::-webkit-calendar-picker-indicator,

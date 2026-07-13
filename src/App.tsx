@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AppMessageHost, type AppMessage, type AppMessageTone } from "./components/AppMessageHost";
+import { BatchDialog } from "./components/BatchDialog";
 import { OnboardingWizard } from "./components/OnboardingWizard";
 import { RepoMappingDialog } from "./components/RepoMappingDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
@@ -94,6 +95,7 @@ function App() {
   const [scanProgress, setScanProgress] = useState<RepoScanProgress | null>(null);
   const [extractProgress, setExtractProgress] = useState<CommitExtractProgress | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [batchOpen, setBatchOpen] = useState(false);
   const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
   const [editingRepo, setEditingRepo] = useState<RepoInfo | null>(null);
   const [lastOutputFile, setLastOutputFile] = useState("");
@@ -843,6 +845,7 @@ function App() {
         onAddRootDirs={addRootDirs}
         onPreviewChange={changePreview}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenBatch={() => setBatchOpen(true)}
       />
       <SettingsDialog
         open={settingsOpen}
@@ -860,6 +863,12 @@ function App() {
         onCheckForUpdates={checkForUpdates}
         onInstallUpdate={installUpdate}
         onClose={() => setSettingsOpen(false)}
+      />
+      <BatchDialog
+        open={batchOpen}
+        settings={settings}
+        indexedRepos={repos}
+        onClose={() => setBatchOpen(false)}
       />
       <RepoMappingDialog
         open={editingRepo !== null}
