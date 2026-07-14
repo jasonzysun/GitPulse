@@ -13,10 +13,12 @@ use crate::models::{
     TrendPeriod, TrendProjectShare, TrendResult, WorkRhythmOptions, WorkRhythmResult,
 };
 use crate::report;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use chrono::Datelike;
+
+const BATCH_MAX_OUTPUT_FILES: usize = 365;
 
 pub fn generate_monthly_report_sync<F>(
     options: MonthlyReportOptions,
@@ -1246,6 +1248,121 @@ fn report_author(display_name: &str, author_filter: &str) -> String {
     author_filter.to_string()
 }
 
+fn batch_output_total(
+    period_count: usize,
+    group_count: usize,
+    format_count: usize,
+) -> Result<usize, String> {
+    let total = period_count
+        .checked_mul(group_count)
+        .and_then(|count| count.checked_mul(format_count))
+        .ok_or_else(|| "批量输出文件数量超出支持范围".to_string())?;
+    if total > BATCH_MAX_OUTPUT_FILES {
+        return Err(format!(
+            "本次将生成 {total} 个文件，超过上限 {BATCH_MAX_OUTPUT_FILES}"
+        ));
+    }
+    Ok(total)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BatchGroup {
+    All,
+    Author(String),
+    Project(String),
+}
+
+impl BatchGroup {
+    fn label(&self) -> Option<&str> {
+        match self {
+            Self::All => None,
+            Self::Author(name) | Self::Project(name) => Some(name),
+        }
+    }
+
+    fn author_name(&self, options: &BatchReportOptions) -> String {
+        match self {
+            Self::Author(name) => name.clone(),
+            _ => report_author(&options.author_display_name, &options.author),
+        }
+    }
+
+    fn project_name(&self) -> String {
+        match self {
+            Self::Project(name) => name.clone(),
+            _ => "全部项目".to_string(),
+        }
+    }
+
+    fn includes(
+        &self,
+        commit: &CommitRecord,
+        project_names: &HashMap<String, String>,
+    ) -> bool {
+        match self {
+            Self::All => true,
+            Self::Author(name) => commit.author == *name,
+            Self::Project(name) => report::batch_project_name(project_names, commit) == *name,
+        }
+    }
+}
+
+fn normalize_batch_group_mode(mode: &str) -> Result<&'static str, String> {
+    match mode.trim().to_ascii_lowercase().as_str() {
+        "" | "all" => Ok("all"),
+        "author" => Ok("author"),
+        "project" => Ok("project"),
+        other => Err(format!("暂不支持的批量分组方式：{other}")),
+    }
+}
+
+fn batch_groups(
+    mode: &str,
+    commits: &[CommitRecord],
+    project_names: &HashMap<String, String>,
+) -> Result<Vec<BatchGroup>, String> {
+    if mode == "all" {
+        return Ok(vec![BatchGroup::All]);
+    }
+    let mut names = BTreeMap::new();
+    for commit in commits {
+        let candidate = if mode == "author" {
+            commit.author.trim().to_string()
+        } else {
+            report::batch_project_name(project_names, commit)
+        };
+        if !candidate.is_empty() {
+            names.entry(candidate.to_lowercase()).or_insert(candidate);
+        }
+    }
+    if names.is_empty() {
+        let target = if mode == "author" { "作者" } else { "项目" };
+        return Err(format!("所选时间范围内没有可按{target}分组的提交记录"));
+    }
+    Ok(names
+        .into_values()
+        .map(|name| {
+            if mode == "author" {
+                BatchGroup::Author(name)
+            } else {
+                BatchGroup::Project(name)
+            }
+        })
+        .collect())
+}
+
+fn select_batch_commits(
+    commits: &[CommitRecord],
+    group: &BatchGroup,
+    project_names: &HashMap<String, String>,
+) -> Vec<CommitRecord> {
+    commits
+        .iter()
+        .filter(|commit| group.includes(commit, project_names))
+        .cloned()
+        .collect()
+}
+
 pub fn batch_generate_reports_sync<F>(
     options: BatchReportOptions,
     mut on_progress: F,
@@ -1258,108 +1375,352 @@ where
         &options.range_end,
         &options.split_granularity,
     )?;
+    let formats = report::normalize_batch_export_formats(&options.export_formats)?;
+    report::validate_batch_file_name_template(&options.file_name_template)?;
+    let group_mode = normalize_batch_group_mode(&options.group_mode)?;
+    let groups = discover_batch_groups(&options, group_mode)?;
+    let total = batch_output_total(periods.len(), groups.len(), formats.len())?;
+    let mut run = BatchRunState::new(total);
+    let mut used_names = HashSet::new();
 
-    let total = periods.len();
-    let mut succeeded: usize = 0;
-    let mut failed: usize = 0;
-    let mut failures: Vec<BatchFailure> = Vec::new();
-
-    for (i, period) in periods.iter().enumerate() {
-        let label = format_period_label(period);
-
-        on_progress(BatchReportProgress {
-            total,
-            completed: i,
-            current_label: label.clone(),
-            succeeded,
-            failed,
-            done: false,
-        });
-
-        let result = generate_single_report(&options, period);
-        match result {
-            Ok(content) => {
-                let file_name = report::batch_file_name(period, &options.export_format)
-                    .unwrap_or_else(|_| format!("{}.md", period.label));
-                match report::save_report_document(
-                    &options.output_dir,
-                    &file_name,
-                    &content,
-                    &options.export_format,
-                ) {
-                    Ok(_) => succeeded += 1,
-                    Err(e) => {
-                        failed += 1;
-                        failures.push(BatchFailure {
-                            label: label.clone(),
-                            error: e,
-                        });
-                    }
-                }
-            }
-            Err(e) => {
-                failed += 1;
-                failures.push(BatchFailure {
-                    label: label.clone(),
-                    error: e,
-                });
-            }
+    for period in &periods {
+        match collect_commits(&batch_period_extract_options(&options, period), |_| {}) {
+            Ok((_, commits, _)) => generate_batch_period(
+                BatchPeriodJob {
+                    options: &options,
+                    period,
+                    groups: &groups,
+                    formats: &formats,
+                    commits: &commits,
+                    used_names: &mut used_names,
+                },
+                &mut run,
+                &mut on_progress,
+            ),
+            Err(error) => record_batch_period_failure(
+                BatchPeriodFailureJob {
+                    period,
+                    groups: &groups,
+                    formats: &formats,
+                    error,
+                },
+                &mut run,
+                &mut on_progress,
+            ),
         }
     }
-
-    on_progress(BatchReportProgress {
-        total,
-        completed: total,
-        current_label: String::new(),
-        succeeded,
-        failed,
-        done: true,
-    });
-
-    Ok(BatchReportResult {
-        total,
-        succeeded,
-        failed,
-        failures,
-        output_dir: options.output_dir.clone(),
-    })
+    on_progress(run.progress(String::new(), true));
+    Ok(run.into_result(options.output_dir))
 }
 
-fn generate_single_report(
+fn discover_batch_groups(
     options: &BatchReportOptions,
-    period: &crate::models::SubPeriod,
-) -> Result<String, String> {
-    match period.report_kind.as_str() {
-        "daily" => {
-            let extract_opts = batch_to_extract_options(options, period);
-            let result =
-                extract_commits_sync(extract_opts, |_: CommitExtractProgress| {})?;
-            Ok(result.summary_text)
+    group_mode: &str,
+) -> Result<Vec<BatchGroup>, String> {
+    if group_mode == "all" {
+        return Ok(vec![BatchGroup::All]);
+    }
+    let (_, commits, _) = collect_commits(&batch_extract_options(options), |_| {})?;
+    batch_groups(group_mode, &commits, &options.project_names)
+}
+
+struct BatchPeriodJob<'a> {
+    options: &'a BatchReportOptions,
+    period: &'a crate::models::SubPeriod,
+    groups: &'a [BatchGroup],
+    formats: &'a [&'static str],
+    commits: &'a [CommitRecord],
+    used_names: &'a mut HashSet<String>,
+}
+
+fn generate_batch_period<F>(job: BatchPeriodJob<'_>, run: &mut BatchRunState, on_progress: &mut F)
+where
+    F: FnMut(BatchReportProgress),
+{
+    for group in job.groups {
+        let selected = select_batch_commits(job.commits, group, &job.options.project_names);
+        match render_batch_report(BatchRenderJob {
+            options: job.options,
+            period: job.period,
+            group,
+            commits: selected,
+        }) {
+            Ok(content) => export_batch_period(
+                BatchExportJob {
+                    options: job.options,
+                    period: job.period,
+                    group,
+                    content: &content,
+                    formats: job.formats,
+                    used_names: job.used_names,
+                },
+                run,
+                on_progress,
+            ),
+            Err(error) => record_batch_generation_failure(
+                BatchFailureJob {
+                    period: job.period,
+                    group,
+                    formats: job.formats,
+                    error,
+                },
+                run,
+                on_progress,
+            ),
         }
-        "weekly" | "monthly" => {
-            let period_opts = batch_to_period_options(options, period);
-            let result =
-                generate_period_report_sync(period_opts, |_: CommitExtractProgress| {})?;
-            Ok(result.report_text)
-        }
-        _ => Err(format!("未知报告类型：{}", period.report_kind)),
     }
 }
 
-fn batch_to_extract_options(
-    opts: &BatchReportOptions,
+struct BatchPeriodFailureJob<'a> {
+    period: &'a crate::models::SubPeriod,
+    groups: &'a [BatchGroup],
+    formats: &'a [&'static str],
+    error: String,
+}
+
+fn record_batch_period_failure<F>(
+    job: BatchPeriodFailureJob<'_>,
+    run: &mut BatchRunState,
+    on_progress: &mut F,
+) where
+    F: FnMut(BatchReportProgress),
+{
+    for group in job.groups {
+        record_batch_generation_failure(
+            BatchFailureJob {
+                period: job.period,
+                group,
+                formats: job.formats,
+                error: job.error.clone(),
+            },
+            run,
+            on_progress,
+        );
+    }
+}
+
+struct BatchRunState {
+    total: usize,
+    completed: usize,
+    succeeded: usize,
+    failed: usize,
+    failures: Vec<BatchFailure>,
+}
+
+impl BatchRunState {
+    fn new(total: usize) -> Self {
+        Self {
+            total,
+            completed: 0,
+            succeeded: 0,
+            failed: 0,
+            failures: Vec::new(),
+        }
+    }
+
+    fn progress(&self, current_label: String, done: bool) -> BatchReportProgress {
+        BatchReportProgress {
+            total: self.total,
+            completed: self.completed,
+            current_label,
+            succeeded: self.succeeded,
+            failed: self.failed,
+            done,
+        }
+    }
+
+    fn succeed(&mut self) {
+        self.succeeded += 1;
+        self.completed += 1;
+    }
+
+    fn fail(&mut self, label: String, error: String) {
+        self.failed += 1;
+        self.completed += 1;
+        self.failures.push(BatchFailure { label, error });
+    }
+
+    fn into_result(self, output_dir: String) -> BatchReportResult {
+        BatchReportResult {
+            total: self.total,
+            succeeded: self.succeeded,
+            failed: self.failed,
+            failures: self.failures,
+            output_dir,
+        }
+    }
+}
+
+struct BatchExportJob<'a> {
+    options: &'a BatchReportOptions,
+    period: &'a crate::models::SubPeriod,
+    group: &'a BatchGroup,
+    content: &'a str,
+    formats: &'a [&'static str],
+    used_names: &'a mut HashSet<String>,
+}
+
+fn export_batch_period<F>(job: BatchExportJob<'_>, run: &mut BatchRunState, on_progress: &mut F)
+where
+    F: FnMut(BatchReportProgress),
+{
+    let author = job.group.author_name(job.options);
+    let project = job.group.project_name();
+    for format in job.formats {
+        let label = batch_output_label(job.period, job.group, format);
+        on_progress(run.progress(label.clone(), false));
+        let context = report::BatchFileNameContext {
+            period: job.period,
+            author: &author,
+            project: &project,
+        };
+        let file_name = report::batch_file_name(&job.options.file_name_template, format, context)
+            .map(|candidate| {
+                report::reserve_batch_file_name(&job.options.output_dir, &candidate, job.used_names)
+            });
+        let result = file_name.and_then(|name| {
+            report::save_report_document(&job.options.output_dir, &name, job.content, format)
+        });
+        match result {
+            Ok(_) => run.succeed(),
+            Err(error) => run.fail(label, error),
+        }
+    }
+}
+
+struct BatchFailureJob<'a> {
+    period: &'a crate::models::SubPeriod,
+    group: &'a BatchGroup,
+    formats: &'a [&'static str],
+    error: String,
+}
+
+fn record_batch_generation_failure<F>(
+    job: BatchFailureJob<'_>,
+    run: &mut BatchRunState,
+    on_progress: &mut F,
+) where
+    F: FnMut(BatchReportProgress),
+{
+    for format in job.formats {
+        let label = batch_output_label(job.period, job.group, format);
+        on_progress(run.progress(label.clone(), false));
+        run.fail(label, job.error.clone());
+    }
+}
+
+fn batch_output_label(
     period: &crate::models::SubPeriod,
-) -> ExtractOptions {
+    group: &BatchGroup,
+    format: &str,
+) -> String {
+    let format_label = match format {
+        "md" => "Markdown",
+        "docx" => "Word",
+        "pdf" => "PDF",
+        _ => format,
+    };
+    match group.label() {
+        Some(group_label) => format!(
+            "{} · {} · {}",
+            format_period_label(period),
+            group_label,
+            format_label
+        ),
+        None => format!("{} · {}", format_period_label(period), format_label),
+    }
+}
+
+struct BatchRenderJob<'a> {
+    options: &'a BatchReportOptions,
+    period: &'a crate::models::SubPeriod,
+    group: &'a BatchGroup,
+    commits: Vec<CommitRecord>,
+}
+
+fn render_batch_report(job: BatchRenderJob<'_>) -> Result<String, String> {
+    let author = job.group.author_name(job.options);
+    match job.period.report_kind.as_str() {
+        report_kind @ ("daily" | "custom") => {
+            Ok(render_batch_extract_report(job, &author, report_kind))
+        }
+        "weekly" => Ok(render_batch_weekly_report(&job, &author)),
+        "monthly" => Ok(render_batch_monthly_report(&job, &author)),
+        _ => Err(format!("未知报告类型：{}", job.period.report_kind)),
+    }
+}
+
+fn render_batch_extract_report(
+    job: BatchRenderJob<'_>,
+    author: &str,
+    report_kind: &str,
+) -> String {
+    report::build_extract_result(
+        Vec::new(),
+        job.commits,
+        Vec::new(),
+        &job.options.project_names,
+        true,
+        &job.options.commit_item_prefix_mode,
+        job.options.show_evidence_details,
+        false,
+        &job.options.redaction,
+        report::ExtractReportFormat {
+            start_date: &job.period.start,
+            end_date: &job.period.end,
+            author,
+            period_label: &job.period.label,
+            report_kind,
+            evidence_link_rules: &job.options.evidence_link_rules,
+            templates: &job.options.report_format_templates,
+        },
+    )
+    .summary_text
+}
+
+fn render_batch_weekly_report(job: &BatchRenderJob<'_>, author: &str) -> String {
+    report::render_weekly_report_with_redaction(
+        &job.commits,
+        &job.options.project_names,
+        &job.period.start,
+        &job.period.end,
+        author,
+        &job.period.label,
+        job.options.show_evidence_details,
+        &job.options.commit_item_prefix_mode,
+        &job.options.evidence_link_rules,
+        &job.options.report_format_templates.weekly,
+        &job.options.redaction,
+    )
+}
+
+fn render_batch_monthly_report(job: &BatchRenderJob<'_>, author: &str) -> String {
+    report::render_monthly_report_with_redaction(
+        &job.commits,
+        &job.options.project_names,
+        &job.period.start,
+        &job.period.end,
+        author,
+        &job.period.label,
+        job.options.show_evidence_details,
+        &job.options.commit_item_prefix_mode,
+        &job.options.evidence_link_rules,
+        &job.options.report_format_templates.monthly,
+        &job.options.redaction,
+    )
+}
+
+fn batch_extract_options(opts: &BatchReportOptions) -> ExtractOptions {
     ExtractOptions {
         root_dirs: opts.root_dirs.clone(),
         indexed_repos: opts.indexed_repos.clone(),
         author: opts.author.clone(),
         author_display_name: opts.author_display_name.clone(),
         author_aliases: opts.author_aliases.clone(),
-        start_date: period.start.clone(),
-        end_date: period.end.clone(),
-        period_label: period.label.clone(),
-        report_kind: "daily".to_string(),
+        start_date: opts.range_start.clone(),
+        end_date: opts.range_end.clone(),
+        period_label: format!("{}~{}", opts.range_start, opts.range_end),
+        report_kind: "custom".to_string(),
         disabled_repos: opts.disabled_repos.clone(),
         extract_all_branches: opts.extract_all_branches,
         exclude_merge_commits: opts.exclude_merge_commits,
@@ -1388,46 +1749,16 @@ fn batch_to_extract_options(
     }
 }
 
-fn batch_to_period_options(
-    opts: &BatchReportOptions,
+fn batch_period_extract_options(
+    options: &BatchReportOptions,
     period: &crate::models::SubPeriod,
-) -> PeriodReportOptions {
-    PeriodReportOptions {
-        root_dirs: opts.root_dirs.clone(),
-        indexed_repos: opts.indexed_repos.clone(),
-        output_dir: String::new(),
-        output_enabled: false,
-        author: opts.author.clone(),
-        author_display_name: opts.author_display_name.clone(),
-        author_aliases: opts.author_aliases.clone(),
-        start_date: period.start.clone(),
-        end_date: period.end.clone(),
-        period_label: period.label.clone(),
-        report_kind: period.report_kind.clone(),
-        disabled_repos: opts.disabled_repos.clone(),
-        extract_all_branches: opts.extract_all_branches,
-        exclude_merge_commits: opts.exclude_merge_commits,
-        exclude_revert_commits: opts.exclude_revert_commits,
-        exclude_bot_commits: opts.exclude_bot_commits,
-        commit_item_prefix_mode: opts.commit_item_prefix_mode.clone(),
-        show_evidence_details: opts.show_evidence_details,
-        evidence_link_rules: opts.evidence_link_rules.clone(),
-        redaction: opts.redaction.clone(),
-        project_names: opts.project_names.clone(),
-        report_format_templates: opts.report_format_templates.clone(),
-        refinement_instruction: String::new(),
-        system_prompt: String::new(),
-        ai: crate::models::AiConfig {
-            enabled: false,
-            provider: String::new(),
-            base_url: String::new(),
-            model: String::new(),
-            api_key: String::new(),
-            temperature: 0.0,
-            timeout_seconds: 0,
-            proxy: Default::default(),
-        },
-    }
+) -> ExtractOptions {
+    let mut extract = batch_extract_options(options);
+    extract.start_date = period.start.clone();
+    extract.end_date = period.end.clone();
+    extract.period_label = period.label.clone();
+    extract.report_kind = period.report_kind.clone();
+    extract
 }
 
 fn format_period_label(period: &crate::models::SubPeriod) -> String {
@@ -1435,6 +1766,7 @@ fn format_period_label(period: &crate::models::SubPeriod) -> String {
         "daily" => format!("{} 日报", period.label),
         "weekly" => format!("{} 周报", period.label),
         "monthly" => format!("{} 月报", period.label),
+        "custom" => format!("{} 自定义报告", period.label),
         _ => period.label.clone(),
     }
 }
@@ -1617,6 +1949,108 @@ mod tests {
     }
 
     #[test]
+    fn batch_report_smoke_exports_multiple_formats_and_file_progress() {
+        let root = temp_root("batch-smoke");
+        let repo_dir = root.join("repo-a");
+        let output_dir = root.join("out");
+        fs::create_dir_all(&repo_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+        init_smoke_repo(&repo_dir);
+        let options = batch_smoke_options(&root, &repo_dir, &output_dir);
+        let mut progress = Vec::new();
+
+        let result = batch_generate_reports_sync(options, |item| progress.push(item)).unwrap();
+
+        assert_eq!(2, result.total);
+        assert_eq!(2, result.succeeded);
+        assert_eq!(0, result.failed);
+        assert!(output_dir.join("2026-06-10-Smoke Tester-日报.md").exists());
+        assert!(output_dir
+            .join("2026-06-10-Smoke Tester-日报.docx")
+            .exists());
+        assert_eq!(Some(2), progress.last().map(|item| item.completed));
+        assert!(progress.last().is_some_and(|item| item.done));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn batch_output_total_limits_actual_file_count() {
+        assert_eq!(12, batch_output_total(3, 2, 2).unwrap());
+        assert!(batch_output_total(61, 2, 3)
+            .unwrap_err()
+            .contains("超过上限 365"));
+    }
+
+    #[test]
+    fn batch_groups_use_alias_normalized_authors_and_project_mappings() {
+        let commits = vec![
+            commit_by_author("repo-a", "a", "2026-06-10 10:00:00 +0800", "Alice", "a@x"),
+            commit_by_author("repo-b", "b", "2026-06-11 10:00:00 +0800", "Bob", "b@x"),
+        ];
+        let project_names = HashMap::from([
+            ("repo-a(*)".to_string(), "平台项目-".to_string()),
+            ("repo-b(*)".to_string(), "客户端".to_string()),
+        ]);
+
+        assert_eq!(
+            vec![BatchGroup::Author("Alice".to_string()), BatchGroup::Author("Bob".to_string())],
+            batch_groups("author", &commits, &project_names).unwrap()
+        );
+        assert_eq!(
+            vec![BatchGroup::Project("客户端".to_string()), BatchGroup::Project("平台项目".to_string())],
+            batch_groups("project", &commits, &project_names).unwrap()
+        );
+    }
+
+    #[test]
+    fn grouped_batch_filters_group_without_skipping_empty_intersections() {
+        let commits = vec![
+            commit_by_author("repo-a", "a", "2026-06-10 10:00:00 +0800", "Alice", "a@x"),
+            commit_by_author("repo-a", "b", "2026-06-11 10:00:00 +0800", "Bob", "b@x"),
+        ];
+        let selected = select_batch_commits(
+            &commits,
+            &BatchGroup::Author("Alice".to_string()),
+            &HashMap::new(),
+        );
+        let empty = select_batch_commits(
+            &commits,
+            &BatchGroup::Author("Carol".to_string()),
+            &HashMap::new(),
+        );
+
+        assert_eq!(1, selected.len());
+        assert!(empty.is_empty());
+        assert!(batch_groups("author", &[], &HashMap::new()).is_err());
+    }
+
+    #[test]
+    fn batch_report_smoke_exports_one_file_per_author_group() {
+        let root = temp_root("batch-author-smoke");
+        let repo_dir = root.join("repo-a");
+        let output_dir = root.join("out");
+        fs::create_dir_all(&repo_dir).unwrap();
+        fs::create_dir_all(&output_dir).unwrap();
+        init_smoke_repo(&repo_dir);
+        add_smoke_commit(&repo_dir, "Second Tester", "second@example.com");
+        let mut options = batch_smoke_options(&root, &repo_dir, &output_dir);
+        options.author = String::new();
+        options.author_display_name = String::new();
+        options.group_mode = "author".to_string();
+        options.export_formats = vec!["markdown".to_string()];
+        let mut progress = Vec::new();
+        let result = batch_generate_reports_sync(options, |item| progress.push(item)).unwrap();
+
+        assert_eq!(2, result.total);
+        assert_eq!(2, result.succeeded);
+        assert_eq!(Some((2, 2)), progress.last().map(|item| (item.total, item.completed)));
+        assert!(progress.last().is_some_and(|item| item.done));
+        assert!(output_dir.join("2026-06-10-Second Tester-日报.md").exists());
+        assert!(output_dir.join("2026-06-10-Smoke Tester-日报.md").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn test_heatmap_streak_calculation() {
         let entries = vec![
             HeatmapEntry { date: "2026-07-01".to_string(), count: 0 },
@@ -1693,6 +2127,34 @@ mod tests {
         }
     }
 
+    fn batch_smoke_options(root: &Path, repo_dir: &Path, output_dir: &Path) -> BatchReportOptions {
+        BatchReportOptions {
+            root_dirs: vec![root.to_string_lossy().to_string()],
+            indexed_repos: vec![repo("repo-a", &repo_dir.to_string_lossy())],
+            author: "Smoke Tester".to_string(),
+            author_display_name: "Smoke Tester".to_string(),
+            author_aliases: Vec::new(),
+            disabled_repos: Vec::new(),
+            extract_all_branches: false,
+            exclude_merge_commits: true,
+            exclude_revert_commits: true,
+            exclude_bot_commits: true,
+            commit_item_prefix_mode: "mapped-project".to_string(),
+            show_evidence_details: false,
+            evidence_link_rules: Vec::new(),
+            redaction: crate::models::ReportRedactionOptions::default(),
+            project_names: Default::default(),
+            report_format_templates: crate::models::ReportFormatTemplates::default(),
+            range_start: "2026-06-10".to_string(),
+            range_end: "2026-06-10".to_string(),
+            split_granularity: "daily".to_string(),
+            group_mode: "all".to_string(),
+            export_formats: vec!["markdown".to_string(), "md".to_string(), "docx".to_string()],
+            file_name_template: "{period}-{author}-{type}.{ext}".to_string(),
+            output_dir: output_dir.to_string_lossy().to_string(),
+        }
+    }
+
     fn init_smoke_repo(repo_dir: &Path) {
         run_smoke_git(repo_dir, &["init"], &[]);
         run_smoke_git(repo_dir, &["config", "user.name", "Smoke Tester"], &[]);
@@ -1710,6 +2172,21 @@ mod tests {
             &[
                 ("GIT_AUTHOR_DATE", "2026-06-10T10:00:00+08:00"),
                 ("GIT_COMMITTER_DATE", "2026-06-10T10:00:00+08:00"),
+            ],
+        );
+    }
+
+    fn add_smoke_commit(repo_dir: &Path, author: &str, email: &str) {
+        run_smoke_git(repo_dir, &["config", "user.name", author], &[]);
+        run_smoke_git(repo_dir, &["config", "user.email", email], &[]);
+        fs::write(repo_dir.join("second.txt"), "second").unwrap();
+        run_smoke_git(repo_dir, &["add", "."], &[]);
+        run_smoke_git(
+            repo_dir,
+            &["commit", "-m", "feat: 完成第二项验证"],
+            &[
+                ("GIT_AUTHOR_DATE", "2026-06-10T11:00:00+08:00"),
+                ("GIT_COMMITTER_DATE", "2026-06-10T11:00:00+08:00"),
             ],
         );
     }

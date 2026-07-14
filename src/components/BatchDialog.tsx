@@ -5,19 +5,25 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AppSettings,
+  BatchGroupMode,
   BatchReportProgress,
   BatchReportResult,
   RepoInfo,
   ReportExportFormat,
   SplitGranularity,
 } from "../model";
-import { buildBatchReportOptions, parseProjectNames } from "../model";
+import {
+  buildBatchReportOptions,
+  DEFAULT_BATCH_FILE_NAME_TEMPLATE,
+  parseProjectNames,
+} from "../model";
 import { Field } from "./Primitives";
 
 type Props = {
   open: boolean;
   settings: AppSettings;
   indexedRepos: RepoInfo[];
+  onNotify: (message: string, tone: "success" | "error") => void;
   onClose: () => void;
 };
 
@@ -27,6 +33,7 @@ const GRANULARITY_OPTIONS: { value: SplitGranularity; label: string }[] = [
   { value: "daily", label: "按天" },
   { value: "weekly", label: "按周" },
   { value: "monthly", label: "按月" },
+  { value: "custom", label: "整段范围" },
 ];
 
 const FORMAT_OPTIONS: { value: ReportExportFormat; label: string }[] = [
@@ -35,11 +42,38 @@ const FORMAT_OPTIONS: { value: ReportExportFormat; label: string }[] = [
   { value: "pdf", label: "PDF" },
 ];
 
-export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: Props) {
+const GROUP_OPTIONS: { value: BatchGroupMode; label: string }[] = [
+  { value: "all", label: "全部汇总" },
+  { value: "author", label: "按作者" },
+  { value: "project", label: "按项目" },
+];
+
+const GROUP_FILE_NAME_TEMPLATES: Record<BatchGroupMode, string> = {
+  all: DEFAULT_BATCH_FILE_NAME_TEMPLATE,
+  author: "{period}-{author}-{type}.{ext}",
+  project: "{period}-{project}-{type}.{ext}",
+};
+
+const FILE_NAME_TEMPLATE_TOKENS = [
+  "{period}",
+  "{date}",
+  "{week}",
+  "{month}",
+  "{startDate}",
+  "{endDate}",
+  "{author}",
+  "{project}",
+  "{type}",
+  "{ext}",
+] as const;
+
+export function BatchDialog({ open: isOpen, settings, indexedRepos, onNotify, onClose }: Props) {
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [granularity, setGranularity] = useState<SplitGranularity>("daily");
-  const [format, setFormat] = useState<ReportExportFormat>("markdown");
+  const [groupMode, setGroupMode] = useState<BatchGroupMode>("all");
+  const [formats, setFormats] = useState<ReportExportFormat[]>(["markdown"]);
+  const [fileNameTemplate, setFileNameTemplate] = useState(DEFAULT_BATCH_FILE_NAME_TEMPLATE);
   const [outputDir, setOutputDir] = useState(settings.outputDir || "");
   const [stage, setStage] = useState<Stage>("config");
   const [progress, setProgress] = useState<BatchReportProgress | null>(null);
@@ -54,6 +88,9 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
       setResult(null);
       setError("");
       setOpenError("");
+      setGroupMode("all");
+      setFormats(["markdown"]);
+      setFileNameTemplate(DEFAULT_BATCH_FILE_NAME_TEMPLATE);
       setOutputDir(settings.outputDir || "");
     }
   }, [isOpen, settings.outputDir]);
@@ -72,11 +109,39 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
   if (!isOpen) return null;
 
   const rangeInvalid = !rangeStart || !rangeEnd || rangeStart > rangeEnd;
-  const configInvalid = rangeInvalid || !outputDir;
+  const templateError = validateFileNameTemplateInput(fileNameTemplate);
+  const configInvalid = rangeInvalid || formats.length === 0 || Boolean(templateError) || !outputDir;
 
   async function browseOutputDir() {
     const selected = await open({ directory: true, multiple: false });
     if (typeof selected === "string") setOutputDir(selected);
+  }
+
+  function toggleFormat(format: ReportExportFormat) {
+    setFormats((current) => {
+      const selected = new Set(current);
+      if (selected.has(format)) selected.delete(format);
+      else selected.add(format);
+      return FORMAT_OPTIONS.filter((option) => selected.has(option.value)).map((option) => option.value);
+    });
+  }
+
+  function selectGroupMode(nextMode: BatchGroupMode) {
+    setFileNameTemplate((current) =>
+      current === GROUP_FILE_NAME_TEMPLATES[groupMode]
+        ? GROUP_FILE_NAME_TEMPLATES[nextMode]
+        : current,
+    );
+    setGroupMode(nextMode);
+  }
+
+  async function copyFileNameToken(token: string) {
+    try {
+      await navigator.clipboard.writeText(token);
+      onNotify(`已复制 ${token}`, "success");
+    } catch {
+      onNotify(`复制失败：${token}`, "error");
+    }
   }
 
   async function startBatch() {
@@ -92,7 +157,9 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
         rangeStart,
         rangeEnd,
         granularity,
-        format,
+        groupMode,
+        formats,
+        fileNameTemplate,
         outputDir,
         indexedRepos,
       );
@@ -134,7 +201,6 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
         aria-modal="true"
         aria-labelledby="batch-dialog-title"
         onMouseDown={(event) => event.stopPropagation()}
-        style={{ minWidth: 420 }}
       >
         <header className="range-dialog-header">
           <div>
@@ -171,7 +237,7 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
               </Field>
             </div>
 
-            <div className="range-fields">
+            <div className="range-fields batch-export-row">
               <Field label="拆分粒度">
                 <select
                   value={granularity}
@@ -182,16 +248,69 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
                   ))}
                 </select>
               </Field>
-              <Field label="导出格式">
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as ReportExportFormat)}
-                >
-                  {FORMAT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <div className="field batch-format-field">
+                <span>导出格式</span>
+                <div className="batch-choice-options" role="group" aria-label="导出格式">
+                  {FORMAT_OPTIONS.map((option) => (
+                    <label
+                      className={`batch-choice-option ${formats.includes(option.value) ? "selected" : ""}`}
+                      key={option.value}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={formats.includes(option.value)}
+                        onChange={() => toggleFormat(option.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
                   ))}
-                </select>
-              </Field>
+                </div>
+              </div>
+            </div>
+
+            <div className="field batch-group-field">
+              <span>分组方式</span>
+              <div className="batch-choice-options" role="radiogroup" aria-label="分组方式">
+                {GROUP_OPTIONS.map((option) => (
+                  <label
+                    className={`batch-choice-option ${groupMode === option.value ? "selected" : ""}`}
+                    key={option.value}
+                  >
+                    <input
+                      type="radio"
+                      name="batch-group-mode"
+                      value={option.value}
+                      checked={groupMode === option.value}
+                      onChange={() => selectGroupMode(option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="field batch-template-field">
+              <label htmlFor="batch-file-name-template">文件命名模板</label>
+              <input
+                id="batch-file-name-template"
+                value={fileNameTemplate}
+                onChange={(event) => setFileNameTemplate(event.target.value)}
+              />
+              <div className="batch-template-tokens" role="group" aria-label="可用文件名变量">
+                <span>可用变量</span>
+                {FILE_NAME_TEMPLATE_TOKENS.map((token) => (
+                  <button
+                    type="button"
+                    className="batch-template-token"
+                    key={token}
+                    onClick={() => void copyFileNameToken(token)}
+                    aria-label={`复制变量 ${token}`}
+                    title={`复制变量 ${token}`}
+                  >
+                    {token}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <Field label="输出目录">
@@ -206,6 +325,10 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
             {rangeInvalid && rangeStart && rangeEnd && (
               <p className="range-error">开始日期不能晚于结束日期。</p>
             )}
+            {formats.length === 0 && (
+              <p className="range-error">请至少选择一种导出格式。</p>
+            )}
+            {templateError && <p className="range-error">{templateError}</p>}
 
             <footer className="range-dialog-actions">
               <button type="button" className="mapping-import" onClick={handleClose}>
@@ -222,6 +345,15 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
               </button>
             </footer>
           </>
+        )}
+
+        {stage === "running" && !progress && (
+          <div className="batch-preparing" role="status">
+            <div className="progress-track batch-preparing-track" aria-hidden="true">
+              <div className="batch-preparing-bar" />
+            </div>
+            <p>正在扫描提交并准备批量任务...</p>
+          </div>
         )}
 
         {stage === "running" && progress && (
@@ -253,7 +385,9 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
               </div>
             </div>
             <p style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center" }}>
-              正在生成第 {progress.completed + 1} / {progress.total} 份报告...
+              {progress.done
+                ? "正在整理生成结果..."
+                : `正在生成第 ${progress.completed + 1} / ${progress.total} 个文件...`}
             </p>
           </div>
         )}
@@ -264,11 +398,11 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
               <p className="range-error">{error}</p>
             ) : result && (
               <div style={{ fontSize: 14, lineHeight: 1.8 }}>
-                <p>生成完成：共 {result.total} 份</p>
-                <p style={{ color: "var(--accent)" }}>成功 {result.succeeded} 份</p>
+                <p>生成完成：共 {result.total} 个文件</p>
+                <p style={{ color: "var(--accent)" }}>成功 {result.succeeded} 个</p>
                 {result.failed > 0 && (
                   <>
-                    <p style={{ color: "var(--error, #ef4444)" }}>失败 {result.failed} 份</p>
+                    <p style={{ color: "var(--error, #ef4444)" }}>失败 {result.failed} 个</p>
                     <details style={{ marginTop: 8, fontSize: 13 }}>
                       <summary style={{ cursor: "pointer", color: "var(--text-secondary)" }}>
                         查看失败详情
@@ -303,4 +437,11 @@ export function BatchDialog({ open: isOpen, settings, indexedRepos, onClose }: P
       </section>
     </div>
   );
+}
+
+function validateFileNameTemplateInput(template: string) {
+  const value = template.trim();
+  if (!value) return "文件名模板不能为空。";
+  if (!value.endsWith(".{ext}")) return "文件名模板必须以 .{ext} 结尾。";
+  return "";
 }

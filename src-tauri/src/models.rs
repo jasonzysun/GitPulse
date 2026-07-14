@@ -421,7 +421,12 @@ pub struct BatchReportOptions {
     pub range_start: String,
     pub range_end: String,
     pub split_granularity: String,
-    pub export_format: String,
+    #[serde(default = "default_batch_group_mode")]
+    pub group_mode: String,
+    #[serde(default)]
+    pub export_formats: Vec<String>,
+    #[serde(default = "default_batch_file_name_template")]
+    pub file_name_template: String,
     pub output_dir: String,
 }
 
@@ -550,6 +555,14 @@ fn default_extract_report_kind() -> String {
 
 fn default_commit_item_prefix_mode() -> String {
     "mapped-project".to_string()
+}
+
+fn default_batch_file_name_template() -> String {
+    "{period}-{type}.{ext}".to_string()
+}
+
+fn default_batch_group_mode() -> String {
+    "all".to_string()
 }
 
 fn default_proxy_mode() -> String {

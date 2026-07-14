@@ -86,7 +86,11 @@ export type PreviewMode = "summary" | "weekly" | "custom" | "monthly";
 
 export type ReportExportFormat = "markdown" | "docx" | "pdf";
 
-export type SplitGranularity = "daily" | "weekly" | "monthly";
+export type SplitGranularity = "daily" | "weekly" | "monthly" | "custom";
+
+export type BatchGroupMode = "all" | "author" | "project";
+
+export const DEFAULT_BATCH_FILE_NAME_TEMPLATE = "{period}-{type}.{ext}";
 
 export type BatchReportProgress = {
   total: number;
@@ -958,7 +962,9 @@ export function buildBatchReportOptions(
   rangeStart: string,
   rangeEnd: string,
   splitGranularity: SplitGranularity,
-  exportFormat: ReportExportFormat,
+  groupMode: BatchGroupMode,
+  exportFormats: ReportExportFormat[],
+  fileNameTemplate: string,
   outputDir: string,
   indexedRepos: RepoInfo[] = [],
 ) {
@@ -984,7 +990,9 @@ export function buildBatchReportOptions(
     rangeStart,
     rangeEnd,
     splitGranularity,
-    exportFormat,
+    groupMode,
+    exportFormats: [...new Set(exportFormats)],
+    fileNameTemplate: fileNameTemplate.trim(),
     outputDir,
   };
 }

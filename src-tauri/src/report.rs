@@ -1443,6 +1443,13 @@ fn monthly_project_name(project_names: &HashMap<String, String>, commit: &Commit
     }
 }
 
+pub(crate) fn batch_project_name(
+    project_names: &HashMap<String, String>,
+    commit: &CommitRecord,
+) -> String {
+    monthly_project_name(project_names, commit)
+}
+
 fn render_project_progress_content(
     groups: &BTreeMap<String, Vec<ProjectCommitItem>>,
 ) -> Vec<String> {
@@ -1633,6 +1640,12 @@ pub fn split_date_range(
         "daily" => split_daily(start_date, end_date),
         "weekly" => split_weekly(start_date, end_date),
         "monthly" => split_monthly(start_date, end_date),
+        "custom" => vec![SubPeriod {
+            start: start.to_string(),
+            end: end.to_string(),
+            label: format!("{start}~{end}"),
+            report_kind: "custom".to_string(),
+        }],
         _ => return Err(format!("不支持的拆分粒度：{granularity}")),
     };
 
@@ -1707,15 +1720,212 @@ fn split_monthly(start: NaiveDate, end: NaiveDate) -> Vec<SubPeriod> {
     periods
 }
 
-pub fn batch_file_name(period: &SubPeriod, format: &str) -> Result<String, String> {
-    let ext = normalize_export_format(format)?;
-    let type_label = match period.report_kind.as_str() {
+pub const DEFAULT_BATCH_FILE_NAME_TEMPLATE: &str = "{period}-{type}.{ext}";
+
+#[derive(Clone, Copy)]
+pub struct BatchFileNameContext<'a> {
+    pub period: &'a SubPeriod,
+    pub author: &'a str,
+    pub project: &'a str,
+}
+
+pub fn normalize_batch_export_formats(formats: &[String]) -> Result<Vec<&'static str>, String> {
+    let mut normalized = Vec::new();
+    for format in formats {
+        let extension = normalize_export_format(format)?;
+        if !normalized.contains(&extension) {
+            normalized.push(extension);
+        }
+    }
+    if normalized.is_empty() {
+        return Err("请至少选择一种导出格式".to_string());
+    }
+    Ok(normalized)
+}
+
+pub fn validate_batch_file_name_template(template: &str) -> Result<(), String> {
+    let template = template.trim();
+    if template.is_empty() {
+        return Err("文件名模板不能为空".to_string());
+    }
+    if !template.ends_with(".{ext}") {
+        return Err("文件名模板必须以 .{ext} 结尾".to_string());
+    }
+    for token in batch_template_tokens(template)? {
+        if !is_supported_batch_file_name_token(token) {
+            return Err(format!("文件名模板包含未知变量：{{{token}}}"));
+        }
+    }
+    Ok(())
+}
+
+pub fn batch_file_name(
+    template: &str,
+    format: &str,
+    context: BatchFileNameContext<'_>,
+) -> Result<String, String> {
+    validate_batch_file_name_template(template)?;
+    let extension = normalize_export_format(format)?;
+    let start = NaiveDate::parse_from_str(&context.period.start, "%Y-%m-%d")
+        .map_err(|err| format!("批量报告开始日期格式错误：{err}"))?;
+    let week = format!(
+        "{}-W{:02}",
+        start.iso_week().year(),
+        start.iso_week().week()
+    );
+    let month = start.format("%Y-%m").to_string();
+    let author = non_empty_or(context.author, "全部作者");
+    let project = non_empty_or(context.project, "全部项目");
+    let type_label = batch_report_type_label(&context.period.report_kind);
+    let values = [
+        ("period", context.period.label.as_str()),
+        ("date", context.period.start.as_str()),
+        ("week", week.as_str()),
+        ("month", month.as_str()),
+        ("startDate", context.period.start.as_str()),
+        ("endDate", context.period.end.as_str()),
+        ("author", author),
+        ("project", project),
+        ("type", type_label),
+        ("ext", extension),
+    ];
+    let rendered = values
+        .iter()
+        .fold(template.trim().to_string(), |name, (token, value)| {
+            name.replace(&format!("{{{token}}}"), value)
+        });
+    sanitize_batch_file_name(&rendered)
+}
+
+pub fn reserve_batch_file_name(
+    output_dir: &str,
+    candidate: &str,
+    used_names: &mut HashSet<String>,
+) -> String {
+    let (stem, extension) = split_file_name(candidate);
+    let directory = PathBuf::from(output_dir);
+    let mut sequence = 1usize;
+    loop {
+        let file_name = if sequence == 1 {
+            candidate.to_string()
+        } else {
+            format!("{stem}-{sequence}{extension}")
+        };
+        let key = file_name.to_lowercase();
+        if !used_names.contains(&key) && !directory.join(&file_name).exists() {
+            used_names.insert(key);
+            return file_name;
+        }
+        sequence += 1;
+    }
+}
+
+fn batch_template_tokens(template: &str) -> Result<Vec<&str>, String> {
+    let mut remaining = template;
+    let mut tokens = Vec::new();
+    while let Some(start) = remaining.find('{') {
+        if remaining[..start].contains('}') {
+            return Err("文件名模板包含未配对的大括号".to_string());
+        }
+        let after_start = &remaining[start + 1..];
+        let end = after_start
+            .find('}')
+            .ok_or_else(|| "文件名模板包含未配对的大括号".to_string())?;
+        let token = &after_start[..end];
+        if token.is_empty() || token.contains('{') {
+            return Err("文件名模板包含无效变量".to_string());
+        }
+        tokens.push(token);
+        remaining = &after_start[end + 1..];
+    }
+    if remaining.contains('}') {
+        return Err("文件名模板包含未配对的大括号".to_string());
+    }
+    Ok(tokens)
+}
+
+fn is_supported_batch_file_name_token(token: &str) -> bool {
+    matches!(
+        token,
+        "period"
+            | "date"
+            | "week"
+            | "month"
+            | "startDate"
+            | "endDate"
+            | "author"
+            | "project"
+            | "type"
+            | "ext"
+    )
+}
+
+fn batch_report_type_label(report_kind: &str) -> &'static str {
+    match report_kind {
         "daily" => "日报",
         "weekly" => "周报",
         "monthly" => "月报",
+        "custom" => "自定义报告",
         _ => "报告",
+    }
+}
+
+fn non_empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
+    let value = value.trim();
+    if value.is_empty() {
+        fallback
+    } else {
+        value
+    }
+}
+
+fn sanitize_batch_file_name(file_name: &str) -> Result<String, String> {
+    let normalized: String = file_name
+        .chars()
+        .map(|character| {
+            if character.is_control()
+                || matches!(
+                    character,
+                    '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'
+                )
+            {
+                '_'
+            } else {
+                character
+            }
+        })
+        .collect();
+    let trimmed = normalized.trim().trim_end_matches([' ', '.']);
+    if trimmed.is_empty() {
+        return Err("文件名模板生成了空文件名".to_string());
+    }
+    let prefixed = if is_windows_reserved_file_name(trimmed) {
+        format!("_{trimmed}")
+    } else {
+        trimmed.to_string()
     };
-    Ok(format!("{}-{}.{}", period.label, type_label, ext))
+    Ok(prefixed)
+}
+
+fn is_windows_reserved_file_name(file_name: &str) -> bool {
+    let stem = file_name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (stem.len() == 4
+            && (stem.starts_with("COM") || stem.starts_with("LPT"))
+            && stem[3..]
+                .parse::<u8>()
+                .is_ok_and(|number| (1..=9).contains(&number)))
+}
+
+fn split_file_name(file_name: &str) -> (&str, &str) {
+    match file_name.rfind('.') {
+        Some(index) if index > 0 => (&file_name[..index], &file_name[index..]),
+        _ => (file_name, ""),
+    }
 }
 
 #[cfg(test)]
@@ -2262,6 +2472,17 @@ mod tests {
     }
 
     #[test]
+    fn split_custom_keeps_the_complete_selected_range() {
+        let periods = split_date_range("2026-07-01", "2026-07-31", "custom").unwrap();
+
+        assert_eq!(1, periods.len());
+        assert_eq!("2026-07-01", periods[0].start);
+        assert_eq!("2026-07-31", periods[0].end);
+        assert_eq!("2026-07-01~2026-07-31", periods[0].label);
+        assert_eq!("custom", periods[0].report_kind);
+    }
+
+    #[test]
     fn split_weekly_cross_month() {
         let periods = split_date_range("2026-06-25", "2026-07-15", "weekly").unwrap();
         assert!(periods.len() >= 3);
@@ -2296,15 +2517,26 @@ mod tests {
     }
 
     #[test]
-    fn batch_file_name_formats() {
+    fn batch_file_name_formats_default_template() {
         let daily = SubPeriod {
             start: "2026-07-01".into(),
             end: "2026-07-01".into(),
             label: "2026-07-01".into(),
             report_kind: "daily".into(),
         };
-        assert_eq!(batch_file_name(&daily, "markdown").unwrap(), "2026-07-01-日报.md");
-        assert_eq!(batch_file_name(&daily, "docx").unwrap(), "2026-07-01-日报.docx");
+        let context = BatchFileNameContext {
+            period: &daily,
+            author: "Alice",
+            project: "全部项目",
+        };
+        assert_eq!(
+            batch_file_name(DEFAULT_BATCH_FILE_NAME_TEMPLATE, "markdown", context).unwrap(),
+            "2026-07-01-日报.md"
+        );
+        assert_eq!(
+            batch_file_name(DEFAULT_BATCH_FILE_NAME_TEMPLATE, "docx", context).unwrap(),
+            "2026-07-01-日报.docx"
+        );
 
         let weekly = SubPeriod {
             start: "2026-06-29".into(),
@@ -2312,6 +2544,120 @@ mod tests {
             label: "2026-W27".into(),
             report_kind: "weekly".into(),
         };
-        assert_eq!(batch_file_name(&weekly, "pdf").unwrap(), "2026-W27-周报.pdf");
+        assert_eq!(
+            batch_file_name(
+                DEFAULT_BATCH_FILE_NAME_TEMPLATE,
+                "pdf",
+                BatchFileNameContext {
+                    period: &weekly,
+                    author: "Alice",
+                    project: "全部项目",
+                },
+            )
+            .unwrap(),
+            "2026-W27-周报.pdf"
+        );
+
+        let custom = SubPeriod {
+            start: "2026-07-01".into(),
+            end: "2026-07-31".into(),
+            label: "2026-07-01~2026-07-31".into(),
+            report_kind: "custom".into(),
+        };
+        assert_eq!(
+            batch_file_name(
+                DEFAULT_BATCH_FILE_NAME_TEMPLATE,
+                "markdown",
+                BatchFileNameContext {
+                    period: &custom,
+                    author: "Alice",
+                    project: "全部项目",
+                },
+            )
+            .unwrap(),
+            "2026-07-01~2026-07-31-自定义报告.md"
+        );
+    }
+
+    #[test]
+    fn batch_file_name_renders_tokens_and_sanitizes_values() {
+        let weekly = SubPeriod {
+            start: "2026-06-29".into(),
+            end: "2026-07-05".into(),
+            label: "2026-W27".into(),
+            report_kind: "weekly".into(),
+        };
+        let template = "{period}_{date}_{week}_{month}_{author}_{project}_{type}.{ext}";
+        let name = batch_file_name(
+            template,
+            "pdf",
+            BatchFileNameContext {
+                period: &weekly,
+                author: "Alice/研发:负责人",
+                project: "平台|核心",
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            "2026-W27_2026-06-29_2026-W27_2026-06_Alice_研发_负责人_平台_核心_周报.pdf",
+            name
+        );
+    }
+
+    #[test]
+    fn batch_file_name_rejects_invalid_templates() {
+        let daily = SubPeriod {
+            start: "2026-07-01".into(),
+            end: "2026-07-01".into(),
+            label: "2026-07-01".into(),
+            report_kind: "daily".into(),
+        };
+        let context = BatchFileNameContext {
+            period: &daily,
+            author: "Alice",
+            project: "全部项目",
+        };
+
+        assert!(
+            batch_file_name("{period}-{unknown}.{ext}", "markdown", context)
+                .unwrap_err()
+                .contains("未知变量")
+        );
+        assert!(batch_file_name("{period}-{type}", "markdown", context)
+            .unwrap_err()
+            .contains("{ext}"));
+    }
+
+    #[test]
+    fn normalize_batch_export_formats_requires_values_and_deduplicates() {
+        assert!(normalize_batch_export_formats(&[]).is_err());
+        assert_eq!(
+            vec!["md", "pdf"],
+            normalize_batch_export_formats(&[
+                "markdown".to_string(),
+                "pdf".to_string(),
+                "md".to_string(),
+            ])
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn reserve_batch_file_name_avoids_existing_and_batch_collisions() {
+        let dir = std::env::temp_dir().join(format!("gitpulse-batch-name-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("report.md"), "existing").unwrap();
+        let mut used = HashSet::new();
+
+        assert_eq!(
+            "report-2.md",
+            reserve_batch_file_name(&dir.to_string_lossy(), "report.md", &mut used)
+        );
+        assert_eq!(
+            "report-3.md",
+            reserve_batch_file_name(&dir.to_string_lossy(), "report.md", &mut used)
+        );
+        let _ = fs::remove_dir_all(dir);
     }
 }

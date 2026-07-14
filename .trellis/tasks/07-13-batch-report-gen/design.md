@@ -134,4 +134,98 @@ MVP 使用固定规则，不支持自定义模板：
 - 不修改任何现有 Tauri command 的签名
 - 不修改 `commit_pipeline`、`report`、`git_ops` 的公开 API
 - 批量命令内部直接调用 `commit_pipeline` 的 sync 函数和 `report::save_report_document`
-- 上限 365 份，前端校验 + 后端二次校验
+- 上限为 365 个实际输出文件；后端按 `子周期数 * 分组数 * 格式数` 校验，前端日期范围校验只作快速反馈
+
+## Phase 2A: Multi-Format Export and File Name Templates
+
+### Data Contract
+
+`BatchReportOptions` replaces the scalar `export_format` with:
+
+```rust
+pub export_formats: Vec<String>,
+pub file_name_template: String,
+```
+
+The frontend sends camelCase `exportFormats` and `fileNameTemplate`. At least one unique supported format is required.
+
+### Processing Flow
+
+```text
+periods -> generate content once per period -> each selected format
+        -> render safe unique file name -> save document -> emit file progress
+```
+
+Generation failures count once for every selected format because none of those files can be produced. Write failures affect only the failed format and do not stop later formats or periods.
+
+### File Name Template Contract
+
+- Default: `{period}-{type}.{ext}`.
+- Supported variables: `{period}`, `{date}`, `{week}`, `{month}`, `{startDate}`, `{endDate}`, `{author}`, `{project}`, `{type}`, `{ext}`.
+- `{author}` / `{project}` use the active group name, or the current display author / `全部项目` in aggregate mode.
+- `{ext}` is required so simultaneous formats cannot silently target the same name.
+- Unknown variables and empty templates return Chinese validation errors before generation starts.
+- Windows-invalid characters, control characters, trailing dots, and trailing spaces are normalized by Rust.
+- Duplicate names inside one batch receive a numeric suffix before the extension instead of overwriting a previous output.
+
+### Progress Contract
+
+`total`, `completed`, `succeeded`, and `failed` count output files, not logical periods. For three periods and two formats, `total == 6`.
+The backend rejects a batch when `periods * groups * formats > 365`, so grouping or selecting multiple formats cannot bypass the safety limit.
+
+### Compatibility
+
+- Existing default behavior remains one Markdown file per period.
+- The IPC shape changes together in `src/model.ts` and `src-tauri/src/models.rs`; batch options are ephemeral and are not persisted.
+- Existing single-report export APIs and file naming remain unchanged.
+
+## Phase 2B: Author and Project Grouping
+
+### Data Contract
+
+`BatchReportOptions` adds `group_mode`, sent by the frontend as `groupMode`:
+
+```text
+all | author | project
+```
+
+Missing values default to `all`, preserving existing batch behavior.
+
+### Processing Flow
+
+```text
+collect full-range commits for group discovery
+  -> apply existing author aliases and derive stable groups
+  -> each period: run the existing Git date query once
+  -> each group: filter period commits and render content once
+  -> selected formats: name, reserve, save, emit progress
+```
+
+- Author groups use alias-normalized `CommitRecord.author` values.
+- Project groups use the shared report project-name resolver, including branch-specific mappings and `仓库(分支)` fallback.
+- The group set is stable for the whole run. Empty period/group intersections still render an empty report so archival matrices remain complete.
+- `all` always has one group, including a range with no commits. `author` and `project` reject a range with no discoverable groups.
+- File-name context uses the active author/project group; inactive dimensions keep `全部作者` / `全部项目` semantics.
+- The safety total is `period count * group count * normalized format count`, capped at 365 before files are written.
+
+### Compatibility and Trade-offs
+
+- Group discovery adds one full-range extraction; each period then performs one existing Git date query, regardless of group or format count.
+- Period extraction remains Git-owned instead of repartitioning by displayed author date, preserving parity with single-report generation.
+- Report rendering continues to use the existing daily, weekly, monthly, redaction, evidence, and template functions.
+- The default `all` mode remains payload-compatible through a Rust serde default and a frontend default.
+
+## Phase 2C: Custom Range
+
+- `splitGranularity = custom` produces exactly one `SubPeriod` spanning the selected start and end dates.
+- Its period label is `{startDate}~{endDate}`, report kind is `custom`, and the existing custom report template renders the content.
+- File naming uses the same tokens and collision handling; `{type}` resolves to `自定义报告`.
+- Daily, weekly, and monthly splitting remain unchanged.
+
+## UI Layout Polish
+
+- Keep the batch dialog at its compact desktop width instead of widening the whole surface for one long format label.
+- The split/export row allocates more width to export formats, and format choices use content-aware columns so `Markdown` remains fully visible.
+- Existing narrow-window behavior still stacks the row into one column.
+- File-name variables render as keyboard-accessible token buttons; clicking copies the complete token, including braces.
+- Copy success and failure reuse the global app message host so feedback stays consistent with report-copy actions.

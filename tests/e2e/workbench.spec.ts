@@ -186,8 +186,8 @@ test("opens the batch report output directory after generation", async ({ page }
     settings,
     repoCache: createRepoCache(["C:/workspace"], repos),
     batchResult: {
-      total: 5,
-      succeeded: 5,
+      total: 10,
+      succeeded: 10,
       failed: 0,
       failures: [],
       outputDir: "C:/exports/batch",
@@ -200,9 +200,48 @@ test("opens the batch report output directory after generation", async ({ page }
   const dateInputs = page.locator('.range-dialog input[type="date"]');
   await dateInputs.nth(0).fill("2026-07-01");
   await dateInputs.nth(1).fill("2026-07-05");
-  await page.getByRole("button", { name: "开始生成" }).click();
+  await page.getByLabel("拆分粒度").selectOption("custom");
+  const startBatchButton = page.getByRole("button", { name: "开始生成" });
+  const allGroups = page.getByRole("radio", { name: "全部汇总" });
+  const authorGroups = page.getByRole("radio", { name: "按作者" });
+  const projectGroups = page.getByRole("radio", { name: "按项目" });
+  const fileNameTemplate = page.getByLabel("文件命名模板");
+  const templateTokens = page.getByRole("group", { name: "可用文件名变量" });
+  await expect(templateTokens.getByRole("button")).toHaveCount(10);
+  await templateTokens.getByRole("button", { name: "复制变量 {period}" }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("{period}");
+  await expect(page.getByRole("status").getByText("已复制 {period}")).toBeVisible();
+  await expect(allGroups).toBeChecked();
+  await authorGroups.check();
+  await expect(fileNameTemplate).toHaveValue("{period}-{author}-{type}.{ext}");
+  await projectGroups.check();
+  await expect(fileNameTemplate).toHaveValue("{period}-{project}-{type}.{ext}");
+  await authorGroups.check();
+  const markdownFormat = page.getByRole("checkbox", { name: "Markdown" });
+  await expect(markdownFormat).toBeChecked();
+  const markdownLabel = markdownFormat.locator("xpath=following-sibling::span");
+  await expect.poll(() => markdownLabel.evaluate((label) => label.scrollWidth <= label.clientWidth)).toBe(true);
+  await markdownFormat.uncheck();
+  await expect(page.getByText("请至少选择一种导出格式。")).toBeVisible();
+  await expect(startBatchButton).toBeDisabled();
+  await markdownFormat.check();
+  await page.getByRole("checkbox", { name: "Word" }).check();
+  await fileNameTemplate.fill("{period}.md");
+  await expect(page.getByText("文件名模板必须以 .{ext} 结尾。")).toBeVisible();
+  await expect(startBatchButton).toBeDisabled();
+  await fileNameTemplate.fill("{period}-{author}-{type}.{ext}");
+  await startBatchButton.click();
 
-  await expect(page.getByText("生成完成：共 5 份")).toBeVisible();
+  await expect(page.getByText("生成完成：共 10 个文件")).toBeVisible();
+  const batchCalls = await page.evaluate(() =>
+    window.__mockTauri.calls.filter((call) => call.cmd === "batch_generate_reports"),
+  );
+  expect(batchCalls).toHaveLength(1);
+  expect(batchCalls[0].args.options.splitGranularity).toBe("custom");
+  expect(batchCalls[0].args.options.groupMode).toBe("author");
+  expect(batchCalls[0].args.options.exportFormats).toEqual(["markdown", "docx"]);
+  expect(batchCalls[0].args.options.fileNameTemplate).toBe("{period}-{author}-{type}.{ext}");
+
   await page.getByRole("button", { name: "打开输出目录" }).click();
 
   const openCalls = await page.evaluate(() =>

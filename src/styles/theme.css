@@ -176,6 +176,31 @@
   background: rgba(63, 140, 255, 0.18);
 }
 
+:root[data-theme="dark"] .batch-choice-option {
+  border-color: rgba(145, 164, 192, 0.24);
+  color: var(--ink-soft);
+  background: rgba(10, 18, 31, 0.72);
+}
+
+:root[data-theme="dark"] .batch-choice-option:hover,
+:root[data-theme="dark"] .batch-choice-option.selected {
+  border-color: rgba(109, 168, 255, 0.42);
+  color: #d8e8ff;
+  background: rgba(63, 140, 255, 0.2);
+}
+
+:root[data-theme="dark"] .batch-template-token {
+  border-color: rgba(109, 168, 255, 0.24);
+  color: #bdd8ff;
+  background: rgba(63, 140, 255, 0.12);
+}
+
+:root[data-theme="dark"] .batch-template-token:hover,
+:root[data-theme="dark"] .batch-template-token:active {
+  border-color: rgba(109, 168, 255, 0.46);
+  background: rgba(63, 140, 255, 0.22);
+}
+
 :root[data-theme="dark"] .repo-refresh-button:hover:not(:disabled) {
   border-color: rgba(109, 168, 255, 0.42);
   background: rgba(63, 140, 255, 0.28);

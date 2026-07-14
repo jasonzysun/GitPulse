@@ -879,6 +879,7 @@ function App() {
         open={batchOpen}
         settings={settings}
         indexedRepos={repos}
+        onNotify={(message, tone) => showMessage(message, tone, 1800)}
         onClose={() => setBatchOpen(false)}
       />
       <RepoMappingDialog

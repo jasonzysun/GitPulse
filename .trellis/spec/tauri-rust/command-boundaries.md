@@ -227,3 +227,91 @@ await openPath(result.outputDir); // Requires a static path scope or unsafe wild
 ```typescript
 await invoke("open_output_directory", { path: result.outputDir });
 ```
+
+## Scenario: Batch Multi-Format Export and File Naming
+
+### 1. Scope / Trigger
+
+- Trigger: one logical batch period must produce one or more file formats with a user-configurable file name.
+- Applies only to `batch_generate_reports`; single-report export commands keep their existing scalar format contract.
+
+### 2. Signatures
+
+- Frontend builder: `buildBatchReportOptions(..., exportFormats: ReportExportFormat[], fileNameTemplate: string, ...)`.
+- Rust payload: `BatchReportOptions { export_formats: Vec<String>, file_name_template: String, ... }`.
+- Naming: `report::batch_file_name(template, format, BatchFileNameContext) -> Result<String, String>`.
+- Collision handling: `report::reserve_batch_file_name(output_dir, candidate, used_names) -> String`.
+
+### 3. Contracts
+
+- `exportFormats` contains at least one of `markdown`, `docx`, or `pdf`; Rust normalizes aliases and preserves first-seen order while removing duplicates.
+- Report content is generated once per logical period, then reused for every selected format.
+- Default template is `{period}-{type}.{ext}`.
+- Supported tokens are `{period}`, `{date}`, `{week}`, `{month}`, `{startDate}`, `{endDate}`, `{author}`, `{project}`, `{type}`, and `{ext}`.
+- `{ext}` must be the final template token. Rust sanitizes control characters and Windows-invalid file-name characters.
+- Progress and result totals count attempted output files. `3 periods * 2 formats == 6 total`.
+- A batch may attempt at most 365 output files, calculated as `period count * group count * normalized format count` after group discovery and before report file writes.
+- Existing files and duplicate names in the same run receive `-2`, `-3`, and later suffixes before the extension.
+
+### 4. Validation & Error Matrix
+
+- Empty `exportFormats` -> `请至少选择一种导出格式`.
+- Unsupported format -> `暂不支持的导出格式`.
+- Empty template -> `文件名模板不能为空`.
+- Template not ending in `.{ext}` -> `文件名模板必须以 .{ext} 结尾`.
+- Unknown or unmatched token -> actionable Chinese template error before Git extraction starts.
+- More than 365 output files -> reject the entire batch after group discovery and before period rendering or file writes.
+- One format write failure -> record that file failure and continue later formats and periods.
+- Period generation failure -> record one failure for each selected format because none of its files can be produced.
+
+### 5. Good/Base/Bad Cases
+
+- Good: two periods with Markdown and Word generate content twice and write four files with `total == 4`.
+- Base: default options select Markdown only and preserve the MVP file names.
+- Bad: regenerate content inside the format loop; this repeats Git scans and can make formats contain different report content.
+- Bad: write a rendered name directly without sanitizing or reserving it; templates could traverse paths or overwrite files.
+
+### 6. Tests Required
+
+- Rust unit tests cover format normalization, every token family, invalid templates, sanitizing, and collision suffixes.
+- Rust smoke test uses a temporary Git repository and asserts multiple real output formats plus file-based progress totals.
+- Playwright asserts multi-select validation and the exact `exportFormats` / `fileNameTemplate` IPC payload.
+- Run `npm run build`, `npm run test:e2e`, `cd src-tauri && cargo check`, and `cd src-tauri && cargo test`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```rust
+for format in &options.export_formats {
+    let content = generate_single_report(&options, period)?;
+    save_report_document(&options.output_dir, "report", &content, format)?;
+}
+```
+
+#### Correct
+
+```rust
+let content = generate_single_report(&options, period)?;
+for format in &formats {
+    let candidate = report::batch_file_name(&options.file_name_template, format, context)?;
+    let file_name = report::reserve_batch_file_name(
+        &options.output_dir,
+        &candidate,
+        &mut used_names,
+    );
+report::save_report_document(&options.output_dir, &file_name, &content, format)?;
+}
+```
+
+### 8. Grouping Extension
+
+- `groupMode` / `group_mode` accepts `all`, `author`, or `project`; missing values default to `all`.
+- Author grouping happens after the existing author-alias normalization.
+- Project grouping must reuse the report module's project mapping resolver and its `仓库(分支)` fallback.
+- Group identities are derived once from commits across the full requested range, then reused for every period.
+- Empty period/group intersections generate empty reports; an entirely empty author/project grouping request returns a Chinese validation error.
+- Grouped totals and the 365-file limit use `period count * group count * normalized format count`.
+- `splitGranularity = custom` creates one custom report period covering the full selected date range and reuses the existing custom report template.
+- Rust regression coverage must include group derivation, empty group rejection, grouped real-file output, custom-range splitting, and output totals.
+- Playwright must cover group selection, group-specific default templates, custom granularity, and the exact camelCase IPC payload.
